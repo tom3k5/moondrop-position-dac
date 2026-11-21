@@ -51,6 +51,9 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 ### Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
 ![Ustawienia urządzenia](docs/screenshots/03-device-settings.png)
 
+### Wbudowany Przewodnik, skróty i wsparcie
+![Zakładka Przewodnik](docs/screenshots/05-guide-tab.png)
+
 ---
 
 ## Szybki start

@@ -51,6 +51,9 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ### Device Status, Gains & PipeWire UAC2 Quality
 ![Device Settings](docs/screenshots/03-device-settings.png)
 
+### Built-in Guide, Shortcuts & Support
+![Guide Tab](docs/screenshots/05-guide-tab.png)
+
 ---
 
 ## Quick Start
