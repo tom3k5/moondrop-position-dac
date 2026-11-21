@@ -2320,7 +2320,14 @@ class ProfilesWindow(QWidget):
         self.connection.setTextFormat(Qt.TextFormat.PlainText)
         self.connection.setStyleSheet(STATUS_PILL_STYLE)
         self.help_button = QPushButton(tr("header.help"))
+        self.help_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogHelpButton))
         self.help_button.setAccessibleName(tr("header.help"))
+        self.help_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help_button.setStyleSheet(
+            "QPushButton { border: 1px solid palette(mid); border-radius: 12px;"
+            " padding: 4px 12px; background: palette(base); font-weight: 600; }"
+            "QPushButton:hover { border-color: palette(highlight); }"
+        )
         self.help_button.clicked.connect(self.open_help_dialog)
         header = QHBoxLayout()
         header.addWidget(heading)
