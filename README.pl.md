@@ -110,7 +110,7 @@ Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)
 ## Wsparcie, zgłoszenia i autor
 
 - **Autor:** [InnoVibe](https://www.innovibe.pl)
-- **Postaw mi kawę:** Podoba Ci się projekt? [Wesprzyj rozwój (płatności PL i EU)](https://www.innovibe.pl/kawa) — lub kliknij **☕ Postaw mi kawę** bezpośrednio w stopce aplikacji.
+- **Postaw mi kawę:** Podoba Ci się projekt? [Wesprzyj rozwój (płatności PL i EU)](https://www.innovibe.pl/ko-fi) — lub kliknij **☕ Postaw mi kawę** bezpośrednio w stopce aplikacji.
 - **Znalazłeś błąd lub masz pomysł?** Użyj przycisku **Zgłoś błąd / Pomysł** w aplikacji (z kopią diagnostyki jednym kliknięciem) albo otwórz zgłoszenie na [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose). Strukturyzowane formularze są automatycznie oznaczane etykietą obszaru.
 
 ---
