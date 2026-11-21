@@ -128,7 +128,7 @@
   "footer.coffee_url": "https://www.innovibe.pl/kawa",
   "footer.coffee_tooltip": "Wesprzyj rozwój aplikacji na Linuxa (płatności PL i EU)",
   "footer.report": "Zgłoś błąd / Pomysł",
-  "footer.report_tooltip": "Zgłoś błąd lub zaproponuj nową funkcję na GitHubie (z automatyczną klasyfikacją AI)",
+  "footer.report_tooltip": "Zgłoś błąd lub zaproponuj nową funkcję na GitHubie (z automatycznym tagowaniem obszaru)",
   "footer.report_bug": "Zgłoś błąd (GitHub)…",
   "footer.report_feature": "Zaproponuj funkcję (GitHub)…",
   "footer.copy_diag": "Kopiuj diagnostykę do schowka",

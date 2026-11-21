@@ -1,12 +1,12 @@
-name: Bug Report (AI-triaged)
+name: Bug Report
 description: Report a bug or hardware detection issue on Linux.
 title: "[Bug]: "
-labels: ["bug", "triage:ai"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting an issue! Structured fields below help both maintainers and automated AI triage diagnose your report quickly.
+        Thanks for reporting an issue! Structured fields below help maintainers diagnose your report quickly.
   - type: dropdown
     id: area
     attributes:

@@ -1,0 +1,38 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply area label from issue form
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || "";
+            const areaMap = {
+              "GUI / PySide6": "area:gui",
+              "USB HID / Hardware DSP": "area:hid",
+              "AutoEq / EQ Optimizer": "area:autoeq",
+              "PipeWire / UAC2 Sample Rate": "area:audio",
+              "Flatpak / udev Packaging": "area:packaging",
+              "Translations (i18n)": "area:i18n"
+            };
+            const labels = [];
+            for (const [key, label] of Object.entries(areaMap)) {
+              if (body.includes(key)) labels.push(label);
+            }
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels
+              });
+            }
