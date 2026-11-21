@@ -1,0 +1,49 @@
+[project]
+name = "moondrop-position-dac"
+version = "0.1.0"
+description = "Linux desktop GUI and CLI for MOONDROP Position USB-C DAC/AMP (35d8:0123) DSP/EQ"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["skrypty", "tests"]
+extend-exclude = [".venvs", ".flatpak-builder", "flatpak-build", "flatpak-repo", "docs/ref"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+    "C4",   # flake8-comprehensions
+    "ISC",  # flake8-implicit-str-concat
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "RUF001", # ambiguous unicode characters (Polish UI strings, minus sign −, en-dash –, arrow →)
+    "RUF002", # ambiguous unicode in docstrings
+    "RUF003", # ambiguous unicode in comments
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["moondrop_position", "autoeq_catalog", "measurements", "eq_fit", "position_gui"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["skrypty"]
+addopts = "-q"

@@ -1,0 +1,194 @@
+{
+  "id": "local.moondrop.Position",
+  "runtime": "org.kde.Platform",
+  "runtime-version": "6.11",
+  "sdk": "org.kde.Sdk",
+  "base": "io.qt.PySide.BaseApp",
+  "base-version": "6.11",
+  "command": "position-dac",
+  "finish-args": [
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--share=ipc",
+    "--share=network",
+    "--device=all",
+    "--talk-name=org.kde.StatusNotifierWatcher"
+  ],
+  "build-options": {
+    "env": {
+      "BASEAPP_REMOVE_WEBENGINE": "1"
+    }
+  },
+  "cleanup-commands": [
+    "/app/cleanup-BaseApp.sh"
+  ],
+  "modules": [
+    {
+      "name": "python3-autoeq",
+      "buildsystem": "simple",
+      "build-commands": [
+        "pip3 install --verbose --exists-action=i --no-index --find-links=\"file://${PWD}\" --prefix=${FLATPAK_DEST} --no-build-isolation --no-deps --ignore-requires-python *.whl"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/e3/df/a4d8734c97f017d133891dce25b094e1613c60dc50adf51e866d027a9e68/autoeq-4.1.2-py3-none-any.whl",
+          "sha256": "771f98b0c8cd06395fc87461727c757e9d6e4c25905538d62d78e7b9efa86c25"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/41/48/6450ed9243315322bbc19ac57b9b70d66a20bf1d38d124c96bc4bf6af9ea/scipy-1.18.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "fdaf5ea890a6183d0565f51a61799d67081bd5b1cf03c5f4b3fd3732108625c9"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/40/d6/68dd5a83914bbcaf32b3165993f7955979916708cb0156d1e28231e18803/numpy-2.5.5-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "824025655df929268bfe6b47ed91a00d14209a6f760847cf150be446829e1ce4"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/a9/df/e7c10292f348cf55178a5b3c0092a38ea68891a3945f199ae8b7b8ac9dc1/matplotlib-3.11.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "1944895967f87c84c9b4bad29a707b31f5b36df4a3a2339ea1f8ea3ce5105539"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/ef/fe/f5cdaa2d1c4086e757430f368c271a58ee29cfe7378e7ae7b9d964015c25/pillow-13.0.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "5f56499c1a74d2b862beb0c33b8016f99d095858455df9d21583bbbc1c15b582"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/68/77/8f93ecbde1a4d11dfd460cd19a0c159f5487352e751fa87f5d78cc9db08e/contourpy-1.4.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "f1219a8898523cba821085f2da8a1b962cc696325763f09d7f93538ba43b2d70"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/e7/05/c19819d5e3d95294a6f5947fb9b9629efb316b96de511b418c53d245aae6/cycler-0.12.1-py3-none-any.whl",
+          "sha256": "85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/79/c6/4b44abbffa01f85d6d0f0b9325a712019b4e2e6208f999ac6846d8da1346/fonttools-4.68.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "08851f7d2b983412f490b73a7c56f17cbda1d4d85d2ad3f857564bf15b5d9475"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/ab/43/86aacc027959108b4c66eeae8b73cedb057dfa6eb3a335d05ad65197081c/kiwisolver-1.5.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "74ad5c3dad54a4641b4c28cd15ded70899d04459c6c7aeacafea716be97cce6d"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+          "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl",
+          "sha256": "ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/2f/a9/52b89563d154433d79b51ed1eb4842bf7334cb2696891a7fe135618853d7/python_dateutil-4.0.0-py3-none-any.whl",
+          "sha256": "a5e246f79eb80475e691bf93862cead98decd8a498cf53ba0516fcdc0f50dc1c"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/74/27/e5b8f34d02d9995b80abcef563ea1f8b56d20134d8f4e5e81733b1feceb2/pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl",
+          "sha256": "f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3"
+        },
+        {
+          "type": "file",
+          "url": "https://files.pythonhosted.org/packages/0a/66/9a06c2227fedfd4919f0eaaa8b94377d9730882a7e4f95823c9a331ab5e1/tzdata-2026.6-py2.py3-none-any.whl",
+          "sha256": "0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec"
+        }
+      ]
+    },
+    {
+      "name": "position-dac",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 position-dac /app/bin/position-dac",
+        "install -Dm644 position_gui.py /app/share/position-dac/skrypty/position_gui.py",
+        "install -Dm644 moondrop_position.py /app/share/position-dac/skrypty/moondrop_position.py",
+        "install -Dm644 autoeq_catalog.py /app/share/position-dac/skrypty/autoeq_catalog.py",
+        "install -Dm644 i18n.py /app/share/position-dac/skrypty/i18n.py",
+        "install -Dm644 measurements.py /app/share/position-dac/skrypty/measurements.py",
+        "install -Dm644 eq_fit.py /app/share/position-dac/skrypty/eq_fit.py",
+        "install -Dm644 pl.json /app/share/position-dac/dane/i18n/pl.json",
+        "install -Dm644 en.json /app/share/position-dac/dane/i18n/en.json",
+        "install -Dm644 moondrop-position-harman.json /app/share/position-dac/dane/profile/moondrop-position-harman.json",
+        "install -Dm644 'Harman in-ear 2019.csv' '/app/share/position-dac/dane/targety/Harman in-ear 2019.csv'",
+        "install -Dm644 'Moondrop Position (B&K 5128).csv' '/app/share/position-dac/dane/pomiary/Moondrop Position (B&K 5128).csv'",
+        "install -Dm644 local.moondrop.Position.desktop /app/share/applications/local.moondrop.Position.desktop",
+        "install -Dm644 local.moondrop.Position.metainfo.xml /app/share/metainfo/local.moondrop.Position.metainfo.xml",
+        "install -Dm644 local.moondrop.Position.svg /app/share/icons/hicolor/scalable/apps/local.moondrop.Position.svg"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "path": "flatpak/position-dac"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/position_gui.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/moondrop_position.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/autoeq_catalog.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/i18n.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/measurements.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/eq_fit.py"
+        },
+        {
+          "type": "file",
+          "path": "dane/i18n/pl.json"
+        },
+        {
+          "type": "file",
+          "path": "dane/i18n/en.json"
+        },
+        {
+          "type": "file",
+          "path": "dane/profile/moondrop-position-harman.json"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/Harman in-ear 2019.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/pomiary/Moondrop Position (B&K 5128).csv"
+        },
+        {
+          "type": "file",
+          "path": "flatpak/local.moondrop.Position.desktop"
+        },
+        {
+          "type": "file",
+          "path": "flatpak/local.moondrop.Position.metainfo.xml"
+        },
+        {
+          "type": "file",
+          "path": "flatpak/local.moondrop.Position.svg"
+        }
+      ]
+    }
+  ]
+}

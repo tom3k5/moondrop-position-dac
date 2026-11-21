@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venvs/
+.cache/
+.pytest_cache/
+.ruff_cache/
+.flatpak-builder/
+flatpak-build/
+flatpak-repo/
+*.flatpak
+AGENTS.md
+.agents/
+dane/urzadzenie-*.txt

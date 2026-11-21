@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>local.moondrop.Position</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>MOONDROP Position</name>
+  <summary>Apply equalizer profiles to a MOONDROP Position DAC</summary>
+  <summary xml:lang="pl">Stosuj profile korektora w DAC-u MOONDROP Position</summary>
+  <description>
+    <p>Read the active slot and pre-gain, select an EQ profile, and verify the settings reported by the connected MOONDROP Position.</p>
+    <p xml:lang="pl">Odczytaj aktywny slot i pre-gain, wybierz profil EQ i sprawdź ustawienia zgłoszone przez podłączony MOONDROP Position.</p>
+  </description>
+  <launchable type="desktop-id">local.moondrop.Position.desktop</launchable>
+  <supports><modalias>usb:v35D8p0123d*</modalias></supports>
+  <content_rating type="oars-1.1"/>
+</component>

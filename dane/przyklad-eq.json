@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "Przykład EQ dla MOONDROP Position (8 pasm, oficjalna apka: PK/LP/HP, bez półek).",
+    "Wartości są w jednostkach, które urządzenie przyjmuje: Hz, dB, Q; typ: PK/LPQ/HPQ.",
+    "Aby zapisać: skrypty/moondrop_position.py write-eq --file dane/przyklad-eq.json --dry-run",
+    "Potem (po regule udev) bez --dry-run i z --yes."
+  ],
+  "slot": 7,
+  "preamp": -2.5,
+  "bands": [
+    { "freq": 20, "gain": 0, "q": 0.7, "type": "PK" },
+    { "freq": 105, "gain": 2.0, "q": 1.0, "type": "PK" },
+    { "freq": 300, "gain": -1.5, "q": 1.2, "type": "PK" },
+    { "freq": 1000, "gain": 0, "q": 1.0, "type": "PK" },
+    { "freq": 3000, "gain": 1.0, "q": 1.4, "type": "PK" },
+    { "freq": 6000, "gain": -2.0, "q": 1.6, "type": "PK" },
+    { "freq": 10000, "gain": 0, "q": 1.0, "type": "PK" },
+    { "freq": 20000, "gain": 0, "q": 0.7, "type": "PK" }
+  ]
+}

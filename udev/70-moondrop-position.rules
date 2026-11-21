@@ -1,0 +1,20 @@
+# MOONDROP Position (35d8:0123) — dostęp do HID bez roota
+#
+# Urządzenie ma dwa interfejsy HID:
+#   * interface 3 (hidraw, report 0x4B i 0x54) — kanał vendor/DSP (EQ)
+#   * interface 4 (hidraw, report 0x03)        — klawisze konsumenckie (głośność itp.)
+#
+# Bez tej reguły /dev/hidraw* jest root:root 0600 i ani Chrome/WebHID,
+# ani FreeDSP Studio, ani skrypty użytkownika nie otworzą urządzenia.
+#
+# Instalacja:
+#   sudo cp 70-moondrop-position.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+#   # odłącz i podłącz DAC ponownie
+#
+# Weryfikacja:
+#   ls -l /dev/hidraw*   # powinno być crw-rw----+ 1 root root ...
+#   getfacl /dev/hidraw0 # ACL dla zalogowanego użytkownika (tag uaccess)
+
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="35d8", ATTRS{idProduct}=="0123", MODE="0660", TAG+="uaccess"

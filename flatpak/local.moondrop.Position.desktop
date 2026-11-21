@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=MOONDROP Position
+Comment=Manage EQ profiles on the MOONDROP Position DAC
+Comment[pl]=Zarządzaj profilami EQ w DAC-u MOONDROP Position
+Exec=position-dac
+Icon=local.moondrop.Position
+Terminal=false
+Categories=AudioVideo;Audio;

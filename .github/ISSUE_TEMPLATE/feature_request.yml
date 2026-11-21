@@ -1,0 +1,37 @@
+name: Feature Request (AI-triaged)
+description: Suggest a new feature, UX improvement, or hardware control.
+title: "[Feature]: "
+labels: ["enhancement", "triage:ai"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component / Area
+      options:
+        - GUI / PySide6
+        - USB HID / Hardware DSP
+        - AutoEq / EQ Optimizer
+        - PipeWire / UAC2 Sample Rate
+        - Flatpak / udev Packaging
+        - Translations (i18n)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to achieve (e.g., gaming EQ switching, AutoEq workflow, PipeWire)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe how you'd like this to work.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Environment (optional)
+      placeholder: "Distro / DE / Install method"

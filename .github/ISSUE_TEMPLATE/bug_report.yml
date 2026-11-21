@@ -1,0 +1,52 @@
+name: Bug Report (AI-triaged)
+description: Report a bug or hardware detection issue on Linux.
+title: "[Bug]: "
+labels: ["bug", "triage:ai"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue! Structured fields below help both maintainers and automated AI triage diagnose your report quickly.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component / Area
+      options:
+        - GUI / PySide6
+        - USB HID / Hardware DSP
+        - AutoEq / EQ Optimizer
+        - PipeWire / UAC2 Sample Rate
+        - Flatpak / udev Packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Connect MOONDROP Position
+        2. Open AutoEq tab and select...
+        3. Click 'Apply to DAC'
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / Distro / Desktop Environment
+      placeholder: "e.g., EndeavourOS / KDE Plasma 6 (Wayland), Flatpak or source"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic output (--diagnose or GUI "Copy diagnostic info")
+      description: Paste output from `python3 skrypty/position_gui.py --diagnose` or the app's Report menu.
+      render: text

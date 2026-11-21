@@ -1,0 +1,82 @@
+{
+  "device": "MOONDROP Position",
+  "usb": "35d8:0123",
+  "slot": 7,
+  "preamp": -4.66,
+  "bands": [
+    {
+      "band": 1,
+      "freq": 34.6,
+      "gain": 4.34,
+      "q": 0.731,
+      "type": "PK"
+    },
+    {
+      "band": 2,
+      "freq": 59.8,
+      "gain": 0.794,
+      "q": 3.103,
+      "type": "PK"
+    },
+    {
+      "band": 3,
+      "freq": 109.4,
+      "gain": 2.398,
+      "q": 1.308,
+      "type": "PK"
+    },
+    {
+      "band": 4,
+      "freq": 139.7,
+      "gain": -1.676,
+      "q": 3.666,
+      "type": "PK"
+    },
+    {
+      "band": 5,
+      "freq": 456.9,
+      "gain": 1.578,
+      "q": 1.933,
+      "type": "PK"
+    },
+    {
+      "band": 6,
+      "freq": 3536.6,
+      "gain": -0.695,
+      "q": 1.143,
+      "type": "PK"
+    },
+    {
+      "band": 7,
+      "freq": 5682.3,
+      "gain": 3.355,
+      "q": 2.136,
+      "type": "PK"
+    },
+    {
+      "band": 8,
+      "freq": 6248.1,
+      "gain": 0.721,
+      "q": 2.142,
+      "type": "PK"
+    }
+  ],
+  "meta": {
+    "created": "2026-11-19T23:09:59",
+    "measurement": "Moondrop Position (B&K 5128).csv",
+    "target": "Harman in-ear 2019.csv",
+    "auto_eq_config": {
+      "fs": 96000,
+      "bands": 8,
+      "boost_max": 6.0,
+      "cut_max": -12.0,
+      "eq_max_gain": 6.0,
+      "bass_boost": 0.0,
+      "tilt": 0.0,
+      "concha_interference": false
+    },
+    "predicted_error_rms_db": 2.196,
+    "predicted_error_max_db": 12.481,
+    "pre_eq_error_rms_db": 3.048
+  }
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation & Hardware Protocol
+    url: https://github.com/tom3k5/moondrop-position-dac/blob/main/docs/protokol-hid.md
+    about: Check USB HID 0x4B protocol details and udev troubleshooting before opening a bug report.
+  - name: InnoVibe
+    url: https://www.innovibe.pl/en
+    about: Author homepage and project updates.
