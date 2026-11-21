@@ -101,7 +101,7 @@ def test_help_dialog_tooltips_and_footer_links(tmp_path: Path, monkeypatch) -> N
     app = QApplication.instance() or QApplication([])
     window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
     try:
-        assert window.help_button.toolTip()
+        assert window.tabs.count() == 3
         assert window.author_button.text() == "InnoVibe"
         assert window.coffee_button.toolTip()
         assert window.report_button.toolTip()
@@ -111,10 +111,9 @@ def test_help_dialog_tooltips_and_footer_links(tmp_path: Path, monkeypatch) -> N
         assert "Firmware: 0.5" in diag
         assert "Active slot: 7 (Custom)" in diag
 
-        help_dialog = gui.AboutHelpDialog(window)
-        help_dialog.show()
-        app.processEvents()
-        help_dialog.close()
+        assert window.why_label.text()
+        assert window.guide_tips_label.text()
+        assert window.guide_hub_btn.text()
 
         # Sprawdź przełączanie motywu InnoVibe (ciemny / jasny)
         dark_idx = window.theme_combo.findData("dark")

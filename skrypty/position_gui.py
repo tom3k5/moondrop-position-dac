@@ -84,7 +84,6 @@ from PySide6.QtWidgets import (
     QStyle,
     QSystemTrayIcon,
     QTabWidget,
-    QTextBrowser,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -1339,63 +1338,6 @@ class PlotKey(QWidget):
                 label.setText(" = ".join(self.labels[index] for index in roles))
 
 
-class AboutHelpDialog(QDialog):
-    """Okno wyjaśniające cel wersji Linux, podpowiedzi oraz odnośniki do InnoVibe, wsparcia i GitHuba."""
-
-    def __init__(self, parent: QWidget):
-        super().__init__(parent)
-        self.setWindowTitle(tr("help.title"))
-        self.setStyleSheet(APP_STYLE)
-        self.setMinimumSize(700, 540)
-        self.resize(780, 600)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 18, 22, 18)
-        layout.setSpacing(12)
-
-        heading = QLabel(tr("app.title"))
-        font = heading.font()
-        font.setPointSizeF(font.pointSizeF() * 1.35)
-        font.setBold(True)
-        heading.setFont(font)
-        subtitle = QLabel(tr("help.subtitle"))
-        subtitle.setWordWrap(True)
-        layout.addWidget(heading)
-        layout.addWidget(subtitle)
-
-        self.browser = QTextBrowser()
-        self.browser.setOpenExternalLinks(True)
-        self.browser.setHtml(tr("help.body_html"))
-        self.browser.setStyleSheet(
-            "QTextBrowser { border: 1px solid palette(mid); border-radius: 8px; padding: 12px 14px; }"
-        )
-        layout.addWidget(self.browser, 1)
-
-        buttons = QHBoxLayout()
-        buttons.setSpacing(8)
-        author_btn = QPushButton(tr("footer.author_label"))
-        author_btn.setToolTip(tr("footer.author_tooltip"))
-        author_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(tr("footer.author_url"))))
-        coffee_btn = QPushButton(tr("footer.coffee"))
-        coffee_btn.setToolTip(tr("footer.coffee_tooltip"))
-        coffee_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(tr("footer.coffee_url"))))
-        hub_btn = QPushButton(tr("help.open_hub"))
-        hub_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_HUB_URL)))
-        close_btn = QPushButton(tr("help.close"))
-        close_btn.setDefault(True)
-        close_btn.clicked.connect(self.accept)
-        buttons.addWidget(author_btn)
-        buttons.addWidget(coffee_btn)
-        buttons.addWidget(hub_btn)
-        buttons.addStretch()
-        buttons.addWidget(close_btn)
-        layout.addLayout(buttons)
-
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)
-        paint_innovibe_backdrop(self)
-
-
 class EqualizerDialog(QDialog):
     def __init__(
         self,
@@ -2326,21 +2268,10 @@ class ProfilesWindow(QWidget):
         self.connection = QLabel(tr("status.demo") if demo else tr("status.searching"))
         self.connection.setTextFormat(Qt.TextFormat.PlainText)
         self.connection.setStyleSheet(STATUS_PILL_STYLE)
-        self.help_button = QPushButton(tr("header.help"))
-        self.help_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogHelpButton))
-        self.help_button.setAccessibleName(tr("header.help"))
-        self.help_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.help_button.setStyleSheet(
-            "QPushButton { border: 1px solid palette(mid); border-radius: 12px;"
-            " padding: 4px 12px; background: palette(base); font-weight: 600; }"
-            "QPushButton:hover { border-color: palette(highlight); }"
-        )
-        self.help_button.clicked.connect(self.open_help_dialog)
         header = QHBoxLayout()
         header.addWidget(heading)
         header.addStretch()
         header.addWidget(self.connection)
-        header.addWidget(self.help_button)
         layout.addLayout(header)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
@@ -2635,6 +2566,47 @@ class ProfilesWindow(QWidget):
         profile_layout.addLayout(actions)
         self.tabs.addTab(self.profile_page, tr("tab.tuning"))
         self.tabs.addTab(device_scroll, tr("tab.device"))
+
+        guide_page = QWidget()
+        guide_layout = QVBoxLayout(guide_page)
+        guide_layout.setContentsMargins(18, 14, 18, 14)
+        guide_layout.setSpacing(12)
+
+        self.why_box = QGroupBox(tr("help.why_group"))
+        why_layout = QVBoxLayout(self.why_box)
+        self.why_label = QLabel(tr("help.why_body"))
+        self.why_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.why_label.setWordWrap(True)
+        why_layout.addWidget(self.why_label)
+
+        self.guide_tips_box = QGroupBox(tr("help.tips_group"))
+        guide_tips_layout = QVBoxLayout(self.guide_tips_box)
+        self.guide_tips_label = QLabel(tr("help.tips_body"))
+        self.guide_tips_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.guide_tips_label.setWordWrap(True)
+        guide_tips_layout.addWidget(self.guide_tips_label)
+
+        self.links_box = QGroupBox(tr("help.links_group"))
+        links_layout = QHBoxLayout(self.links_box)
+        links_layout.setSpacing(10)
+        self.guide_hub_btn = QPushButton(tr("help.open_hub"))
+        self.guide_hub_btn.clicked.connect(lambda: self.open_external_url(OFFICIAL_HUB_URL))
+        self.guide_author_btn = QPushButton(tr("footer.author_label"))
+        self.guide_author_btn.setToolTip(tr("footer.author_tooltip"))
+        self.guide_author_btn.clicked.connect(lambda: self.open_external_url(tr("footer.author_url")))
+        self.guide_coffee_btn = QPushButton(tr("footer.coffee"))
+        self.guide_coffee_btn.setToolTip(tr("footer.coffee_tooltip"))
+        self.guide_coffee_btn.clicked.connect(lambda: self.open_external_url(tr("footer.coffee_url")))
+        links_layout.addWidget(self.guide_hub_btn)
+        links_layout.addWidget(self.guide_author_btn)
+        links_layout.addWidget(self.guide_coffee_btn)
+        links_layout.addStretch()
+
+        guide_layout.addWidget(self.why_box)
+        guide_layout.addWidget(self.guide_tips_box)
+        guide_layout.addWidget(self.links_box)
+        guide_layout.addStretch()
+        self.tabs.addTab(guide_page, tr("tab.guide"))
         self.search_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
         self.search_shortcut.activated.connect(self.focus_search)
         self.import_shortcut = QShortcut(QKeySequence.StandardKey.Open, self)
@@ -2768,7 +2740,6 @@ class ProfilesWindow(QWidget):
 
     def apply_tooltips(self) -> None:
         self.connection.setToolTip(tr("tooltip.connection"))
-        self.help_button.setToolTip(tr("header.help_tooltip"))
         self.source_group.button(0).setToolTip(tr("tooltip.source_my_profiles"))
         self.source_group.button(1).setToolTip(tr("tooltip.source_autoeq"))
         self.profile_search.setToolTip(tr("tooltip.profile_search"))
@@ -2795,9 +2766,6 @@ class ProfilesWindow(QWidget):
         self.author_button.setToolTip(tr("footer.author_tooltip"))
         self.coffee_button.setToolTip(tr("footer.coffee_tooltip"))
         self.report_button.setToolTip(tr("footer.report_tooltip"))
-
-    def open_help_dialog(self) -> None:
-        AboutHelpDialog(self).exec()
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
@@ -2855,8 +2823,6 @@ class ProfilesWindow(QWidget):
 
     def retranslate_ui(self) -> None:
         self.setWindowTitle(tr("app.title"))
-        self.help_button.setText(tr("header.help"))
-        self.help_button.setAccessibleName(tr("header.help"))
         self.author_button.setText(tr("footer.author_label"))
         self.coffee_button.setText(tr("footer.coffee"))
         self.report_button.setText(tr("footer.report"))
@@ -2865,6 +2831,15 @@ class ProfilesWindow(QWidget):
         self.copy_diag_action.setText(tr("footer.copy_diag"))
         self.tabs.setTabText(0, tr("tab.tuning"))
         self.tabs.setTabText(1, tr("tab.device"))
+        self.tabs.setTabText(2, tr("tab.guide"))
+        self.why_box.setTitle(tr("help.why_group"))
+        self.why_label.setText(tr("help.why_body"))
+        self.guide_tips_box.setTitle(tr("help.tips_group"))
+        self.guide_tips_label.setText(tr("help.tips_body"))
+        self.links_box.setTitle(tr("help.links_group"))
+        self.guide_hub_btn.setText(tr("help.open_hub"))
+        self.guide_author_btn.setText(tr("footer.author_label"))
+        self.guide_coffee_btn.setText(tr("footer.coffee"))
         self.device_box.setTitle(tr("device.read_settings"))
         for key, lbl in self.detail_labels.items():
             lbl.setText(tr(key))
