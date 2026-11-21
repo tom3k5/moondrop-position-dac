@@ -182,6 +182,7 @@ QToolButton::menu-indicator {
 }
 QPushButton:hover:enabled, QToolButton:hover:enabled {
     border-color: palette(highlight);
+    background: palette(alternate-base);
 }
 QPushButton:disabled, QToolButton:disabled {
     color: palette(placeholder-text);
@@ -194,7 +195,14 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
     min-height: 24px;
     background: palette(base);
 }
+QLineEdit:hover:enabled, QComboBox:hover:enabled, QSpinBox:hover:enabled, QDoubleSpinBox:hover:enabled {
+    border-color: palette(highlight);
+    background: palette(alternate-base);
+}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+    border-color: palette(highlight);
+}
+QCheckBox::indicator:hover:enabled {
     border-color: palette(highlight);
 }
 QListWidget, QListView {
@@ -206,6 +214,9 @@ QListWidget, QListView {
 QListWidget::item, QListView::item {
     border-radius: 4px;
     padding: 5px 8px;
+}
+QListWidget::item:hover:!selected, QListView::item:hover:!selected {
+    background: palette(alternate-base);
 }
 QListWidget::item:selected, QListView::item:selected {
     background: palette(highlight);
@@ -237,6 +248,10 @@ QTabBar::tab {
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
 }
+QTabBar::tab:hover:!selected {
+    background: palette(alternate-base);
+    border-color: palette(mid);
+}
 QTabBar::tab:selected {
     border-color: palette(mid);
     border-bottom-color: palette(window);
@@ -253,6 +268,7 @@ QToolTip {
 """
 SEGMENT_BUTTON_STYLE = (
     "QPushButton { border: 1px solid palette(mid); padding: 5px 10px; background: palette(window); }"
+    "QPushButton:hover:!checked { border-color: palette(highlight); background: palette(alternate-base); }"
     "QPushButton:checked { border-color: palette(highlight); background: palette(highlight);"
     " color: palette(highlighted-text); font-weight: 600; }"
 )
