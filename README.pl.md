@@ -34,12 +34,14 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 | Oddzielna biblioteka na dysku vs pamięć flash DAC-a | Ograniczone | **Pełna biblioteka lokalna, import/eksport JSON i Equalizer APO** |
 | Monitor strumienia UAC2 i próbkowania PipeWire | Nie | **Tak (`44,1–384 kHz` + odczyt głębi bitowej ALSA)** |
 | Weryfikacja zapisu i kopia zapasowa | Podstawowa | **Weryfikacja przed/po zapisie flash + eksport kopii** |
+| Motywy, język i wbudowany Przewodnik | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, zakładka Przewodnik** |
 
 ---
 
 ## Zrzuty ekranu
 
 ### Strojenie i podgląd charakterystyki
+Symetryczne karty listy i podglądu z przyciskami `Edytuj EQ…` oraz `Wgraj do DAC-a` w nagłówku karty:
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
 
 ### Wbudowany katalog AutoEq
@@ -49,6 +51,7 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 ![Edytor EQ](docs/screenshots/04-eq-editor.png)
 
 ### Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
+Dwukolumnowy widok bez przewijania: odczyt DAC-a, wzmocnienie, próbkowanie UAC2/PipeWire oraz wybór motywu i języka:
 ![Ustawienia urządzenia](docs/screenshots/03-device-settings.png)
 
 ### Wbudowany Przewodnik, skróty i wsparcie

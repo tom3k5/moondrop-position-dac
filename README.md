@@ -34,12 +34,14 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 | Disk Profile Library vs DAC Flash Separation | Limited | **Full local library, JSON & Equalizer APO import/export** |
 | PipeWire UAC2 Stream & Sample Rate Monitor | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
 | Readback Verification & Backup | Basic | **Strict pre/post-flash verification & 1-click backup** |
+| Themes, Language & Built-in Guide | Web only | **InnoVibe Dark & Light themes, EN / PL, Guide tab** |
 
 ---
 
 ## Screenshots
 
 ### Tuning & Frequency Response Preview
+Symmetric Master-Detail cards with `Edit EQ…` and `Apply to DAC` directly in the preview header:
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
 
 ### Built-in AutoEq Catalog
@@ -49,6 +51,7 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
 ### Device Status, Gains & PipeWire UAC2 Quality
+Zero-scroll 2-column dashboard for hardware readback, gain controls, UAC2/PipeWire sample rate, and theme/language settings:
 ![Device Settings](docs/screenshots/03-device-settings.png)
 
 ### Built-in Guide, Shortcuts & Support
