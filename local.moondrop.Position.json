@@ -120,6 +120,7 @@
         "install -Dm644 eq_fit.py /app/share/position-dac/skrypty/eq_fit.py",
         "install -Dm644 pl.json /app/share/position-dac/dane/i18n/pl.json",
         "install -Dm644 en.json /app/share/position-dac/dane/i18n/en.json",
+        "install -Dm644 innovibe.svg /app/share/position-dac/dane/innovibe.svg",
         "install -Dm644 moondrop-position-harman.json /app/share/position-dac/dane/profile/moondrop-position-harman.json",
         "install -Dm644 'Harman in-ear 2019.csv' '/app/share/position-dac/dane/targety/Harman in-ear 2019.csv'",
         "install -Dm644 'Moondrop Position (B&K 5128).csv' '/app/share/position-dac/dane/pomiary/Moondrop Position (B&K 5128).csv'",
@@ -163,6 +164,10 @@
         {
           "type": "file",
           "path": "dane/i18n/en.json"
+        },
+        {
+          "type": "file",
+          "path": "dane/innovibe.svg"
         },
         {
           "type": "file",

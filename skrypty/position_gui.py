@@ -98,6 +98,7 @@ from measurements import read_squig_txt
 DATA_DIR = Path(__file__).resolve().parents[1] / "dane"
 BUILTIN_PROFILE = DATA_DIR / "profile/moondrop-position-harman.json"
 HARMAN_TARGET = DATA_DIR / "targety/Harman in-ear 2019.csv"
+INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
 GITHUB_REPO_URL = "https://github.com/tom3k5/moondrop-position-dac"
 OFFICIAL_HUB_URL = "https://hub.moondroplab.tech/"
 PROFILE_ROLE = Qt.ItemDataRole.UserRole
@@ -119,6 +120,7 @@ QGroupBox::title {
     subcontrol-origin: margin;
     left: 12px;
     padding: 0 6px;
+    color: palette(link);
 }
 QPushButton {
     border: 1px solid palette(mid);
@@ -2398,8 +2400,8 @@ class ProfilesWindow(QWidget):
 
         self.tips_box = QGroupBox(tr("device.tips_group"))
         tips_layout = QVBoxLayout(self.tips_box)
-        self.tips_label = QLabel(tr("device.tips_body"))
-        self.tips_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.tips_label = QLabel()
+        self.tips_label.setTextFormat(Qt.TextFormat.RichText)
         self.tips_label.setWordWrap(True)
         tips_layout.addWidget(self.tips_label)
 
@@ -2574,15 +2576,16 @@ class ProfilesWindow(QWidget):
 
         self.why_box = QGroupBox(tr("help.why_group"))
         why_layout = QVBoxLayout(self.why_box)
-        self.why_label = QLabel(tr("help.why_body"))
-        self.why_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.why_label = QLabel()
+        self.why_label.setTextFormat(Qt.TextFormat.RichText)
+        self.why_label.setOpenExternalLinks(True)
         self.why_label.setWordWrap(True)
         why_layout.addWidget(self.why_label)
 
         self.guide_tips_box = QGroupBox(tr("help.tips_group"))
         guide_tips_layout = QVBoxLayout(self.guide_tips_box)
-        self.guide_tips_label = QLabel(tr("help.tips_body"))
-        self.guide_tips_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.guide_tips_label = QLabel()
+        self.guide_tips_label.setTextFormat(Qt.TextFormat.RichText)
         self.guide_tips_label.setWordWrap(True)
         guide_tips_layout.addWidget(self.guide_tips_label)
 
@@ -2591,10 +2594,13 @@ class ProfilesWindow(QWidget):
         links_layout.setSpacing(10)
         self.guide_hub_btn = QPushButton(tr("help.open_hub"))
         self.guide_hub_btn.clicked.connect(lambda: self.open_external_url(OFFICIAL_HUB_URL))
+        innovibe_icon = QIcon(str(INNOVIBE_ICON))
         self.guide_author_btn = QPushButton(tr("footer.author_label"))
+        self.guide_author_btn.setIcon(innovibe_icon)
         self.guide_author_btn.setToolTip(tr("footer.author_tooltip"))
         self.guide_author_btn.clicked.connect(lambda: self.open_external_url(tr("footer.author_url")))
         self.guide_coffee_btn = QPushButton(tr("footer.coffee"))
+        self.guide_coffee_btn.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.guide_coffee_btn.setToolTip(tr("footer.coffee_tooltip"))
         self.guide_coffee_btn.clicked.connect(lambda: self.open_external_url(tr("footer.coffee_url")))
         links_layout.addWidget(self.guide_hub_btn)
@@ -2624,6 +2630,7 @@ class ProfilesWindow(QWidget):
         footer.setContentsMargins(0, 0, 0, 0)
         footer.setSpacing(6)
         self.author_button = QPushButton(tr("footer.author_label"))
+        self.author_button.setIcon(QIcon(str(INNOVIBE_ICON)))
         self.author_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.author_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(tr("footer.author_url"))))
         self.coffee_button = QPushButton(tr("footer.coffee"))
@@ -2649,6 +2656,7 @@ class ProfilesWindow(QWidget):
         footer.addWidget(self.report_button)
         layout.addWidget(footer_widget)
         self.apply_tooltips()
+        self.update_accent_texts()
 
         self.load_library()
         self.profiles.currentItemChanged.connect(self.update_selection)
@@ -2717,12 +2725,21 @@ class ProfilesWindow(QWidget):
         i18n.set_language(code, locale_name=QLocale.system().name())
         self.retranslate_ui()
 
+    def update_accent_texts(self) -> None:
+        dark = self.palette().window().color().lightness() < 128
+        accent = "#ffb347" if dark else "#e5470a"
+        if hasattr(self, "tips_label"):
+            self.tips_label.setText(tr("device.tips_body", accent=accent))
+            self.why_label.setText(tr("help.why_body", accent=accent))
+            self.guide_tips_label.setText(tr("help.tips_body", accent=accent))
+
     def apply_theme(self, theme_pref: str) -> None:
         dark = self.system_dark if theme_pref == "auto" else (theme_pref == "dark")
         app_instance = QApplication.instance()
         if app_instance is not None:
             app_instance.setPalette(build_innovibe_palette(dark))
         self.setStyleSheet(APP_STYLE)
+        self.update_accent_texts()
         if hasattr(self, "preview_plot"):
             self.preview_plot.update()
             self.correction_plot.update()
@@ -2833,9 +2850,7 @@ class ProfilesWindow(QWidget):
         self.tabs.setTabText(1, tr("tab.device"))
         self.tabs.setTabText(2, tr("tab.guide"))
         self.why_box.setTitle(tr("help.why_group"))
-        self.why_label.setText(tr("help.why_body"))
         self.guide_tips_box.setTitle(tr("help.tips_group"))
-        self.guide_tips_label.setText(tr("help.tips_body"))
         self.links_box.setTitle(tr("help.links_group"))
         self.guide_hub_btn.setText(tr("help.open_hub"))
         self.guide_author_btn.setText(tr("footer.author_label"))
@@ -2869,7 +2884,7 @@ class ProfilesWindow(QWidget):
         self.backup_button.setText(tr("device.export_dac"))
         self.defaults_button.setText(tr("device.factory_reset"))
         self.tips_box.setTitle(tr("device.tips_group"))
-        self.tips_label.setText(tr("device.tips_body"))
+        self.update_accent_texts()
         for index, key in enumerate(("source.my_profiles", "source.autoeq_catalog")):
             self.source_group.button(index).setText(tr(key))
         self.profile_search.setPlaceholderText(tr("search.profiles_placeholder"))
