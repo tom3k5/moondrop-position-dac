@@ -33,6 +33,7 @@ from PySide6.QtCore import (
     QProcess,
     QRunnable,
     QSaveFile,
+    QSize,
     QStandardPaths,
     Qt,
     QThreadPool,
@@ -50,6 +51,7 @@ from PySide6.QtGui import (
     QPainterPath,
     QPalette,
     QPen,
+    QPixmap,
     QRadialGradient,
     QShortcut,
 )
@@ -64,6 +66,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -108,6 +111,32 @@ PRIMARY_ACTION_STYLE = (
     " border: 1px solid palette(highlight); border-radius: 6px; padding: 7px 18px; font-weight: 600; }"
     "QPushButton:focus { border: 1px solid palette(text); }"
 )
+SECONDARY_ACCENT_STYLE = (
+    "QPushButton:enabled { background: palette(button); color: palette(link);"
+    " border: 1px solid palette(highlight); border-radius: 6px; padding: 6px 14px; font-weight: 600; }"
+    "QPushButton:enabled:hover { background: palette(alternate-base); border-color: palette(link); }"
+    "QPushButton:focus { border: 1px solid palette(text); }"
+)
+
+
+def build_eq_sliders_icon(accent_hex: str) -> QIcon:
+    """Rysuje wektorową ikonę suwaków korektora EQ w kolorze akcentu motywu."""
+    size = 32
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    color = QColor(accent_hex)
+    painter.setPen(QPen(color, 2.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+    painter.setBrush(color)
+    for x, knob_y in ((7.5, 11.0), (16.0, 21.0), (24.5, 14.0)):
+        painter.drawLine(QPointF(x, 5.5), QPointF(x, 26.5))
+        painter.drawEllipse(QPointF(x, knob_y), 3.1, 3.1)
+    painter.end()
+    pixmap.setDevicePixelRatio(2.0)
+    return QIcon(pixmap)
+
+
 APP_STYLE = """
 QGroupBox {
     border: 1px solid palette(mid);
@@ -181,6 +210,21 @@ QListWidget::item, QListView::item {
 QListWidget::item:selected, QListView::item:selected {
     background: palette(highlight);
     color: palette(highlighted-text);
+}
+QSplitter::handle {
+    background: transparent;
+    border: none;
+}
+QFrame#sourceCard, QFrame#previewCard {
+    border: 1px solid palette(mid);
+    border-radius: 8px;
+    background: palette(base);
+}
+QFrame#sourceCard QListWidget, QFrame#sourceCard QListView {
+    border: none;
+    border-radius: 6px;
+    padding: 2px;
+    background: transparent;
 }
 QTabWidget::pane {
     border-top: 1px solid palette(mid);
@@ -2219,6 +2263,22 @@ class AutoEqPanel(QWidget):
             self.process.waitForFinished(1000)
 
 
+class FeedbackLabel(QLabel):
+    """Etykieta komunikatów statusu ukrywana automatycznie, gdy jest pusta."""
+
+    def __init__(self, text: str = ""):
+        super().__init__(text)
+        self.setVisible(bool(text))
+
+    def setText(self, text: str) -> None:
+        super().setText(text)
+        self.setVisible(bool(text))
+
+    def clear(self) -> None:
+        super().clear()
+        self.setVisible(False)
+
+
 class ProfilesWindow(QWidget):
     def __init__(self, demo: bool, library_directory: Path | None = None):
         super().__init__()
@@ -2260,8 +2320,8 @@ class ProfilesWindow(QWidget):
         self.tray_notice_shown = False
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 14)
-        layout.setSpacing(15)
+        layout.setContentsMargins(20, 14, 20, 12)
+        layout.setSpacing(12)
         heading = QLabel("MOONDROP Position")
         font = heading.font()
         font.setPointSizeF(font.pointSizeF() * 1.55)
@@ -2281,7 +2341,7 @@ class ProfilesWindow(QWidget):
 
         device_page = QWidget()
         device_layout = QGridLayout(device_page)
-        device_layout.setContentsMargins(16, 12, 16, 10)
+        device_layout.setContentsMargins(0, 12, 0, 0)
         device_layout.setHorizontalSpacing(14)
         device_layout.setVerticalSpacing(8)
         device_layout.setColumnStretch(0, 1)
@@ -2421,13 +2481,15 @@ class ProfilesWindow(QWidget):
 
         self.profile_page = QWidget()
         profile_layout = QVBoxLayout(self.profile_page)
-        profile_layout.setContentsMargins(18, 16, 18, 16)
-        profile_layout.setSpacing(12)
+        profile_layout.setContentsMargins(0, 12, 0, 0)
+        profile_layout.setSpacing(0)
         library_split = QSplitter(Qt.Orientation.Horizontal)
         library_split.setChildrenCollapsible(False)
-        source_panel = QWidget()
+        library_split.setHandleWidth(16)
+        source_panel = QFrame()
+        source_panel.setObjectName("sourceCard")
         source_layout = QVBoxLayout(source_panel)
-        source_layout.setContentsMargins(0, 0, 0, 0)
+        source_layout.setContentsMargins(12, 12, 12, 10)
         source_layout.setSpacing(8)
         source_buttons = QHBoxLayout()
         source_buttons.setSpacing(0)
@@ -2471,11 +2533,52 @@ class ProfilesWindow(QWidget):
         self.sources.addWidget(library)
         self.autoeq_panel = AutoEqPanel(self, self.library_directory.parent / "autoeq")
         self.sources.addWidget(self.autoeq_panel)
+        source_divider = QWidget()
+        source_divider.setFixedHeight(1)
+        source_divider.setStyleSheet("background: palette(mid);")
+        source_layout.addWidget(source_divider)
+        source_actions = QHBoxLayout()
+        source_actions.setContentsMargins(0, 2, 0, 0)
+        source_actions.setSpacing(8)
+        self.library_actions = QWidget()
+        library_actions = QHBoxLayout(self.library_actions)
+        library_actions.setContentsMargins(0, 0, 0, 0)
+        library_actions.setSpacing(8)
+        self.add_button = QToolButton()
+        self.add_button.setText(tr("actions.add_profile"))
+        self.add_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        add_menu = QMenu(self.add_button)
+        self.new_profile_action = add_menu.addAction(tr("actions.new_empty"), lambda: self.edit_profile(new=True))
+        self.import_profile_action = add_menu.addAction(tr("actions.import_profile"), self.import_profile)
+        self.add_button.setMenu(add_menu)
+        self.more_button = QToolButton()
+        self.more_button.setText(tr("actions.more"))
+        self.more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        more_menu = QMenu(self.more_button)
+        self.duplicate_action = more_menu.addAction(tr("actions.duplicate"), lambda: self.edit_profile(duplicate=True))
+        self.export_action = more_menu.addAction(tr("actions.export_selected"), self.export_selected)
+        more_menu.addSeparator()
+        self.delete_action = more_menu.addAction(tr("actions.delete_profile"), self.delete_selected)
+        self.more_button.setMenu(more_menu)
+        library_actions.addWidget(self.add_button)
+        library_actions.addWidget(self.more_button)
+        source_actions.addWidget(self.library_actions)
+        source_actions.addWidget(self.autoeq_panel.generate)
+        source_actions.addWidget(self.autoeq_panel.cancel)
+        source_actions.addStretch()
+        source_layout.addLayout(source_actions)
         library_split.addWidget(source_panel)
         preview_panel = QWidget()
+        preview_panel.setStyleSheet("background: transparent;")
         preview = QVBoxLayout(preview_panel)
-        preview.setContentsMargins(12, 0, 4, 0)
+        preview.setContentsMargins(14, 12, 14, 10)
         preview.setSpacing(6)
+        preview_header = QHBoxLayout()
+        preview_header.setContentsMargins(0, 0, 0, 0)
+        preview_header.setSpacing(12)
+        preview_header_text = QVBoxLayout()
+        preview_header_text.setContentsMargins(0, 0, 0, 0)
+        preview_header_text.setSpacing(2)
         self.preview_title = QLabel()
         self.preview_title.setTextFormat(Qt.TextFormat.PlainText)
         self.preview_title.setWordWrap(True)
@@ -2483,12 +2586,32 @@ class ProfilesWindow(QWidget):
         title_font.setPointSizeF(title_font.pointSizeF() * 1.2)
         title_font.setBold(True)
         self.preview_title.setFont(title_font)
-        preview.addWidget(self.preview_title)
+        preview_header_text.addWidget(self.preview_title)
         self.profile_info = QLabel()
         self.profile_info.setTextFormat(Qt.TextFormat.PlainText)
         self.profile_info.setWordWrap(True)
         self.profile_info.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        preview.addWidget(self.profile_info)
+        preview_header_text.addWidget(self.profile_info)
+        preview_header.addLayout(preview_header_text, 1)
+        self.save_fit_button = QPushButton(tr("actions.save_later"))
+        self.save_fit_button.setMinimumHeight(32)
+        self.edit_button = QPushButton(tr("actions.edit_eq"))
+        self.edit_button.setStyleSheet(SECONDARY_ACCENT_STYLE)
+        self.edit_button.setMinimumHeight(32)
+        self.edit_button.setIconSize(QSize(16, 16))
+        self.apply_button = QPushButton(tr("actions.apply_dac"))
+        self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
+        self.apply_button.setMinimumWidth(140)
+        self.apply_button.setMinimumHeight(32)
+        self.apply_button.setEnabled(False)
+        preview_header_actions = QHBoxLayout()
+        preview_header_actions.setContentsMargins(0, 0, 0, 0)
+        preview_header_actions.setSpacing(8)
+        preview_header_actions.addWidget(self.save_fit_button)
+        preview_header_actions.addWidget(self.edit_button)
+        preview_header_actions.addWidget(self.apply_button)
+        preview_header.addLayout(preview_header_actions)
+        preview.addLayout(preview_header)
         self.fr_title_label = QLabel(tr("plot.fr_title"))
         preview.addWidget(self.fr_title_label)
         self.preview_plot = ResponsePlot(include_preamp=False)
@@ -2512,10 +2635,11 @@ class ProfilesWindow(QWidget):
         self.plot_legend.setTextFormat(Qt.TextFormat.PlainText)
         self.plot_legend.setWordWrap(True)
         self.plot_legend.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.plot_legend.setFixedHeight(self.plot_legend.fontMetrics().lineSpacing() * 3 + 8)
+        self.plot_legend.setFixedHeight(self.plot_legend.fontMetrics().lineSpacing() * 2 + 4)
         preview.addWidget(self.plot_legend)
         preview_scroll = QScrollArea()
-        preview_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        preview_scroll.setObjectName("previewCard")
+        preview_scroll.viewport().setStyleSheet("background: transparent;")
         preview_scroll.setWidgetResizable(True)
         preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         preview_scroll.setWidget(preview_panel)
@@ -2525,53 +2649,12 @@ class ProfilesWindow(QWidget):
         library_split.setStretchFactor(1, 4)
         library_split.setSizes([360, 640])
         profile_layout.addWidget(library_split, 1)
-        divider = QWidget()
-        divider.setFixedHeight(1)
-        divider.setStyleSheet("background: palette(mid);")
-        profile_layout.addWidget(divider)
-        actions = QHBoxLayout()
-        self.library_actions = QWidget()
-        library_actions = QHBoxLayout(self.library_actions)
-        library_actions.setContentsMargins(0, 0, 0, 0)
-        self.add_button = QToolButton()
-        self.add_button.setText(tr("actions.add_profile"))
-        self.add_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        add_menu = QMenu(self.add_button)
-        self.new_profile_action = add_menu.addAction(tr("actions.new_empty"), lambda: self.edit_profile(new=True))
-        self.import_profile_action = add_menu.addAction(tr("actions.import_profile"), self.import_profile)
-        self.add_button.setMenu(add_menu)
-        self.more_button = QToolButton()
-        self.more_button.setText(tr("actions.more"))
-        self.more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        more_menu = QMenu(self.more_button)
-        self.duplicate_action = more_menu.addAction(tr("actions.duplicate"), lambda: self.edit_profile(duplicate=True))
-        self.export_action = more_menu.addAction(tr("actions.export_selected"), self.export_selected)
-        more_menu.addSeparator()
-        self.delete_action = more_menu.addAction(tr("actions.delete_profile"), self.delete_selected)
-        self.more_button.setMenu(more_menu)
-        self.edit_button = QPushButton(tr("actions.edit_eq"))
-        self.apply_button = QPushButton(tr("actions.apply_dac"))
-        self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
-        self.apply_button.setMinimumWidth(148)
-        self.apply_button.setMinimumHeight(34)
-        self.apply_button.setEnabled(False)
-        library_actions.addWidget(self.add_button)
-        library_actions.addWidget(self.more_button)
-        actions.addWidget(self.library_actions)
-        actions.addWidget(self.autoeq_panel.generate)
-        actions.addWidget(self.autoeq_panel.cancel)
-        actions.addWidget(self.edit_button)
-        actions.addStretch()
-        self.save_fit_button = QPushButton(tr("actions.save_later"))
-        actions.addWidget(self.save_fit_button)
-        actions.addWidget(self.apply_button)
-        profile_layout.addLayout(actions)
         self.tabs.addTab(self.profile_page, tr("tab.tuning"))
         self.tabs.addTab(device_scroll, tr("tab.device"))
 
         guide_page = QWidget()
         guide_layout = QVBoxLayout(guide_page)
-        guide_layout.setContentsMargins(18, 14, 18, 14)
+        guide_layout.setContentsMargins(0, 12, 0, 0)
         guide_layout.setSpacing(12)
 
         self.why_box = QGroupBox(tr("help.why_group"))
@@ -2619,7 +2702,7 @@ class ProfilesWindow(QWidget):
         self.import_shortcut.activated.connect(self.import_profile)
         self.quit_shortcut = QShortcut(QKeySequence.StandardKey.Quit, self)
         self.quit_shortcut.activated.connect(self.quit_from_tray)
-        self.feedback = QLabel("")
+        self.feedback = FeedbackLabel("")
         self.feedback.setTextFormat(Qt.TextFormat.PlainText)
         self.feedback.setWordWrap(True)
         layout.addWidget(self.feedback)
@@ -2728,6 +2811,8 @@ class ProfilesWindow(QWidget):
     def update_accent_texts(self) -> None:
         dark = self.palette().window().color().lightness() < 128
         accent = "#ffb347" if dark else "#e5470a"
+        if hasattr(self, "edit_button"):
+            self.edit_button.setIcon(build_eq_sliders_icon(accent))
         if hasattr(self, "tips_label"):
             self.tips_label.setText(tr("device.tips_body", accent=accent))
             self.why_label.setText(tr("help.why_body", accent=accent))
