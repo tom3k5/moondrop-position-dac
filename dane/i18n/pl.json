@@ -77,6 +77,8 @@
   "device.theme_light": "Jasny (InnoVibe)",
   "device.language_label": "Język",
   "device.language_auto": "Systemowy (auto)",
+  "device.tips_group": "Przewodnik i skróty",
+  "device.tips_body": "• Sprzętowe DSP (< 5 ms): 8 pasm EQ działa bezpośrednio na DAC-u w każdej grze i aplikacji, bez obciążania CPU.\n• Pełna zgodność z hub.moondroplab.tech + wbudowany katalog AutoEq i praca offline.\n• Skróty: Ctrl+F (szukaj profilu) · Ctrl+O (importuj JSON / Equalizer APO) · Ctrl+Q (zakończ).",
   "plot.fr_title": "Charakterystyka słuchawek · dB SPL",
   "plot.eq_waiting": "Korekcja EQ + pre-gain · oczekuje na obliczenie AutoEq",
   "plot.eq_dac": "Korekcja EQ + pre-gain · z odczytu DAC-a",

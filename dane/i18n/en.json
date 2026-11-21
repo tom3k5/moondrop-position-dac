@@ -77,6 +77,8 @@
   "device.theme_light": "Light (InnoVibe)",
   "device.language_label": "Language",
   "device.language_auto": "System (auto)",
+  "device.tips_group": "Quick guide and shortcuts",
+  "device.tips_body": "• Hardware DSP (< 5 ms): 8-band EQ runs directly on the DAC across every game and app with zero CPU overhead.\n• Full parity with hub.moondroplab.tech + built-in AutoEq catalog and offline profile management.\n• Shortcuts: Ctrl+F (search profiles) · Ctrl+O (import JSON / Equalizer APO) · Ctrl+Q (quit).",
   "plot.fr_title": "Headphone response · dB SPL",
   "plot.eq_waiting": "EQ correction + pre-gain · waiting for AutoEq",
   "plot.eq_dac": "EQ correction + pre-gain · from DAC readback",
