@@ -196,7 +196,7 @@
   "autoeq.fit_4k": "Do 4 kHz (6 pasm)",
   "autoeq.fit_2k": "Do 2 kHz (5 pasm)",
   "tooltip.autoeq_fit_range": "Ogranicz automatyczne dopasowanie do wybranej częstotliwości, zostawiając wyższe pasma do ręcznego strojenia.",
-  "export.filter": "Profile JSON (*.json);;Equalizer APO (*.txt)",
+  "export.filter": "Equalizer APO (*.txt);;Profile JSON (*.json)",
   "export.saved_apo": "Profil wyeksportowany jako Equalizer APO (.txt).",
   "drop.loaded_profile": "Zaimportowano profil „{name}” przez przeciągnięcie pliku.",
   "drop.loaded_target": "Wczytano krzywą „{name}” jako cel AutoEq.",

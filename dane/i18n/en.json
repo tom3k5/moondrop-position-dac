@@ -196,7 +196,7 @@
   "autoeq.fit_4k": "Up to 4 kHz (6 bands)",
   "autoeq.fit_2k": "Up to 2 kHz (5 bands)",
   "tooltip.autoeq_fit_range": "Limit AutoEq fitting to a cutoff frequency, leaving remaining bands free for manual treble tuning.",
-  "export.filter": "JSON Profiles (*.json);;Equalizer APO (*.txt)",
+  "export.filter": "Equalizer APO (*.txt);;JSON Profiles (*.json)",
   "export.saved_apo": "Profile exported as Equalizer APO (.txt).",
   "drop.loaded_profile": "Imported profile “{name}” via drag & drop.",
   "drop.loaded_target": "Loaded curve “{name}” as AutoEq target.",

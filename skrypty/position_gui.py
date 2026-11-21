@@ -1180,7 +1180,7 @@ def profile_from_readback(state: DeviceState) -> Profile | None:
 def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str | None:
     """Eksportuje profil EQ do JSON lub Equalizer APO (.txt); zwraca komunikat lub None."""
     base_name = profile.name.replace("/", "_") or "moondrop-position-eq"
-    path, selected_filter = QFileDialog.getSaveFileName(parent, title, f"{base_name}.json", tr("export.filter"))
+    path, selected_filter = QFileDialog.getSaveFileName(parent, title, f"{base_name}.txt", tr("export.filter"))
     if not path:
         return None
     target = Path(path)
