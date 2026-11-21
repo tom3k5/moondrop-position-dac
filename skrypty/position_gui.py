@@ -1346,12 +1346,12 @@ class AboutHelpDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("help.title"))
         self.setStyleSheet(APP_STYLE)
-        self.setMinimumSize(580, 440)
-        self.resize(640, 500)
+        self.setMinimumSize(700, 540)
+        self.resize(780, 600)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(10)
+        layout.setContentsMargins(22, 18, 22, 18)
+        layout.setSpacing(12)
 
         heading = QLabel(tr("app.title"))
         font = heading.font()
@@ -1363,13 +1363,16 @@ class AboutHelpDialog(QDialog):
         layout.addWidget(heading)
         layout.addWidget(subtitle)
 
-        browser = QTextBrowser()
-        browser.setOpenExternalLinks(True)
-        browser.setHtml(tr("help.body_html"))
-        browser.setStyleSheet("QTextBrowser { border: 1px solid palette(mid); border-radius: 8px; padding: 8px; }")
-        layout.addWidget(browser, 1)
+        self.browser = QTextBrowser()
+        self.browser.setOpenExternalLinks(True)
+        self.browser.setHtml(tr("help.body_html"))
+        self.browser.setStyleSheet(
+            "QTextBrowser { border: 1px solid palette(mid); border-radius: 8px; padding: 12px 14px; }"
+        )
+        layout.addWidget(self.browser, 1)
 
         buttons = QHBoxLayout()
+        buttons.setSpacing(8)
         author_btn = QPushButton(tr("footer.author_label"))
         author_btn.setToolTip(tr("footer.author_tooltip"))
         author_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(tr("footer.author_url"))))
@@ -1387,6 +1390,10 @@ class AboutHelpDialog(QDialog):
         buttons.addStretch()
         buttons.addWidget(close_btn)
         layout.addLayout(buttons)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        paint_innovibe_backdrop(self)
 
 
 class EqualizerDialog(QDialog):
