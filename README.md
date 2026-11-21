@@ -21,17 +21,18 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 - **System Tray Ready:** Minimize to the system tray and switch EQ profiles in two clicks between gaming, music, and calls.
 
 ### 2. Massive AutoEq Database Built In
-- **Thousands of IEM & Headphone Measurements:** Browse and filter the full AutoEq catalog (Crinacle, Oratory1990, Rtings, and more) or load your own REW/CSV/TXT target curves.
-- **Hardware-Aware 8-Band Optimization:** Automatically fits your chosen target curve to MOONDROP Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`), with real-time frequency response preview against the factory technical specification curve (B&K 5128).
+- **Thousands of IEM & Headphone Measurements:** Browse and filter the full AutoEq catalog (Crinacle, Oratory1990, Rtings, and more), load custom REW/CSV/TXT curves, or **drag & drop** `.json`, Equalizer APO `.txt`, and `.csv` files directly onto the window.
+- **Hardware-Aware 8-Band Optimization:** Automatically fits your chosen target curve to MOONDROP Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`) with selectable **fit range** (`Full 20–20 kHz`, `Up to 6 kHz`, `4 kHz`, or `2 kHz` to leave upper bands free for manual treble tuning).
 
 ### 3. Full Feature Parity with `hub.moondroplab.tech` — Plus Offline Safety
 | Feature | Official Web Hub | MOONDROP Position for Linux |
 |---|---|---|
 | 8-band Parametric EQ (`PK / LP / HP`) + Pre-gain | Yes (WebHID / Chromium) | **Yes (Native USB HID `0x4B`, works offline)** |
+| Interactive Plot Handles + Auto Headroom | Sliders only | **Drag handles `1–8` (Freq/Gain/Wheel Q) + Auto Headroom & Clip Check** |
 | Live Auditioning (`Odsłuch na żywo`) | Yes | **Yes, with automatic safe state restore on cancel** |
-| Built-in AutoEq Optimizer (thousands of IEMs) | Basic presets | **Full AutoEq catalog + custom CSV/TXT + plots** |
+| Built-in AutoEq Optimizer (thousands of IEMs) | Basic presets | **Full AutoEq catalog + partial fit range + Drag & Drop CSV/TXT** |
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
-| Disk Profile Library vs DAC Flash Separation | Limited | **Full local library, JSON & Equalizer APO import/export** |
+| Disk Profile Library vs DAC Flash Separation | Limited | **Full local library, Drag & Drop, JSON & Equalizer APO import/export** |
 | PipeWire UAC2 Stream & Sample Rate Monitor | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
 | Readback Verification & Backup | Basic | **Strict pre/post-flash verification & 1-click backup** |
 | Themes, Language & Built-in Guide | Web only | **InnoVibe Dark & Light themes, EN / PL, Guide tab** |
@@ -45,9 +46,11 @@ Symmetric Master-Detail cards with `Edit EQ…` and `Apply to DAC` directly in t
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
 
 ### Built-in AutoEq Catalog
+Filter by form factor, measurement source, and optimization frequency **Range** (`20–20 kHz` or partial fit up to `6 / 4 / 2 kHz`):
 ![AutoEq Catalog](docs/screenshots/02-autoeq-catalog.png)
 
-### 8-Band Parametric EQ Editor (with Live Preview)
+### 8-Band Parametric EQ Editor (with Interactive Handles & Live Preview)
+Drag numbered handles `1–8` directly on the curve (Freq / Gain / scroll wheel Q), use **Auto Headroom** + clipping detection, and export to JSON or Equalizer APO (`.txt`):
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
 ### Device Status, Gains & PipeWire UAC2 Quality

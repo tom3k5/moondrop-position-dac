@@ -21,17 +21,18 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 - **Zasobnik systemowy (Tray):** Schowaj okno do traya i przełączaj profile EQ dwoma kliknięciami między graniem, muzyką a rozmowami.
 
 ### 2. Ogromna baza AutoEq w jednym miejscu
-- **Tysiące pomiarów IEM i słuchawek nausznych:** Przeglądaj i filtruj katalog AutoEq (Crinacle, Oratory1990, Rtings i inni) albo wczytaj własną krzywą CSV/TXT (REW).
-- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP Position (`96 kHz` DSP, `PK / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`) z podglądem na tle fabrycznej charakterystyki wg specyfikacji technicznej (B&K 5128).
+- **Tysiące pomiarów IEM i słuchawek nausznych:** Przeglądaj i filtruj katalog AutoEq (Crinacle, Oratory1990, Rtings i inni), wczytuj krzywe REW/CSV/TXT albo **przeciągaj i upuszczaj (Drag & Drop)** pliki `.json`, Equalizer APO `.txt` i `.csv` bezpośrednio na okno aplikacji.
+- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP Position (`96 kHz` DSP, `PK / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`) z wyborem **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), co pozwala zostawić wyższe pasma wolne do ręcznego strojenia góry.
 
 ### 3. Pełna funkcjonalność `hub.moondroplab.tech` + praca offline
 | Funkcja | Oficjalny Web Hub | MOONDROP Position na Linux |
 |---|---|---|
 | 8-pasmowy EQ parametryczny (`PK / LP / HP`) + Pre-gain | Tak (WebHID / Chromium) | **Tak (natywny USB HID `0x4B`, działa offline)** |
+| Interaktywne punkty na wykresie + Auto Headroom | Tylko suwaki | **Przeciąganie punktów `1–8` (Hz/dB/kółko Q) + Auto Headroom i ostrzeżenie przed clippingiem** |
 | Odsłuch na żywo (`Live preview`) | Tak | **Tak, z automatycznym przywracaniem stanu przy anulowaniu** |
-| Wbudowany optymalizator AutoEq | Podstawowe presety | **Pełny katalog AutoEq + własne CSV/TXT + wykresy** |
+| Wbudowany optymalizator AutoEq | Podstawowe presety | **Pełny katalog AutoEq + zakres dopasowania + Drag & Drop CSV/TXT** |
 | Wzmocnienie wyjścia (`-18…0 dB`) i mikrofonu | Tak | **Tak, z opcjonalnym zapisem w profilu** |
-| Oddzielna biblioteka na dysku vs pamięć flash DAC-a | Ograniczone | **Pełna biblioteka lokalna, import/eksport JSON i Equalizer APO** |
+| Oddzielna biblioteka na dysku vs pamięć flash DAC-a | Ograniczone | **Pełna biblioteka lokalna, Drag & Drop, import/eksport JSON i Equalizer APO** |
 | Monitor strumienia UAC2 i próbkowania PipeWire | Nie | **Tak (`44,1–384 kHz` + odczyt głębi bitowej ALSA)** |
 | Weryfikacja zapisu i kopia zapasowa | Podstawowa | **Weryfikacja przed/po zapisie flash + eksport kopii** |
 | Motywy, język i wbudowany Przewodnik | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, zakładka Przewodnik** |
@@ -45,9 +46,11 @@ Symetryczne karty listy i podglądu z przyciskami `Edytuj EQ…` oraz `Wgraj do 
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
 
 ### Wbudowany katalog AutoEq
+Filtrowanie po typie słuchawek, źródle pomiaru oraz **zakresie częstotliwości dopasowania** (`20–20 kHz` lub do `6 / 4 / 2 kHz`):
 ![Katalog AutoEq](docs/screenshots/02-autoeq-catalog.png)
 
-### Edytor 8-pasmowego EQ (z odsłuchem na żywo)
+### Edytor 8-pasmowego EQ (interaktywne punkty i odsłuch na żywo)
+Przeciąganie ponumerowanych punktów `1–8` bezpośrednio na wykresie (Hz / dB / kółko Q), przycisk **Auto Headroom** z wykrywaniem clippingu oraz eksport do JSON i Equalizer APO (`.txt`):
 ![Edytor EQ](docs/screenshots/04-eq-editor.png)
 
 ### Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
