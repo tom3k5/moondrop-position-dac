@@ -105,7 +105,7 @@ PROFILE_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 PRIMARY_ACTION_STYLE = (
     "QPushButton:enabled { background: palette(highlight); color: palette(highlighted-text);"
-    " border: 1px solid palette(highlight); border-radius: 6px; padding: 6px 14px; font-weight: 600; }"
+    " border: 1px solid palette(highlight); border-radius: 6px; padding: 7px 18px; font-weight: 600; }"
     "QPushButton:focus { border: 1px solid palette(text); }"
 )
 APP_STYLE = """
@@ -214,8 +214,8 @@ SEGMENT_BUTTON_STYLE = (
 STATUS_PILL_STYLE = "border: 1px solid palette(mid); border-radius: 12px; padding: 4px 12px; background: palette(base);"
 FOOTER_BUTTON_STYLE = (
     "QPushButton, QToolButton { border: 1px solid transparent; border-radius: 6px;"
-    " padding: 3px 8px; background: transparent; }"
-    'QToolButton[popupMode="2"] { padding-right: 20px; }'
+    " padding: 4px 10px; background: transparent; }"
+    'QToolButton[popupMode="2"] { padding-right: 22px; }'
     "QPushButton:hover, QToolButton:hover { border-color: palette(highlight); background: palette(base); }"
 )
 
@@ -2333,9 +2333,12 @@ class ProfilesWindow(QWidget):
         layout.addWidget(self.tabs, 1)
 
         device_page = QWidget()
-        device_layout = QVBoxLayout(device_page)
-        device_layout.setContentsMargins(18, 16, 18, 16)
-        device_layout.setSpacing(10)
+        device_layout = QGridLayout(device_page)
+        device_layout.setContentsMargins(16, 14, 16, 12)
+        device_layout.setHorizontalSpacing(14)
+        device_layout.setVerticalSpacing(10)
+        device_layout.setColumnStretch(0, 1)
+        device_layout.setColumnStretch(1, 1)
         self.device_box = QGroupBox(tr("device.read_settings"))
         details = QGridLayout(self.device_box)
         details.setColumnStretch(1, 1)
@@ -2383,7 +2386,8 @@ class ProfilesWindow(QWidget):
         self.defaults_button = QPushButton(tr("device.factory_reset"))
         self.defaults_button.setEnabled(False)
         self.maintenance_box = QGroupBox(tr("device.backup_group"))
-        device_actions = QHBoxLayout(self.maintenance_box)
+        device_actions = QVBoxLayout(self.maintenance_box)
+        device_actions.setSpacing(8)
         device_actions.addWidget(self.backup_button)
         device_actions.addWidget(self.defaults_button)
         device_actions.addStretch()
@@ -2447,12 +2451,12 @@ class ProfilesWindow(QWidget):
         self.language_combo.currentIndexChanged.connect(self.change_language)
         lang_form.addRow(self.language_label, self.language_combo)
 
-        device_layout.addWidget(self.device_box)
-        device_layout.addWidget(self.gains_box)
-        device_layout.addWidget(self.playback_box)
-        device_layout.addWidget(self.language_box)
-        device_layout.addWidget(self.maintenance_box)
-        device_layout.addStretch()
+        device_layout.addWidget(self.device_box, 0, 0)
+        device_layout.addWidget(self.gains_box, 0, 1)
+        device_layout.addWidget(self.playback_box, 1, 0, 1, 2)
+        device_layout.addWidget(self.language_box, 2, 0)
+        device_layout.addWidget(self.maintenance_box, 2, 1)
+        device_layout.setRowStretch(3, 1)
 
         device_scroll = QScrollArea()
         device_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -2593,8 +2597,8 @@ class ProfilesWindow(QWidget):
         self.edit_button = QPushButton(tr("actions.edit_eq"))
         self.apply_button = QPushButton(tr("actions.apply_dac"))
         self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
-        self.apply_button.setMinimumWidth(125)
-        self.apply_button.setMinimumHeight(32)
+        self.apply_button.setMinimumWidth(148)
+        self.apply_button.setMinimumHeight(34)
         self.apply_button.setEnabled(False)
         library_actions.addWidget(self.add_button)
         library_actions.addWidget(self.more_button)
