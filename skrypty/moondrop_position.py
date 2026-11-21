@@ -899,6 +899,21 @@ def parse_eqapo(path: str) -> tuple[list[dict], float | None]:
     return bands, preamp
 
 
+def format_eqapo(bands: list[dict], preamp: float | None = None) -> str:
+    """Formatuje pasma urządzenia jako tekst konfiguracyjny Equalizer APO."""
+    type_map = {"PK": "PK", "LP": "LPQ", "HP": "HPQ"}
+    lines: list[str] = []
+    if preamp is not None:
+        lines.append(f"Preamp: {preamp:.2f} dB")
+    for idx, band in enumerate(bands, 1):
+        apo_type = type_map.get(str(band.get("type", "PK")).upper(), "PK")
+        freq = float(band.get("freq", 1000.0))
+        gain = float(band.get("gain", 0.0))
+        q = float(band.get("q", 1.0))
+        lines.append(f"Filter {idx}: ON {apo_type} Fc {freq:.1f} Hz Gain {gain:.2f} dB Q {q:.3f}")
+    return "\n".join(lines) + "\n"
+
+
 def cmd_import_eq(args) -> int:
     bands, file_preamp = parse_eqapo(args.file)
     preamp = args.preamp if args.preamp is not None else file_preamp

@@ -128,3 +128,37 @@ def test_help_dialog_tooltips_and_footer_links(tmp_path: Path, monkeypatch) -> N
     finally:
         window.quit_from_tray()
         app.processEvents()
+
+
+def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    QStandardPaths.setTestModeEnabled(True)
+
+    app = QApplication.instance() or QApplication([])
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        sample = gui.load_profile(gui.BUILTIN_PROFILE, "Harman In-Ear 2019")
+        apo_path = tmp_path / "test.txt"
+        apo_path.write_text(gui.dac.format_eqapo(sample.bands, sample.preamp), encoding="utf-8")
+        parsed_bands, parsed_preamp = gui.dac.parse_eqapo(str(apo_path))
+        assert len(parsed_bands) == len(sample.bands)
+        assert parsed_preamp == round(sample.preamp, 2)
+
+        assert window.autoeq_panel.fit_range.count() == 4
+        assert window.acceptDrops() is True
+
+        editor = gui.EqualizerDialog(window, sample, sample, window.factory_profile, device_path=None)
+        editor.preamp.setValue(0.0)
+        editor.on_plot_band_changed(0, 120.0, 5.5)
+        assert editor.rows[0][1].value() == 120
+        assert editor.rows[0][2].value() == 5.5
+        prev_q = editor.rows[0][3].value()
+        editor.on_plot_band_q_changed(0, 0.5)
+        assert editor.rows[0][3].value() > prev_q
+        editor.apply_auto_headroom()
+        assert editor.preamp.value() < 0.0
+        editor.close()
+    finally:
+        window.quit_from_tray()
+        app.processEvents()

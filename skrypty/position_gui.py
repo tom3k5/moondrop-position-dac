@@ -1177,14 +1177,36 @@ def profile_from_readback(state: DeviceState) -> Profile | None:
     return Profile("Odczyt z DAC-a", state.slot, list(state.bands), state.preamp)
 
 
+def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str | None:
+    """Eksportuje profil EQ do JSON lub Equalizer APO (.txt); zwraca komunikat lub None."""
+    base_name = profile.name.replace("/", "_") or "moondrop-position-eq"
+    path, selected_filter = QFileDialog.getSaveFileName(parent, title, f"{base_name}.json", tr("export.filter"))
+    if not path:
+        return None
+    target = Path(path)
+    use_apo = target.suffix.casefold() == ".txt" or (not target.suffix and "APO" in (selected_filter or ""))
+    if use_apo:
+        if target.suffix.casefold() != ".txt":
+            target = target.with_suffix(".txt")
+        target.write_text(dac.format_eqapo(profile.bands, profile.preamp), encoding="utf-8")
+        return tr("export.saved_apo")
+    if target.suffix.casefold() != ".json":
+        target = target.with_suffix(".json")
+    save_profile(target, profile)
+    return "Profil zapisany do pliku JSON."
+
+
 class ResponsePlot(QWidget):
     SERIES_LABELS = ("Wybrany profil", "Aktualny EQ DAC-a", "Pomiar odniesienia", "Cel AutoEq przy 1 kHz")
     curves_changed = Signal()
+    band_changed = Signal(int, float, float)
+    band_q_changed = Signal(int, float)
 
-    def __init__(self, *, correction: bool = False, include_preamp: bool = True):
+    def __init__(self, *, correction: bool = False, include_preamp: bool = True, interactive: bool = False):
         super().__init__()
         self.correction = correction
         self.include_preamp = include_preamp
+        self.interactive = interactive
         self.points = []
         self.reference_points = []
         self.target_points = []
@@ -1192,6 +1214,15 @@ class ResponsePlot(QWidget):
         self.factory_filter = None
         self.frequencies = [hz for hz, _ in self.factory_points]
         self.factory_offsets = [0.0] * len(self.frequencies)
+        self.active_bands: list[dict] = []
+        self.band_handles: list[tuple[int, float, float]] = []
+        self.plot_bounds = None
+        self.drag_index: int | None = None
+        self.hover_index: int | None = None
+        self.drag_start_y = 0.0
+        self.drag_start_gain = 0.0
+        if interactive:
+            self.setMouseTracking(True)
         self.setMinimumHeight(95 if correction else 135)
         self.setAccessibleName(
             "Korekcja EQ w dB" if correction else "Charakterystyka słuchawek MOONDROP Position w dB SPL"
@@ -1217,6 +1248,7 @@ class ResponsePlot(QWidget):
         ]
 
     def set_profile(self, profile: Profile | None) -> None:
+        self.active_bands = list(profile.bands) if (self.interactive and profile is not None) else []
         self.set_primary_points(self.acoustic_points(profile))
 
     def set_reference(self, profile: Profile | None) -> None:
@@ -1349,6 +1381,116 @@ class ResponsePlot(QWidget):
                 painter.fillPath(fill_path, fill_color)
             painter.setPen(self.series_pen(roles[0]))
             painter.drawPath(curve)
+        self.plot_bounds = (plot, low, high)
+        self.band_handles = []
+        if self.interactive and self.points and self.active_bands:
+            accent = QColor("#ff8a1f" if palette.base().color().lightness() < 128 else "#e5470a")
+            handle_font = painter.font()
+            handle_font.setPointSizeF(max(8.0, handle_font.pointSizeF() * 0.85))
+            handle_font.setBold(True)
+            painter.setFont(handle_font)
+            for idx, band in enumerate(self.active_bands):
+                hz = max(20.0, min(20000.0, float(band.get("freq", 1000.0))))
+                curve_db = self._interpolate_db(hz)
+                hx = x(hz)
+                hy = y(curve_db)
+                self.band_handles.append((idx, hx, hy))
+                active = idx in (self.drag_index, self.hover_index)
+                radius = 10.5 if active else 8.5
+                painter.setPen(QPen(accent if active else text, 2.2 if active else 1.5))
+                painter.setBrush(accent if active else palette.base().color())
+                painter.drawEllipse(QPointF(hx, hy), radius, radius)
+                painter.setPen(palette.highlightedText().color() if active else text)
+                label_rect = painter.boundingRect(
+                    int(hx - radius),
+                    int(hy - radius),
+                    int(radius * 2),
+                    int(radius * 2),
+                    Qt.AlignmentFlag.AlignCenter,
+                    str(idx + 1),
+                )
+                painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, str(idx + 1))
+
+    def _interpolate_db(self, target_hz: float) -> float:
+        if not self.points:
+            return 0.0
+        if target_hz <= self.points[0][0]:
+            return self.points[0][1]
+        if target_hz >= self.points[-1][0]:
+            return self.points[-1][1]
+        log_target = math.log(target_hz)
+        for (f0, d0), (f1, d1) in zip(self.points, self.points[1:], strict=False):
+            if f0 <= target_hz <= f1:
+                lf0, lf1 = math.log(f0), math.log(f1)
+                t = (log_target - lf0) / (lf1 - lf0) if lf1 > lf0 else 0.0
+                return d0 + t * (d1 - d0)
+        return self.points[-1][1]
+
+    def _hit_handle(self, pos: QPointF) -> int | None:
+        best_idx = None
+        best_dist = 14.0
+        for idx, hx, hy in self.band_handles:
+            dist = math.hypot(pos.x() - hx, pos.y() - hy)
+            if dist <= best_dist:
+                best_dist = dist
+                best_idx = idx
+        return best_idx
+
+    def mousePressEvent(self, event) -> None:
+        if self.interactive and event.button() == Qt.MouseButton.LeftButton:
+            hit = self._hit_handle(event.position())
+            if hit is not None and 0 <= hit < len(self.active_bands):
+                self.drag_index = hit
+                self.drag_start_y = event.position().y()
+                self.drag_start_gain = float(self.active_bands[hit].get("gain", 0.0))
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                self.update()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if not self.interactive:
+            super().mouseMoveEvent(event)
+            return
+        pos = event.position()
+        if self.drag_index is not None and self.plot_bounds is not None:
+            plot, low, high = self.plot_bounds
+            if plot.width() > 0 and plot.height() > 0:
+                ratio_x = max(0.0, min(1.0, (pos.x() - plot.left()) / plot.width()))
+                new_freq = round(20.0 * (10.0 ** (3.0 * ratio_x)))
+                new_freq = max(20, min(20000, new_freq))
+                delta_db = (self.drag_start_y - pos.y()) * (high - low) / plot.height()
+                new_gain = max(-18.0, min(12.0, round(self.drag_start_gain + delta_db, 1)))
+                self.band_changed.emit(self.drag_index, float(new_freq), float(new_gain))
+            event.accept()
+            return
+        hit = self._hit_handle(pos)
+        if hit != self.hover_index:
+            self.hover_index = hit
+            self.setCursor(Qt.CursorShape.OpenHandCursor if hit is not None else Qt.CursorShape.ArrowCursor)
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if self.interactive and self.drag_index is not None:
+            self.drag_index = None
+            hit = self._hit_handle(event.position())
+            self.hover_index = hit
+            self.setCursor(Qt.CursorShape.OpenHandCursor if hit is not None else Qt.CursorShape.ArrowCursor)
+            self.update()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def wheelEvent(self, event) -> None:
+        if self.interactive and self.hover_index is not None:
+            delta = event.angleDelta().y()
+            if delta != 0:
+                self.band_q_changed.emit(self.hover_index, 0.1 if delta > 0 else -0.1)
+                event.accept()
+                return
+        super().wheelEvent(event)
 
 
 class CurveSwatch(QWidget):
@@ -1446,6 +1588,10 @@ class EqualizerDialog(QDialog):
         self.preamp.setToolTip(tr("tooltip.editor_preamp"))
         top_bar.addWidget(QLabel(tr("editor.preamp_label")))
         top_bar.addWidget(self.preamp)
+        self.auto_headroom_btn = QPushButton(tr("editor.auto_headroom"))
+        self.auto_headroom_btn.setToolTip(tr("tooltip.editor_auto_headroom"))
+        self.auto_headroom_btn.clicked.connect(self.apply_auto_headroom)
+        top_bar.addWidget(self.auto_headroom_btn)
         if current is not None:
             copy = QPushButton(tr("editor.load_dac"))
             copy.setToolTip(tr("tooltip.editor_load_dac"))
@@ -1485,11 +1631,17 @@ class EqualizerDialog(QDialog):
         mic_row.addWidget(self.mic_gain)
         gain_form.addRow(tr("editor.mic_gain"), mic_row)
 
-        self.plot = ResponsePlot()
+        self.plot = ResponsePlot(interactive=True)
         self.plot.setMinimumHeight(180)
         self.plot.set_factory(factory)
+        self.plot.band_changed.connect(self.on_plot_band_changed)
+        self.plot.band_q_changed.connect(self.on_plot_band_q_changed)
         plot_header = QHBoxLayout()
         plot_header.addWidget(QLabel(tr("plot.fr_title")))
+        self.headroom_label = QLabel()
+        self.headroom_label.setTextFormat(Qt.TextFormat.PlainText)
+        plot_header.addSpacing(12)
+        plot_header.addWidget(self.headroom_label)
         plot_header.addStretch()
         self.compare = QCheckBox(tr("editor.compare"))
         self.compare.setToolTip(tr("tooltip.editor_compare"))
@@ -1503,6 +1655,9 @@ class EqualizerDialog(QDialog):
         if factory is None:
             measurement_note.setText(measurement_note.text() + " · podgląd zakłada neutralne EQ fabryczne")
         layout.addWidget(measurement_note)
+        drag_hint = QLabel(tr("editor.plot_drag_hint"))
+        drag_hint.setWordWrap(True)
+        layout.addWidget(drag_hint)
         self.plot_timer = QTimer(self, singleShot=True, interval=0)
         self.plot_timer.timeout.connect(self.update_draft)
         self.live_timer = QTimer(self, singleShot=True, interval=140)
@@ -1696,10 +1851,36 @@ class EqualizerDialog(QDialog):
         self.result_apply = True
         self.accept()
 
+    def apply_auto_headroom(self) -> None:
+        profile = self.draft()
+        eq_only = replace(profile, preamp=0.0)
+        peak_boost = max(0.0, max(db for _, db in response_points(eq_only, self.plot.frequencies)))
+        self.preamp.setValue(max(-128.0, round(-peak_boost, 2)))
+
+    def on_plot_band_changed(self, index: int, freq: float, gain: float) -> None:
+        if 0 <= index < len(self.rows):
+            _kind, frequency_box, gain_box, _q = self.rows[index]
+            frequency_box.setValue(round(freq))
+            gain_box.setValue(gain)
+
+    def on_plot_band_q_changed(self, index: int, delta_q: float) -> None:
+        if 0 <= index < len(self.rows):
+            _kind, _freq, _gain, q_box = self.rows[index]
+            q_box.setValue(max(q_box.minimum(), min(q_box.maximum(), round(q_box.value() + delta_q, 2))))
+
     def update_draft(self) -> None:
         profile = self.draft()
         if self.live.isChecked() and self.live_previous is not None and profile.preamp == self.live_previous.preamp:
             profile = replace(profile, preamp=self.live_preamp)
+        eq_only = replace(profile, preamp=0.0)
+        peak_boost = max(db for _, db in response_points(eq_only, self.plot.frequencies))
+        net_peak = peak_boost + (profile.preamp or 0.0)
+        if net_peak > 0.05:
+            self.headroom_label.setText(tr("editor.headroom_clip", peak=net_peak))
+            self.headroom_label.setStyleSheet("color: palette(link); font-weight: 600;")
+        else:
+            self.headroom_label.setText(tr("editor.headroom_ok", peak=net_peak))
+            self.headroom_label.setStyleSheet("color: palette(placeholder-text);")
         self.plot.set_profile(profile)
         if self.live.isChecked() and not self.live_timer.isActive():
             self.live_timer.start()
@@ -1824,18 +2005,13 @@ class EqualizerDialog(QDialog):
 
     def save_draft(self) -> None:
         profile = self.draft()
-        filename = profile.name.replace("/", "_") + ".json"
-        path, _selected_filter = QFileDialog.getSaveFileName(
-            self, "Zapisz profil EQ", filename, "Profile JSON (*.json)"
-        )
-        if not path:
-            return
         try:
-            save_profile(path, profile)
+            notice = export_profile_dialog(self, "Zapisz profil EQ", profile)
         except OSError as exc:
             self.message.setText(f"Błąd zapisu profilu. {exc}")
             return
-        self.message.setText("Profil zapisany.")
+        if notice:
+            self.message.setText(notice)
 
 
 class CatalogListModel(QAbstractListModel):
@@ -1921,6 +2097,20 @@ class AutoEqPanel(QWidget):
         search_row.addWidget(self.search, 1)
         search_row.addWidget(self.catalog_button)
         layout.addLayout(search_row)
+
+        range_row = QHBoxLayout()
+        range_row.setSpacing(8)
+        self.fit_range_label = QLabel(tr("autoeq.fit_range_label"))
+        self.fit_range = QComboBox()
+        self.fit_range.setAccessibleName(tr("autoeq.fit_range_label"))
+        self.fit_range.setToolTip(tr("tooltip.autoeq_fit_range"))
+        self.fit_range.addItem(tr("autoeq.fit_full"), (20000.0, 8))
+        self.fit_range.addItem(tr("autoeq.fit_6k"), (6000.0, 6))
+        self.fit_range.addItem(tr("autoeq.fit_4k"), (4000.0, 6))
+        self.fit_range.addItem(tr("autoeq.fit_2k"), (2000.0, 5))
+        range_row.addWidget(self.fit_range_label)
+        range_row.addWidget(self.fit_range, 1)
+        layout.addLayout(range_row)
 
         self.target_model = CatalogListModel(self)
         self.targets = QListView()
@@ -2122,17 +2312,21 @@ class AutoEqPanel(QWidget):
         ] + entries
         self.update_results()
 
+    def add_custom_target_path(self, path: str | Path) -> None:
+        resolved = str(path)
+        entry = catalog.Entry(Path(resolved).stem, "Plik lokalny", "target", resolved, True)
+        self.entries = list(dict.fromkeys([*self.entries, entry]))
+        self.mode.setCurrentIndex(self.mode.findData("target"))
+        self.search.clear()
+        self.update_results()
+        if entry in self.target_model.entries:
+            row = self.target_model.entries.index(entry)
+            self.targets.setCurrentIndex(self.target_model.index(row, 0))
+
     def open_target(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Wybierz krzywą docelową", "", "Pomiary (*.csv *.txt)")
         if path:
-            entry = catalog.Entry(Path(path).stem, "Plik lokalny", "target", path, True)
-            self.entries = list(dict.fromkeys([*self.entries, entry]))
-            self.mode.setCurrentIndex(self.mode.findData("target"))
-            self.search.clear()
-            self.update_results()
-            if entry in self.target_model.entries:
-                row = self.target_model.entries.index(entry)
-                self.targets.setCurrentIndex(self.target_model.index(row, 0))
+            self.add_custom_target_path(path)
 
     def generate_profile(self) -> None:
         entry = self.current_entry()
@@ -2186,6 +2380,7 @@ class AutoEqPanel(QWidget):
         self.fit_cancelled = False
         self.fit_timer.start()
         python = DATA_DIR.parent / ".venvs/autoeq/bin/python"
+        max_fc, fit_bands = self.fit_range.currentData() or (20000.0, 8)
         self.process.start(
             str(python if python.is_file() else Path(sys.executable)),
             [
@@ -2198,6 +2393,10 @@ class AutoEqPanel(QWidget):
                 str(self.output),
                 "--min-q",
                 str(26 / 256),
+                "--max-fc",
+                str(max_fc),
+                "--bands",
+                str(fit_bands),
             ],
         )
         self.update_actions()
@@ -2229,8 +2428,13 @@ class AutoEqPanel(QWidget):
         else:
             try:
                 name = f"Position → {self.result_entry.name}"
+                loaded = load_profile(self.output, name)
+                padded_bands = list(loaded.bands)
+                for idx in range(len(padded_bands), dac.BAND_COUNT):
+                    padded_bands.append({"band": idx + 1, "type": "PK", "freq": 1000, "q": 1.0, "gain": 0.0})
                 self.result = replace(
-                    load_profile(self.output, name),
+                    loaded,
+                    bands=padded_bands[: dac.BAND_COUNT],
                     source=f"AutoEq · {self.result_entry.source}",
                     target_name=self.result_entry.name,
                     target_curve=self.target_curve,
@@ -2300,6 +2504,7 @@ class ProfilesWindow(QWidget):
         super().__init__()
         self.setWindowTitle("MOONDROP Position")
         self.setStyleSheet(APP_STYLE)
+        self.setAcceptDrops(True)
         self.setMinimumSize(840, 660)
         self.resize(1040, 750)
         app_data = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
@@ -3407,16 +3612,10 @@ class ProfilesWindow(QWidget):
         label = "Automatyczna (PipeWire)" if confirmed == 0 else format_rate_khz(confirmed)
         self.feedback.setText(f"PipeWire potwierdził częstotliwość próbkowania: {label}.")
 
-    def import_profile(self) -> None:
-        path, _selected_filter = QFileDialog.getOpenFileName(
-            self, "Importuj profil EQ", "", "Profile EQ (*.json *.txt);;JSON (*.json);;Equalizer APO (*.txt)"
-        )
-        if not path:
-            return
+    def import_profile_from_path(self, source: Path) -> bool:
         try:
-            source = Path(path)
             if source.suffix.casefold() == ".txt":
-                bands, preamp = dac.parse_eqapo(path)
+                bands, preamp = dac.parse_eqapo(str(source))
                 for index in range(len(bands), dac.BAND_COUNT):
                     bands.append({"band": index + 1, "type": "PK", "freq": 1000, "q": 1, "gain": 0})
                 profile = custom_profile(source.stem, dac.CUSTOM_SLOT, bands, 0 if preamp is None else preamp)
@@ -3424,11 +3623,66 @@ class ProfilesWindow(QWidget):
                 profile = load_profile(source)
         except (OSError, ValueError, dac.HidError, SystemExit) as exc:
             self.feedback.setText(f"Błąd profilu. {exc}")
-            return
+            return False
         if self.persist_profile(profile):
             self.tabs.setCurrentWidget(self.profile_page)
             self.switch_source(0)
+            return True
+        return False
+
+    def import_profile(self) -> None:
+        path, _selected_filter = QFileDialog.getOpenFileName(
+            self, "Importuj profil EQ", "", "Profile EQ (*.json *.txt);;JSON (*.json);;Equalizer APO (*.txt)"
+        )
+        if not path:
+            return
+        if self.import_profile_from_path(Path(path)):
             self.feedback.setText("Profil został dodany do biblioteki.")
+
+    def dragEnterEvent(self, event) -> None:
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if any(
+            url.isLocalFile() and Path(url.toLocalFile()).suffix.casefold() in (".json", ".txt", ".csv") for url in urls
+        ):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dropEvent(self, event) -> None:
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        for url in urls:
+            if not url.isLocalFile():
+                continue
+            path = Path(url.toLocalFile())
+            suffix = path.suffix.casefold()
+            if suffix == ".json":
+                if self.import_profile_from_path(path):
+                    self.feedback.setText(tr("drop.loaded_profile", name=path.name))
+                event.acceptProposedAction()
+                return
+            if suffix == ".txt":
+                try:
+                    dac.parse_eqapo(str(path))
+                except (OSError, ValueError, SystemExit):
+                    pass
+                else:
+                    if self.import_profile_from_path(path):
+                        self.feedback.setText(tr("drop.loaded_profile", name=path.name))
+                    event.acceptProposedAction()
+                    return
+            if suffix in (".csv", ".txt"):
+                try:
+                    read_target_curve(path)
+                except (OSError, ValueError):
+                    self.feedback.setText(tr("drop.unsupported", name=path.name))
+                else:
+                    self.tabs.setCurrentWidget(self.profile_page)
+                    self.switch_source(1)
+                    self.autoeq_panel.add_custom_target_path(path)
+                    self.feedback.setText(tr("drop.loaded_target", name=path.name))
+                event.acceptProposedAction()
+                return
+        super().dropEvent(event)
 
     def save_fit(self) -> None:
         profile = self.autoeq_panel.result
@@ -3439,15 +3693,13 @@ class ProfilesWindow(QWidget):
         profile = self.selected_profile()
         if profile is None or profile.slot != dac.CUSTOM_SLOT:
             return
-        filename = profile.name.replace("/", "_") + ".json"
-        path, _ = QFileDialog.getSaveFileName(self, "Eksportuj profil", filename, "Profile JSON (*.json)")
-        if path:
-            try:
-                save_profile(path, profile)
-            except OSError as exc:
-                self.feedback.setText(f"Błąd eksportu profilu. {exc}")
-            else:
-                self.feedback.setText("Profil zapisany do pliku JSON.")
+        try:
+            notice = export_profile_dialog(self, "Eksportuj profil", profile)
+        except OSError as exc:
+            self.feedback.setText(f"Błąd eksportu profilu. {exc}")
+        else:
+            if notice:
+                self.feedback.setText(notice)
 
     def delete_selected(self) -> None:
         item = self.profiles.currentItem()
