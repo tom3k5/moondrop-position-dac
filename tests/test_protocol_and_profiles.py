@@ -183,3 +183,22 @@ def test_autoeq_read_github_https_fallback(monkeypatch) -> None:
     monkeypatch.setattr(catalog.urllib.request, "urlopen", lambda _req, timeout=18: FakeResponse(b'{"tree": []}'))
     data = catalog.read_github("repos/jaakkopasanen/AutoEq/git/trees/master", 1024)
     assert data == b'{"tree": []}'
+
+
+def test_shelves_supported_in_custom_profile_and_eq_fit() -> None:
+    import eq_fit
+
+    bands = [
+        {"band": 1, "type": "LSQ", "freq": 105, "gain": 3.0, "q": 0.7},
+        {"band": 2, "type": "HSQ", "freq": 10000, "gain": -2.5, "q": 0.7},
+        *[{"band": i, "type": "PK", "freq": 1000 * (i - 2), "gain": 0.0, "q": 1.0} for i in range(3, 9)],
+    ]
+    profile = gui.custom_profile("Shelves Test", gui.dac.CUSTOM_SLOT, bands, -3.1)
+    assert profile.bands[0]["type"] == "LSQ"
+    assert profile.bands[1]["type"] == "HSQ"
+
+    cfg_shelves = eq_fit.build_peq_config(8, 20.0, 20000.0, 0.1, 10.0, -12.0, 6.0, 0.008, None, with_shelves=True)
+    assert [f["type"] for f in cfg_shelves["filters"]] == ["LOW_SHELF", "HIGH_SHELF", *(["PEAKING"] * 6)]
+
+    cfg_pk = eq_fit.build_peq_config(8, 20.0, 20000.0, 0.1, 10.0, -12.0, 6.0, 0.008, None, with_shelves=False)
+    assert [f["type"] for f in cfg_pk["filters"]] == ["PEAKING"] * 8

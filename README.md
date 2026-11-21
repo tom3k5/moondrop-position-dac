@@ -22,12 +22,12 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 
 ### 2. Massive AutoEq Database Built In
 - **Thousands of IEM & Headphone Measurements:** Browse and filter the full AutoEq catalog (Crinacle, Oratory1990, Rtings, and more), load custom REW/CSV/TXT curves, or **drag & drop** `.json`, Equalizer APO `.txt`, and `.csv` files directly onto the window.
-- **Hardware-Aware 8-Band Optimization:** Automatically fits your chosen target curve to MOONDROP:Gravity Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`) with selectable **fit range** (`Full 20–20 kHz`, `Up to 6 kHz`, `4 kHz`, or `2 kHz` to leave upper bands free for manual treble tuning).
+- **Hardware-Aware 8-Band Optimization:** Automatically fits your chosen target curve to MOONDROP:Gravity Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LSQ / HSQ / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`; AutoEq defaults to `1× LSQ + 1× HSQ + 6× PK`) with selectable **fit range** (`Full 20–20 kHz`, `Up to 6 kHz`, `4 kHz`, or `2 kHz` to leave upper bands free for manual treble tuning).
 
 ### 3. Full Feature Parity with `hub.moondroplab.tech` — Plus Offline Safety
 | Feature | Official Web Hub | MOONDROP:Gravity Position for Linux |
 |---|---|---|
-| 8-band Parametric EQ (`PK / LP / HP`) + Pre-gain | Yes (WebHID / Chromium) | **Yes (Native USB HID `0x4B`, works offline)** |
+| 8-band Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Yes (`PK / LP / HP` only) | **Yes (Native USB HID `0x4B`, works offline)** |
 | Interactive Plot Handles + Auto Headroom | Sliders only | **Drag handles `1–8` (Freq/Gain/Wheel Q) + Auto Headroom & Clip Check** |
 | Live Auditioning (`Odsłuch na żywo`) | Yes | **Yes, with automatic safe state restore on cancel** |
 | Built-in AutoEq Optimizer (thousands of IEMs) | Basic presets | **Full AutoEq catalog + partial fit range + Drag & Drop CSV/TXT** |
@@ -121,5 +121,5 @@ The Flatpak manifest ([`local.moondrop.Position.json`](local.moondrop.Position.j
 ## Technical Documentation
 
 - [`docs/protokol-hid.md`](docs/protokol-hid.md) — Complete reverse-engineered USB HID `0x4B` DSP protocol (biquad Q2.30 encoding, slots, pre-gain, global/mic gain).
-- [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md) — AutoEq catalog pipeline and 8-band PK optimization details.
+- [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md) — AutoEq catalog pipeline and 8-band (`LSQ + HSQ + 6× PK` / `PK`) optimization details.
 - [`docs/zrodla.md`](docs/zrodla.md) — Hardware descriptors, UAC2 modes, and reference configurations.

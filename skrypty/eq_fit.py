@@ -125,6 +125,13 @@ def load_measurement(left: Path, right: Path | None) -> tuple[list[float], list[
 # --------------------------------------------------------------------------
 
 
+_AUTOEQ_FILTER_TYPES = {
+    "LowShelf": "LSQ",
+    "HighShelf": "HSQ",
+    "Peaking": "PK",
+}
+
+
 def build_peq_config(
     bands: int,
     min_fc: float,
@@ -135,13 +142,16 @@ def build_peq_config(
     max_gain: float,
     min_std: float,
     max_time: float | None,
+    *,
+    with_shelves: bool = True,
 ) -> dict:
     """Konfiguracja optymalizatora dopasowana do limitów MOONDROP:Gravity Position.
 
-    Urządzenie (wg oficjalnej apki) ma 8 pasm PK/LP/HP, 20–20 kHz, Q 0,1–10,
-    gain −18…+12 dB. Do korekcji używamy tylko PK (półki wyłączone w apce).
+    Urządzenie ma 8 pasm (PK/LSQ/HSQ/LP/HP, 20–20 kHz, Q 0,1–10, gain −18…+12 dB).
+    Domyślnie używamy 1× LSQ + 1× HSQ + (N−2)× PK (układ 8_PEAKING_WITH_SHELVES
+    dopasowany do 8 pasm sprzętu; półki 1/3 zostały potwierdzone na firmware 0.5).
     """
-    filt = {
+    peaking = {
         "type": "PEAKING",
         "min_fc": min_fc,
         "max_fc": max_fc,
@@ -150,10 +160,18 @@ def build_peq_config(
         "min_gain": min_gain,
         "max_gain": max_gain,
     }
+    if with_shelves and bands >= 2:
+        filters = [
+            {"type": "LOW_SHELF", "fc": 105.0, "q": 0.7, "min_gain": min_gain, "max_gain": max_gain},
+            {"type": "HIGH_SHELF", "fc": 10000.0, "q": 0.7, "min_gain": min_gain, "max_gain": max_gain},
+            *(dict(peaking) for _ in range(bands - 2)),
+        ]
+    else:
+        filters = [dict(peaking) for _ in range(bands)]
     optimizer: dict = {"min_std": min_std}
     if max_time is not None:
         optimizer["max_time"] = max_time
-    return {"optimizer": optimizer, "filters": [dict(filt) for _ in range(bands)]}
+    return {"optimizer": optimizer, "filters": filters}
 
 
 def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: Path, args) -> dict:
@@ -177,6 +195,7 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
     fr.smoothen()
     fr.equalize(max_gain=args.eq_max_gain, concha_interference=args.concha)
 
+    with_shelves = getattr(args, "shelves", True) and args.bands >= 2
     config = build_peq_config(
         bands=args.bands,
         min_fc=args.min_fc,
@@ -187,6 +206,7 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
         max_gain=args.boost_max,
         min_std=args.min_std,
         max_time=args.max_time,
+        with_shelves=with_shelves,
     )
     peqs = fr.optimize_parametric_eq(config, DEVICE_FS)
     peq = peqs[0]
@@ -207,13 +227,14 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
 
     bands = []
     for i, filt in enumerate(peq.filters):
+        ftype = _AUTOEQ_FILTER_TYPES.get(type(filt).__name__, "PK")
         bands.append(
             {
                 "band": i + 1,
                 "freq": round(float(filt.fc), 1),
                 "gain": round(float(filt.gain), 3),
                 "q": round(float(filt.q), 3),
-                "type": "PK",
+                "type": ftype,
             }
         )
 
@@ -230,6 +251,7 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
             "auto_eq_config": {
                 "fs": DEVICE_FS,
                 "bands": args.bands,
+                "with_shelves": with_shelves,
                 "boost_max": args.boost_max,
                 "cut_max": args.cut_max,
                 "eq_max_gain": args.eq_max_gain,
@@ -340,6 +362,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true", help="zapisz profil do urządzenia przez HID (wymaga udev)")
     parser.add_argument("--device", metavar="PATH", help="/dev/hidrawN")
     parser.add_argument("--bands", type=int, default=8, help="liczba pasm (domyślnie 8)")
+    parser.add_argument(
+        "--no-shelves",
+        dest="shelves",
+        action="store_false",
+        default=True,
+        help="użyj wyłącznie filtrów PK zamiast układu z półkami LSQ/HSQ",
+    )
     parser.add_argument("--slot", type=int, default=DEVICE_SLOT_CUSTOM, help="slot EQ (domyślnie 7 = Custom)")
     parser.add_argument("--boost-max", type=float, default=6.0, help="maks. wzmocnienie pasma w dB (domyślnie +6)")
     parser.add_argument("--cut-max", type=float, default=-12.0, help="maks. tłumienie pasma w dB (domyślnie −12)")

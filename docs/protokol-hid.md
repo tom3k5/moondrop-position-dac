@@ -180,7 +180,7 @@ tabela urządzeń, konfiguracja POSITION (zebrane w bazie `eqcaps`):
 | Parametr | Wartość |
 |---|---|
 | Liczba pasm | 8 |
-| Typy filtrów | PK, LPQ, HPQ — **półki wyłączone** dla tego modelu |
+| Typy filtrów | PK, LPQ, HPQ — **półki wyłączone** w oficjalnej apce, ale **potwierdzone** na firmware 0.5 (slot 0 używa `HSQ`, a slot 7 przyjmuje i zwraca `LSQ`/`HSQ` z dokładnymi współczynnikami Q2.30) |
 | Częstotliwość | 20–20 000 Hz, krok 1 Hz |
 | Gain | −18…+12 dB (siatka 1/256 dB; apka wpisuje 0,1 dB) |
 | Q | 0,1015625…10 (siatka 1/256; apka wpisuje 0,01) |

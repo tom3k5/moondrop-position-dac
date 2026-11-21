@@ -22,12 +22,12 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 
 ### 2. Ogromna baza AutoEq w jednym miejscu
 - **Tysiące pomiarów IEM i słuchawek nausznych:** Przeglądaj i filtruj katalog AutoEq (Crinacle, Oratory1990, Rtings i inni), wczytuj krzywe REW/CSV/TXT albo **przeciągaj i upuszczaj (Drag & Drop)** pliki `.json`, Equalizer APO `.txt` i `.csv` bezpośrednio na okno aplikacji.
-- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP:Gravity Position (`96 kHz` DSP, `PK / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`) z wyborem **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), co pozwala zostawić wyższe pasma wolne do ręcznego strojenia góry.
+- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP:Gravity Position (`96 kHz` DSP, `PK / LSQ / HSQ / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`; AutoEq domyślnie używa `1× LSQ + 1× HSQ + 6× PK`) z wyborem **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), co pozwala zostawić wyższe pasma wolne do ręcznego strojenia góry.
 
 ### 3. Pełna funkcjonalność `hub.moondroplab.tech` + praca offline
 | Funkcja | Oficjalny Web Hub | MOONDROP:Gravity Position na Linux |
 |---|---|---|
-| 8-pasmowy EQ parametryczny (`PK / LP / HP`) + Pre-gain | Tak (WebHID / Chromium) | **Tak (natywny USB HID `0x4B`, działa offline)** |
+| 8-pasmowy EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tak (tylko `PK / LP / HP`) | **Tak (natywny USB HID `0x4B`, działa offline)** |
 | Interaktywne punkty na wykresie + Auto Headroom | Tylko suwaki | **Przeciąganie punktów `1–8` (Hz/dB/kółko Q) + Auto Headroom i ostrzeżenie przed clippingiem** |
 | Odsłuch na żywo (`Live preview`) | Tak | **Tak, z automatycznym przywracaniem stanu przy anulowaniu** |
 | Wbudowany optymalizator AutoEq | Podstawowe presety | **Pełny katalog AutoEq + zakres dopasowania + Drag & Drop CSV/TXT** |
@@ -121,5 +121,5 @@ Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)
 ## Dokumentacja techniczna
 
 - [`docs/protokol-hid.md`](docs/protokol-hid.md) — Pełna specyfikacja protokołu USB HID `0x4B` (współczynniki Q2.30, sloty, pre-gain, global/mic gain).
-- [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md) — Szczegóły integracji katalogu AutoEq i optymalizacji 8 pasm PK.
+- [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md) — Szczegóły integracji katalogu AutoEq i optymalizacji 8 pasm (`LSQ + HSQ + 6× PK` / `PK`).
 - [`docs/zrodla.md`](docs/zrodla.md) — Deskryptory USB/UAC2 i pliki referencyjne.

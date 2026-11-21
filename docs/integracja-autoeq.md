@@ -40,11 +40,11 @@ plików REW / `squig.link` (L/R `.txt`).
 | dane: krzywa fabryczna + targety | `dane/pomiary/`, `dane/targety/` | opracowana ze specyfikacji + targety MIT z AutoEq |
 | przykładowy profil | `dane/profile/moondrop-position-harman.json` | wygenerowany dla Harman In-Ear 2019 |
 
-Wynik testu (pomiar Position vs Harman in-ear 2019, 8 pasm PK, fs = 96 kHz):
+Wynik testu (`Moondrop Position (B&K 5128).csv` vs `Harman in-ear 2019.csv`, 8 pasm `1× LSQ + 1× HSQ + 6× PK`, `fs = 96 kHz`):
 
 ```
-błąd RMS: 2,01 dB (przed EQ) → 0,34 dB (po EQ), max 2,75 dB
-preamp: −2,65 dB
+błąd RMS: 3,05 dB (przed EQ) → 0,47 dB (po EQ), max 3,12 dB
+preamp: −4,26 dB
 ```
 
 ## 3. Architektura rekomendowana
@@ -119,12 +119,12 @@ dane/
      strojenie z pamięci DAC-a,
   2. tabela urządzeń/limitów z oficjalnej apki `hub.mondroplab.com`
      (zebrana w eqcaps: profil `moondrop-position`).
-* **eqcaps** — limity EQ dla urządzenia (8 pasm, PK/LP/HP, zakresy), baza
-  publiczna (dane CC0).
+* **eqcaps** — limity EQ dla urządzenia z oficjalnej apki (8 pasm, PK/LP/HP, zakresy), baza
+  publiczna (dane CC0). Próba na firmware 0.5 potwierdziła dodatkowo obsługę półek `LSQ` (1) i `HSQ` (3).
 
 `dump-slots` odczytuje aktywny slot. Opcja `--switch` odczytuje sloty 0
-i 7, po czym wraca do początkowego slotu i sprawdza jego gain. Zrzut
-sprzętowy nadal czeka na weryfikację.
+i 7, po czym wraca do początkowego slotu i sprawdza jego gain. Odczyt
+sprzętowy na firmware 0.5 potwierdził oba sloty (w tym `HSQ` w fabrycznym slocie 0 oraz `LSQ`/`HSQ` w slocie 7).
 
 ## 6. Integracja z systemem Linux
 
@@ -139,12 +139,10 @@ sprzętowy nadal czeka na weryfikację.
 
 ## 7. Ograniczenia sprzętu i obejścia
 
-* **8 pasm, AutoEq generuje PK** (apka wyłącza półki) → największy problem to treble
-  > 10 kHz (wąskie piki) i szerokie pułapki basu. Obejścia:
+* **8 pasm, AutoEq generuje LSQ + HSQ + 6× PK** (apka wyłącza półki, ale próba na firmware 0.5 potwierdziła, że urządzenie przyjmuje i zwraca `LSQ`/`HSQ` oraz ich współczynniki Q2.30, a fabryczny slot 0 sam używa `HSQ`):
+  * w `eq_fit.py` domyślnie używamy układu 1× `LOW_SHELF` + 1× `HIGH_SHELF` + 6× `PEAKING` (opcja `--no-shelves` przywraca same `PK`),
   * targety „łagodniejsze” (`--tilt`, `--bass-boost`, target AutoEq in-ear),
   * `--eq-max-gain` mniejsze (mniej agresywna korekcja góry),
-  * **sprawdzić eksperymentalnie, czy firmware przyjmuje LS/HS** (bajty typu
-    1/3 są w protokole) — jeśli tak, można użyć `8_PEAKING_WITH_SHELVES`;
   * hybryda: sprzętowo 8 pasm + EasyEffects na treble (fallback).
 * **Stałe 96 kHz** w DSP — optymalizator wywołujemy z `fs=96000`, żeby
   przewidywana odpowiedź zgadzała się z tym, co policzy urządzenie.
@@ -192,10 +190,11 @@ bypassu lub neutralnego ustawienia. Sama nazwa Default tego nie oznacza.
 ### Stan weryfikacji
 
 Na EndeavourOS/KDE Wayland potwierdzono odczyt sprzętowy firmware 0.5,
-aktywnego slotu i ośmiu pasm przez `hidraw`. W Qt offscreen sprawdzono
-edycję z odsłuchem, przywrócenie stanu, zapis i usuwanie profili w
-symulatorze. Na sprzęcie pozostaje potwierdzić słyszalność zmian i
-trwałość wgranego profilu po ponownym podłączeniu.
+aktywnego slotu, ośmiu pasm przez `hidraw` oraz przyjmowanie i dokładny
+odczyt współczynników Q2.30 dla filtrów półkowych `LSQ` (1) i `HSQ` (3).
+W Qt offscreen sprawdzono edycję z odsłuchem, przywrócenie stanu, zapis
+i usuwanie profili w symulatorze. Na sprzęcie pozostaje potwierdzić
+słyszalność zmian i trwałość wgranego profilu po ponownym podłączeniu.
 
 Bieżące testy uruchamiamy ze źródeł. Tryb demonstracyjny uruchamia
 `python3 skrypty/position_gui.py --demo`, a odczyt fizycznego DAC-a

@@ -680,8 +680,10 @@ def custom_profile(
     dac.validate_profile(bands, slot, preamp)
     if slot != dac.CUSTOM_SLOT or len(bands) != dac.BAND_COUNT or type(preamp) not in (int, float):
         raise ValueError("Profil musi zawierać osiem pasm, pre-gain i dotyczyć slotu Custom.")
-    if not -128 <= preamp <= 0 or any(b["type"] not in {"PK", "LP", "HP"} or not -18 <= b["gain"] <= 12 for b in bands):
-        raise ValueError("Position obsługuje PK, LP i HP, gain od −18 do +12 dB i pre-gain do 0 dB.")
+    if not -128 <= preamp <= 0 or any(
+        b["type"] not in {"PK", "LSQ", "HSQ", "LP", "HP"} or not -18 <= b["gain"] <= 12 for b in bands
+    ):
+        raise ValueError("Position obsługuje PK, LSQ, HSQ, LP i HP, gain od −18 do +12 dB i pre-gain do 0 dB.")
     if global_gain_db is not None and (type(global_gain_db) is not int or not -18 <= global_gain_db <= 0):
         raise ValueError("Global gain w profilu musi być liczbą całkowitą od −18 do 0 dB.")
     if mic_gain_raw is not None and (type(mic_gain_raw) is not int or mic_gain_raw not in MIC_GAIN_REQUESTS):
@@ -1682,6 +1684,8 @@ class EqualizerDialog(QDialog):
             kind = QComboBox()
             for label, code in (
                 (tr("editor.type_pk"), "PK"),
+                (tr("editor.type_lsq"), "LSQ"),
+                (tr("editor.type_hsq"), "HSQ"),
                 (tr("editor.type_lp"), "LP"),
                 (tr("editor.type_hp"), "HP"),
             ):
@@ -1775,7 +1779,7 @@ class EqualizerDialog(QDialog):
         slider.blockSignals(blocked)
 
     def filter_type_changed(self, kind: QComboBox, slider: QSlider, gain: QDoubleSpinBox) -> None:
-        enabled = kind.currentData() == "PK"
+        enabled = kind.currentData() in {"PK", "LSQ", "HSQ"}
         slider.setEnabled(enabled)
         gain.setEnabled(enabled)
         self.plot_timer.start()
@@ -2616,9 +2620,8 @@ class ProfilesWindow(QWidget):
         self.maintenance_box = QGroupBox(tr("device.backup_group"))
         device_actions = QHBoxLayout(self.maintenance_box)
         device_actions.setSpacing(10)
-        device_actions.addWidget(self.backup_button)
-        device_actions.addWidget(self.defaults_button)
-        device_actions.addStretch()
+        device_actions.addWidget(self.backup_button, 1)
+        device_actions.addWidget(self.defaults_button, 1)
 
         self.playback_box = QGroupBox(tr("device.playback_group"))
         playback_form = QFormLayout(self.playback_box)
