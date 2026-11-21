@@ -696,7 +696,7 @@ def open_position(expected_path: str | None = None) -> dac.MoondropPosition | No
             raise dac.HidError("Position został odłączony.")
         return None
     if len(devices) != 1:
-        raise dac.HidError("Podłącz jeden MOONDROP Position.")
+        raise dac.HidError("Podłącz jeden MOONDROP:Gravity Position.")
     path = devices[0]["node"]
     if expected_path is not None and path != expected_path:
         raise dac.HidError("Ścieżka urządzenia zmieniła się. Odczytaj stan ponownie.")
@@ -1225,7 +1225,7 @@ class ResponsePlot(QWidget):
             self.setMouseTracking(True)
         self.setMinimumHeight(95 if correction else 135)
         self.setAccessibleName(
-            "Korekcja EQ w dB" if correction else "Charakterystyka słuchawek MOONDROP Position w dB SPL"
+            "Korekcja EQ w dB" if correction else "Charakterystyka słuchawek MOONDROP:Gravity Position w dB SPL"
         )
 
     def set_primary_points(self, points: list[tuple[float, float]]) -> None:
@@ -2374,7 +2374,7 @@ class AutoEqPanel(QWidget):
             self.finish_fit()
             return
         self.output = work / "profile.json"
-        self.status.setText("AutoEq oblicza osiem pasm dla MOONDROP Position…")
+        self.status.setText("AutoEq oblicza osiem pasm dla MOONDROP:Gravity Position…")
         self.cancel.show()
         self.preview_changed.emit()
         self.fit_cancelled = False
@@ -2502,7 +2502,7 @@ class FeedbackLabel(QLabel):
 class ProfilesWindow(QWidget):
     def __init__(self, demo: bool, library_directory: Path | None = None):
         super().__init__()
-        self.setWindowTitle("MOONDROP Position")
+        self.setWindowTitle("MOONDROP:Gravity Position")
         self.setStyleSheet(APP_STYLE)
         self.setAcceptDrops(True)
         self.setMinimumSize(840, 660)
@@ -2543,7 +2543,7 @@ class ProfilesWindow(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 14, 20, 12)
         layout.setSpacing(12)
-        heading = QLabel("MOONDROP Position")
+        heading = QLabel("MOONDROP:Gravity Position")
         font = heading.font()
         font.setPointSizeF(font.pointSizeF() * 1.55)
         font.setBold(True)
@@ -3227,7 +3227,7 @@ class ProfilesWindow(QWidget):
         self.tray_menu.aboutToShow.connect(self.populate_tray)
         self.tray.setContextMenu(self.tray_menu)
         self.tray.activated.connect(self.tray_activated)
-        self.tray.setToolTip("MOONDROP Position")
+        self.tray.setToolTip("MOONDROP:Gravity Position")
         self.tray.show()
 
     def open_window(self) -> None:
@@ -3451,9 +3451,9 @@ class ProfilesWindow(QWidget):
             if item.text() != label:
                 item.setText(label)
         if state is None:
-            self.connection.setText(error.split("\n\n", 1)[0] if error else "Podłącz MOONDROP Position.")
+            self.connection.setText(error.split("\n\n", 1)[0] if error else "Podłącz MOONDROP:Gravity Position.")
             if self.tray:
-                self.tray.setToolTip(f"MOONDROP Position · {self.connection.text()}")
+                self.tray.setToolTip(f"MOONDROP:Gravity Position · {self.connection.text()}")
             for label in (
                 self.active_slot,
                 self.active_profile,
@@ -3469,7 +3469,7 @@ class ProfilesWindow(QWidget):
         self.active_slot.setText(f"{state.slot} · {slot_name}" if slot_name else str(state.slot))
         self.active_profile.setText(active_name)
         if self.tray:
-            self.tray.setToolTip(f"MOONDROP Position · {self.active_profile.text()}")
+            self.tray.setToolTip(f"MOONDROP:Gravity Position · {self.active_profile.text()}")
         self.preamp.setText(f"{state.preamp:+.2f} dB")
         self.global_gain.setText("—" if state.global_gain_db is None else f"{state.global_gain_db} dB")
         self.mic_gain.setText("—" if state.mic_gain_raw is None else mic_gain_label(state.mic_gain_raw))
@@ -4007,7 +4007,7 @@ def main() -> int:
         try:
             dev = open_position()
             if dev is None:
-                raise dac.HidError("Nie znaleziono MOONDROP Position w sysfs.")
+                raise dac.HidError("Nie znaleziono MOONDROP:Gravity Position w sysfs.")
             with dev:
                 if args.test_global_gain:
                     report = test_global_gain(dev)
@@ -4023,7 +4023,7 @@ def main() -> int:
         print(json.dumps(report, indent=2, ensure_ascii=False))
         return 0
     app = QApplication([sys.argv[0]])
-    app.setApplicationName("MOONDROP Position")
+    app.setApplicationName("MOONDROP:Gravity Position")
     server_name = f"moondrop-position-{'demo' if args.demo else 'live'}"
     if activate_existing_instance(server_name):
         return 0

@@ -1,4 +1,4 @@
-# MOONDROP Position — Native Linux DSP, AutoEq & Gaming Audio Controller
+# MOONDROP:Gravity Position — Native Linux DSP, AutoEq & Gaming Audio Controller
 
 🌐 **Language:** English | [Polski](README.pl.md)
 
@@ -7,7 +7,7 @@
 [![UI: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-41cd52?logo=qt&logoColor=white)](#screenshots)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Unlock the full hardware DSP of your MOONDROP Position (`35d8:0123`) natively on Linux — zero browser needed, zero CPU overhead, full AutoEq integration.**
+**Unlock the full hardware DSP of your MOONDROP:Gravity Position (`35d8:0123`) natively on Linux — zero browser needed, zero CPU overhead, full AutoEq integration.**
 
 Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEMs to Harman, Diffuse Field, or your own REW measurements, this app brings **100% of the official web configurator's capabilities ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** directly to your Linux desktop — plus thousands of AutoEq profiles and PipeWire UAC2 control.
 
@@ -16,16 +16,16 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ## Why Use the Native Linux App?
 
 ### 1. Built for Linux Gaming & Low-Latency Audio
-- **Zero CPU DSP:** Your 8-band parametric EQ runs directly on the MOONDROP Position hardware chip (`< 5 ms` latency). Your tuning stays active in every Steam/Proton game, Discord voice chat, and media player — even when you close the app or switch PCs.
+- **Zero CPU DSP:** Your 8-band parametric EQ runs directly on the MOONDROP:Gravity Position hardware chip (`< 5 ms` latency). Your tuning stays active in every Steam/Proton game, Discord voice chat, and media player — even when you close the app or switch PCs.
 - **PipeWire / UAC2 Sample Rate Control:** Inspect active ALSA streams (`S16_LE` / `S24_3LE` / `S32_LE`) and force sample rates (`44.1` to `384 kHz`) via PipeWire right from the **Device** tab.
 - **System Tray Ready:** Minimize to the system tray and switch EQ profiles in two clicks between gaming, music, and calls.
 
 ### 2. Massive AutoEq Database Built In
 - **Thousands of IEM & Headphone Measurements:** Browse and filter the full AutoEq catalog (Crinacle, Oratory1990, Rtings, and more), load custom REW/CSV/TXT curves, or **drag & drop** `.json`, Equalizer APO `.txt`, and `.csv` files directly onto the window.
-- **Hardware-Aware 8-Band Optimization:** Automatically fits your chosen target curve to MOONDROP Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`) with selectable **fit range** (`Full 20–20 kHz`, `Up to 6 kHz`, `4 kHz`, or `2 kHz` to leave upper bands free for manual treble tuning).
+- **Hardware-Aware 8-Band Optimization:** Automatically fits your chosen target curve to MOONDROP:Gravity Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`) with selectable **fit range** (`Full 20–20 kHz`, `Up to 6 kHz`, `4 kHz`, or `2 kHz` to leave upper bands free for manual treble tuning).
 
 ### 3. Full Feature Parity with `hub.moondroplab.tech` — Plus Offline Safety
-| Feature | Official Web Hub | MOONDROP Position for Linux |
+| Feature | Official Web Hub | MOONDROP:Gravity Position for Linux |
 |---|---|---|
 | 8-band Parametric EQ (`PK / LP / HP`) + Pre-gain | Yes (WebHID / Chromium) | **Yes (Native USB HID `0x4B`, works offline)** |
 | Interactive Plot Handles + Auto Headroom | Sliders only | **Drag handles `1–8` (Freq/Gain/Wheel Q) + Auto Headroom & Clip Check** |
@@ -80,7 +80,7 @@ Audio playback works out of the box with PipeWire. To allow non-root DSP/EQ cont
 sudo cp udev/70-moondrop-position.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
-Replug your MOONDROP Position and verify detection:
+Replug your MOONDROP:Gravity Position and verify detection:
 ```bash
 python3 skrypty/position_gui.py --diagnose
 ```

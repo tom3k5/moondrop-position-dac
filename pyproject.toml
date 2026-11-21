@@ -1,7 +1,7 @@
 [project]
 name = "moondrop-position-dac"
 version = "0.1.0"
-description = "Linux desktop GUI and CLI for MOONDROP Position USB-C DAC/AMP (35d8:0123) DSP/EQ"
+description = "Linux desktop GUI and CLI for MOONDROP:Gravity Position USB-C DAC/AMP (35d8:0123) DSP/EQ"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"

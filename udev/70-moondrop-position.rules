@@ -1,4 +1,4 @@
-# MOONDROP Position (35d8:0123) — dostęp do HID bez roota
+# MOONDROP:Gravity Position (35d8:0123) — dostęp do HID bez roota
 #
 # Urządzenie ma dwa interfejsy HID:
 #   * interface 3 (hidraw, report 0x4B i 0x54) — kanał vendor/DSP (EQ)

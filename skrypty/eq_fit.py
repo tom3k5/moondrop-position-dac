@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""eq_fit.py — AutoEq → MOONDROP Position: dopasowanie EQ do targetu i zapis do DSP.
+"""eq_fit.py — AutoEq → MOONDROP:Gravity Position: dopasowanie EQ do targetu i zapis do DSP.
 
 Łączy:
   * bazę pomiarów (squig.link, CSV AutoEq) i targety (AutoEq, squig.link),
@@ -136,7 +136,7 @@ def build_peq_config(
     min_std: float,
     max_time: float | None,
 ) -> dict:
-    """Konfiguracja optymalizatora dopasowana do limitów MOONDROP Position.
+    """Konfiguracja optymalizatora dopasowana do limitów MOONDROP:Gravity Position.
 
     Urządzenie (wg oficjalnej apki) ma 8 pasm PK/LP/HP, 20–20 kHz, Q 0,1–10,
     gain −18…+12 dB. Do korekcji używamy tylko PK (półki wyłączone w apce).
@@ -218,7 +218,7 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
         )
 
     profile = {
-        "device": "MOONDROP Position",
+        "device": "MOONDROP:Gravity Position",
         "usb": "35d8:0123",
         "slot": args.slot,
         "preamp": round(preamp, 2),
@@ -319,7 +319,9 @@ def fmt_profile(profile: dict) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Dopasuj EQ (AutoEq) do pomiaru i targetu, zapisz profil MOONDROP Position (opcjonalnie do DSP).",
+        description=(
+            "Dopasuj EQ (AutoEq) do pomiaru i targetu, zapisz profil MOONDROP:Gravity Position (opcjonalnie do DSP)."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Przykład:\n"
         "  skrypty/eq_fit.py -m 'dane/pomiary/Moondrop Position (B&K 5128).csv' \\\n"

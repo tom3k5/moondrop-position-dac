@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=MOONDROP Position
-Comment=Manage EQ profiles on the MOONDROP Position DAC
-Comment[pl]=Zarządzaj profilami EQ w DAC-u MOONDROP Position
+Name=MOONDROP:Gravity Position
+Comment=Manage EQ profiles on the MOONDROP:Gravity Position DAC
+Comment[pl]=Zarządzaj profilami EQ w DAC-u MOONDROP:Gravity Position
 Exec=position-dac
 Icon=local.moondrop.Position
 Terminal=false

@@ -1,4 +1,4 @@
-# MOONDROP Position — Natywny kontroler DSP, AutoEq i Audio dla Linuxa
+# MOONDROP:Gravity Position — Natywny kontroler DSP, AutoEq i Audio dla Linuxa
 
 🌐 **Język:** [English](README.md) | Polski
 
@@ -7,7 +7,7 @@
 [![UI: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-41cd52?logo=qt&logoColor=white)](#zrzuty-ekranu)
 [![Licencja: MIT](https://img.shields.io/badge/Licencja-MIT-blue.svg)](LICENSE)
 
-**Odblokuj pełne możliwości sprzętowego DSP w swoim MOONDROP Position (`35d8:0123`) natywnie na Linuxie — bez przeglądarki, bez obciążania CPU i z wbudowanym AutoEq.**
+**Odblokuj pełne możliwości sprzętowego DSP w swoim MOONDROP:Gravity Position (`35d8:0123`) natywnie na Linuxie — bez przeglądarki, bez obciążania CPU i z wbudowanym AutoEq.**
 
 Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje IEM-y pod krzywą Harmana albo własne pomiary REW — ta aplikacja przenosi **100% możliwości oficjalnego konfiguratora webowego ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** na pulpit Linuxa i dokłada tysiące profili AutoEq oraz kontrolę PipeWire UAC2.
 
@@ -22,10 +22,10 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 
 ### 2. Ogromna baza AutoEq w jednym miejscu
 - **Tysiące pomiarów IEM i słuchawek nausznych:** Przeglądaj i filtruj katalog AutoEq (Crinacle, Oratory1990, Rtings i inni), wczytuj krzywe REW/CSV/TXT albo **przeciągaj i upuszczaj (Drag & Drop)** pliki `.json`, Equalizer APO `.txt` i `.csv` bezpośrednio na okno aplikacji.
-- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP Position (`96 kHz` DSP, `PK / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`) z wyborem **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), co pozwala zostawić wyższe pasma wolne do ręcznego strojenia góry.
+- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP:Gravity Position (`96 kHz` DSP, `PK / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`) z wyborem **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), co pozwala zostawić wyższe pasma wolne do ręcznego strojenia góry.
 
 ### 3. Pełna funkcjonalność `hub.moondroplab.tech` + praca offline
-| Funkcja | Oficjalny Web Hub | MOONDROP Position na Linux |
+| Funkcja | Oficjalny Web Hub | MOONDROP:Gravity Position na Linux |
 |---|---|---|
 | 8-pasmowy EQ parametryczny (`PK / LP / HP`) + Pre-gain | Tak (WebHID / Chromium) | **Tak (natywny USB HID `0x4B`, działa offline)** |
 | Interaktywne punkty na wykresie + Auto Headroom | Tylko suwaki | **Przeciąganie punktów `1–8` (Hz/dB/kółko Q) + Auto Headroom i ostrzeżenie przed clippingiem** |
@@ -80,7 +80,7 @@ Samo odtwarzanie audio działa od razu w PipeWire. Do sterowania DSP/EQ z konta 
 sudo cp udev/70-moondrop-position.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
-Podłącz ponownie MOONDROP Position i sprawdź połączenie:
+Podłącz ponownie MOONDROP:Gravity Position i sprawdź połączenie:
 ```bash
 python3 skrypty/position_gui.py --diagnose
 ```

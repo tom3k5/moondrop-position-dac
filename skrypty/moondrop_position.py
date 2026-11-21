@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MOONDROP Position (35d8:0123) — odczyt i zapis DSP przez HID report 0x4B.
+"""MOONDROP:Gravity Position (35d8:0123) — odczyt i zapis DSP przez HID report 0x4B.
 
 Protokół odtworzony z publicznych implementacji (patrz docs/zrodla.md):
   * devicePEQ / moondropUsbHidHandler.js  (0BSD)
@@ -138,7 +138,7 @@ def pick_device(explicit: str | None) -> str:
         return explicit
     devs = candidate_devices()
     if not devs:
-        sys.exit("Nie znaleziono MOONDROP Position (35d8:0123) z reportem HID 0x4B.")
+        sys.exit("Nie znaleziono MOONDROP:Gravity Position (35d8:0123) z reportem HID 0x4B.")
     return devs[0]["node"]
 
 
@@ -470,7 +470,7 @@ def cmd_info(args) -> int:
     if args.json:
         print(json.dumps(info, indent=2, ensure_ascii=False))
     else:
-        print(f"Urządzenie : MOONDROP Position ({info['usb']}) na {info['device']}")
+        print(f"Urządzenie : MOONDROP:Gravity Position ({info['usb']}) na {info['device']}")
         print(f"Firmware   : {info['firmware']}")
         print(f"Aktywny slot: {info['slot']}  (0 = Default, 7 = Custom wg oficjalnej apki)")
         print(f"Pre-gain   : {info['preamp_db']:+.2f} dB")
@@ -925,7 +925,7 @@ def cmd_import_eq(args) -> int:
             file=sys.stderr,
         )
     profile = {
-        "device": "MOONDROP Position",
+        "device": "MOONDROP:Gravity Position",
         "usb": "35d8:0123",
         "slot": args.slot,
         "preamp": round(preamp, 2) if preamp is not None else 0.0,
@@ -954,7 +954,7 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--json", action="store_true", help="wyjście JSON")
 
     parser = argparse.ArgumentParser(
-        description="MOONDROP Position (35d8:0123): odczyt/zapis DSP przez HID 0x4B",
+        description="MOONDROP:Gravity Position (35d8:0123): odczyt/zapis DSP przez HID 0x4B",
         epilog="Przykłady:\n"
         "  %(prog)s list\n"
         "  %(prog)s info\n"
