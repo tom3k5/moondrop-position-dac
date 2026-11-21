@@ -22,12 +22,12 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 
 ### 2. Ogromna baza AutoEq w jednym miejscu
 - **Tysiące pomiarów IEM i słuchawek nausznych:** Przeglądaj i filtruj katalog AutoEq (Crinacle, Oratory1990, Rtings i inni), wczytuj krzywe REW/CSV/TXT albo **przeciągaj i upuszczaj (Drag & Drop)** pliki `.json`, Equalizer APO `.txt` i `.csv` bezpośrednio na okno aplikacji.
-- **Optymalizacja pod 8 pasm sprzętowych:** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP:Gravity Position (`96 kHz` DSP, `PK / LSQ / HSQ / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`; AutoEq domyślnie używa `1× LSQ + 1× HSQ + 6× PK`) z wyborem **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), co pozwala zostawić wyższe pasma wolne do ręcznego strojenia góry.
+- **Optymalizacja pod 8 pasm sprzętowych (`1× LSQ + 1× HSQ + 6× PK`):** Automatyczne dopasowanie wybranego celu dokładnie do limitów MOONDROP:Gravity Position (`96 kHz` DSP, `PK / LSQ / HSQ / LP / HP`, `20–20 000 Hz`, `-18…+12 dB`). W przeciwieństwie do aplikacji producenta (`hub.moondroplab.tech`, która wyłącza filtry półkowe dla Position i udostępnia wyłącznie `PK / LP / HP`), nasza aplikacja odblokowuje sprzętowe półki `LSQ` i `HSQ` (potwierdzone na firmware 0.5) i domyślnie używa w AutoEq układu `1× LSQ + 1× HSQ + 6× PK` — co daje **znacząco mniejsze odchylenie** od oczekiwanej krzywej (np. `0,47 dB` RMS / max `3,12 dB` wobec `2,20 dB` RMS / max `12,48 dB` przy samych `8× PK` dla Position → Harman In-Ear 2019). Dostępny jest też wybór **zakresu dopasowania** (`Pełny 20–20 kHz`, `Do 6 kHz`, `4 kHz`, `2 kHz`), pozwalający zostawić wyższe pasma wolne do ręcznego strojenia góry.
 
 ### 3. Pełna funkcjonalność `hub.moondroplab.tech` + praca offline
 | Funkcja | Oficjalny Web Hub | MOONDROP:Gravity Position na Linux |
 |---|---|---|
-| 8-pasmowy EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tak (tylko `PK / LP / HP`) | **Tak (natywny USB HID `0x4B`, działa offline)** |
+| 8-pasmowy EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tak (tylko `PK / LP / HP` — półki wyłączone) | **Tak — odblokowuje `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`, znacznie mniejszy błąd dopasowania, natywny USB HID `0x4B`, offline)** |
 | Interaktywne punkty na wykresie + Auto Headroom | Tylko suwaki | **Przeciąganie punktów `1–8` (Hz/dB/kółko Q) + Auto Headroom i ostrzeżenie przed clippingiem** |
 | Odsłuch na żywo (`Live preview`) | Tak | **Tak, z automatycznym przywracaniem stanu przy anulowaniu** |
 | Wbudowany optymalizator AutoEq | Podstawowe presety | **Pełny katalog AutoEq + zakres dopasowania + Drag & Drop CSV/TXT** |

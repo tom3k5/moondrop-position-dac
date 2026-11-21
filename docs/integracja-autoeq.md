@@ -40,12 +40,20 @@ plików REW / `squig.link` (L/R `.txt`).
 | dane: krzywa fabryczna + targety | `dane/pomiary/`, `dane/targety/` | opracowana ze specyfikacji + targety MIT z AutoEq |
 | przykładowy profil | `dane/profile/moondrop-position-harman.json` | wygenerowany dla Harman In-Ear 2019 |
 
-Wynik testu (`Moondrop Position (B&K 5128).csv` vs `Harman in-ear 2019.csv`, 8 pasm `1× LSQ + 1× HSQ + 6× PK`, `fs = 96 kHz`):
+Wynik testu (`Moondrop Position (B&K 5128).csv` vs `Harman in-ear 2019.csv`, `fs = 96 kHz`):
 
-```
-błąd RMS: 3,05 dB (przed EQ) → 0,47 dB (po EQ), max 3,12 dB
-preamp: −4,26 dB
-```
+* **Domyślnie (`1× LSQ + 1× HSQ + 6× PK`)** — półki potwierdzone na firmware 0.5:
+  ```
+  błąd RMS: 3,05 dB (przed EQ) → 0,47 dB (po EQ), max 3,12 dB
+  preamp: −4,26 dB
+  ```
+* **Same filtry peaking (`--no-shelves`, `8× PK`)** — ograniczenie z aplikacji producenta `hub.moondroplab.tech` (`docs/ref/moondrop-position.json` wyłącza półki i dopuszcza tylko `PK / LPQ / HPQ`):
+  ```
+  błąd RMS: 3,05 dB (przed EQ) → 2,20 dB (po EQ), max 12,48 dB
+  preamp: −4,66 dB
+  ```
+
+Użycie `1× LSQ + 1× HSQ + 6× PK` zmniejsza błąd RMS blisko 5-krotnie (`0,47 dB` zamiast `2,20 dB`) oraz 4-krotnie ogranicza maksymalne odchylenie od krzywej docelowej (`3,12 dB` zamiast `12,48 dB`).
 
 ## 3. Architektura rekomendowana
 
