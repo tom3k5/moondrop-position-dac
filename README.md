@@ -110,7 +110,7 @@ The Flatpak manifest ([`local.moondrop.Position.json`](local.moondrop.Position.j
 ## Support, Feedback & Author
 
 - **Author:** [InnoVibe](https://www.innovibe.pl/en)
-- **Buy me a coffee:** Enjoying the app? [Support development (PL & EU payments)](https://www.innovibe.pl/ko-fi) — or click **☕ Buy me a coffee** directly in the app footer.
+- **Buy me a coffee:** Enjoying the app? [Support development (PL & EU payments)](https://innovibe.pl/en/ko-fi/) — or click **☕ Buy me a coffee** directly in the app footer.
 - **Found a bug or have an idea?** Use the in-app **Report bug / Feature** button (which includes a 1-click diagnostic copy) or open an issue directly on [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose). Structured issue forms are automatically labeled by area.
 
 ---
