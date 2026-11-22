@@ -92,7 +92,7 @@ The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal su
 
 ## Screenshots
 
-MOONDROP:Gravity Position v0.3.6 running in demo mode with the **InnoVibe Dark** theme.
+MOONDROP:Gravity Position running from source in demo mode with the **InnoVibe Dark** theme.
 
 ### 1. Tuning & Frequency Response Preview
 Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Already active on DAC** once matched).
@@ -123,6 +123,7 @@ Switch to **AutoEq catalog** to filter thousands of IEM and over-ear measurement
 Click **Edit EQ…** to open the dedicated editor. With a DAC connected, **Live preview** turns on automatically, lets you audition every tweak in real time without flashing memory, and safely restores your previous DAC settings if you turn it off or cancel.
 
 - Drag numbered handles `1–8` directly on the **EQ correction** plot (Freq / Gain / scroll wheel Q), fine-tune with sliders or numeric fields, and click **Set automatically** to set pre-gain from available headroom.
+- The editor fits all eight bands on opening when the available screen height allows it. Expand **Output and microphone gain in profile** below the bands to attach those settings.
 - If a steep `LSQ` or `HSQ` exceeds the DAC's coefficient range, reduce Q or gain. Live preview restores the original coefficients and pre-gain when it ends.
 - Switch to **Frequency response** to check the predicted acoustic curve, enable **Compare with initial profile**, and use the bottom bar to **Export profile…** (`.txt` / `.json`), **Save profile**, or **Apply to DAC**.
 

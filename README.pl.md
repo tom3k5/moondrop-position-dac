@@ -92,7 +92,7 @@ Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka p
 
 ## Zrzuty ekranu
 
-MOONDROP:Gravity Position v0.3.6 w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
+MOONDROP:Gravity Position uruchomiony ze źródeł w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
 
 ### 1. Strojenie i podgląd charakterystyki
 Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (przycisk zmienia się na **Już aktywny w DAC-u**, gdy stan sprzętu jest zgodny z wyborem).
@@ -123,6 +123,7 @@ W **Katalogu AutoEq** wybierz źródło pomiarów i typ słuchawek, a następnie
 Kliknij **Edytuj EQ…**, aby otworzyć osobny edytor. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie, pozwala sprawdzać każdą zmianę w czasie rzeczywistym bez zapisu do flash i bezpiecznie przywraca wcześniejsze ustawienia DAC-a po wyłączeniu lub anulowaniu.
 
 - Przeciągaj ponumerowane punkty `1–8` bezpośrednio na wykresie **Korekcja EQ** (częstotliwość / gain / kółko myszy dla Q), korzystaj z suwaków lub pól liczbowych i użyj **Ustaw automatycznie**, aby dobrać pre-gain bez ryzyka przesterowania.
+- Edytor po otwarciu mieści osiem pasm, gdy pozwala na to wysokość ekranu. Rozwiń **Wzmocnienie wyjścia i mikrofonu w profilu** pod pasmami, aby dołączyć te ustawienia.
 - Jeśli stroma półka `LSQ` lub `HSQ` przekracza zakres współczynników DAC-a, zmniejsz Q lub gain. Po zakończeniu odsłuch przywraca pierwotne współczynniki i pre-gain.
 - Przełącz na zakładkę **Charakterystyka**, aby ocenić odpowiedź akustyczną, włącz **Porównaj z profilem wyjściowym**, a dolnym paskiem zapisz profil na dysku (**Zapisz profil**), wyeksportuj (**Eksportuj profil…** do `.txt` / `.json`) lub wgraj do pamięci DAC-a (**Wgraj do DAC-a**).
 
