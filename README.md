@@ -44,22 +44,25 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ## Screenshots
 
 ### Tuning & Frequency Response Preview
-**Factory**, **Target**, and **Predicted result** show the acoustic response. **EQ correction** shows the combined electrical response of the filters at 96 kHz. Profile and DSP pre-gain values appear below the correction chart. **Current in DSP** uses the biquad coefficients read back from the device, including after **Apply to DAC**.
+Tuning shows the **selected profile** and the **active profile on the DAC** separately. The preview actions stay visible at the bottom. **Apply to DAC** is replaced by the active status when the hardware matches the selection. The main window starts at up to 1140 × 820 logical pixels and fits the available desktop area. Compact windows let you switch between **Frequency response** and **EQ correction**.
 
-Fit RMS uses logarithmic frequency steps over the shared 20 Hz–10 kHz band and aligns the target with one mean level offset. Hover over the RMS for the offset and the largest deviation in that band. The shaded area above 10 kHz marks lower confidence in the acoustic comparison.
+**Factory**, **Target**, and **Predicted result** show the acoustic response. **EQ correction** shows the electrical response of the filters at 96 kHz, with profile and DSP pre-gain listed separately. **Current in DSP** uses the biquad coefficients read back from the device. **Fit details** reports the mean target level offset and the largest deviation in the shared 20 Hz–10 kHz band. Shading above 10 kHz marks lower confidence in the acoustic comparison.
 
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
 
 ### Built-in AutoEq Catalog
-Filter by form factor, measurement source, and optimization frequency **Range** (`20–20 kHz` or partial fit up to `6 / 4 / 2 kHz`):
+Filter the catalog by form factor and measurement source. The preview groups the target, fit range, and the controls to compute or cancel. A completed profile records its fit range, including when saved to disk. If the range changes, recompute before saving or applying that result.
+
 ![AutoEq Catalog](docs/screenshots/02-autoeq-catalog.png)
 
 ### 8-Band Parametric EQ Editor (with Interactive Handles & Live Preview)
-Drag numbered handles `1–8` directly on the curve (Freq / Gain / scroll wheel Q), use **Auto Headroom** + clipping detection, and export to JSON or Equalizer APO (`.txt`):
+Edit the electrical EQ curve using handles `1–8`, sliders, or numerical inputs. Switch to **Frequency response** to see the acoustic prediction. **Set automatically** calculates pre-gain from the available headroom. The live preview status stays above the editor and the save, apply, and export actions stay below the scrollable controls.
+
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
 ### Device Status, Gains & PipeWire UAC2 Quality
-Zero-scroll 2-column dashboard for hardware readback, gain controls, UAC2/PipeWire sample rate, and theme/language settings:
+See the active profile, slot, gain, and stream format at a glance. Open **USB and PipeWire details** for the raw format, firmware, and sample-rate details. Forcing the sample rate affects the whole PipeWire session.
+
 ![Device Settings](docs/screenshots/03-device-settings.png)
 
 ### Built-in Guide, Shortcuts & Support
@@ -119,7 +122,7 @@ The Flatpak manifest ([`local.moondrop.Position.json`](local.moondrop.Position.j
 ## Support, Feedback & Author
 
 - **Author:** [InnoVibe](https://www.innovibe.pl/en)
-- **Buy me a coffee:** Enjoying the app? [Support development (PL & EU payments)](https://innovibe.pl/en/ko-fi/) — or click **☕ Buy me a coffee** directly in the app footer.
+- **Buy me a coffee:** Use the support link in the app’s **Guide** tab or [support development on InnoVibe](https://innovibe.pl/en/ko-fi/).
 - **Found a bug or have an idea?** Use the in-app **Report bug / Feature** button (which includes a 1-click diagnostic copy) or open an issue directly on [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose). Structured issue forms are automatically labeled by area.
 
 ---

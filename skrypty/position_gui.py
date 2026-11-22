@@ -24,6 +24,7 @@ from uuid import uuid4
 
 from PySide6.QtCore import (
     QAbstractListModel,
+    QEvent,
     QIODevice,
     QLocale,
     QModelIndex,
@@ -110,13 +111,15 @@ OFFICIAL_HUB_URL = "https://hub.moondroplab.tech/"
 PROFILE_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 PRIMARY_ACTION_STYLE = (
+    "QPushButton { padding: 7px 18px; font-weight: 600; }"
     "QPushButton:enabled { background: palette(highlight); color: palette(highlighted-text);"
-    " border: 1px solid palette(highlight); border-radius: 6px; padding: 7px 18px; font-weight: 600; }"
+    " border: 1px solid palette(highlight); border-radius: 6px; }"
     "QPushButton:focus { border: 1px solid palette(text); }"
 )
 SECONDARY_ACCENT_STYLE = (
+    "QPushButton { padding: 6px 14px; font-weight: 600; }"
     "QPushButton:enabled { background: palette(button); color: palette(link);"
-    " border: 1px solid palette(highlight); border-radius: 6px; padding: 6px 14px; font-weight: 600; }"
+    " border: 1px solid palette(highlight); border-radius: 6px; }"
     "QPushButton:enabled:hover { background: palette(alternate-base); border-color: palette(link); }"
     "QPushButton:focus { border: 1px solid palette(text); }"
 )
@@ -273,15 +276,10 @@ SEGMENT_BUTTON_STYLE = (
     "QPushButton { border: 1px solid palette(mid); padding: 5px 10px; background: palette(window); }"
     "QPushButton:hover:!checked { border-color: palette(highlight); background: palette(alternate-base); }"
     "QPushButton:checked { border-color: palette(highlight); background: palette(highlight);"
-    " color: palette(highlighted-text); font-weight: 600; }"
+    " color: palette(highlighted-text); }"
+    "QPushButton:focus { border-color: palette(text); }"
 )
 STATUS_PILL_STYLE = "border: 1px solid palette(mid); border-radius: 12px; padding: 4px 12px; background: palette(base);"
-FOOTER_BUTTON_STYLE = (
-    "QPushButton, QToolButton { border: 1px solid transparent; border-radius: 6px;"
-    " padding: 4px 10px; background: transparent; }"
-    'QToolButton[popupMode="2"] { padding-right: 22px; }'
-    "QPushButton:hover, QToolButton:hover { border-color: palette(highlight); background: palette(base); }"
-)
 
 
 def build_innovibe_palette(dark: bool) -> QPalette:
@@ -330,8 +328,8 @@ def build_innovibe_palette(dark: bool) -> QPalette:
             QPalette.ColorRole.Dark: "#a89d91",
             QPalette.ColorRole.Shadow: "#78716c",
             QPalette.ColorRole.Highlight: "#ff6a00",
-            QPalette.ColorRole.HighlightedText: "#ffffff",
-            QPalette.ColorRole.Link: "#e5470a",
+            QPalette.ColorRole.HighlightedText: "#1c1917",
+            QPalette.ColorRole.Link: "#a83a08",
             QPalette.ColorRole.LinkVisited: "#c23b08",
         }
         disabled_text = "#a8a29e"
@@ -340,6 +338,25 @@ def build_innovibe_palette(dark: bool) -> QPalette:
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
         palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(disabled_text))
     return palette
+
+
+def size_to_screen(window: QWidget, width: int, height: int) -> None:
+    screen = window.parentWidget().screen() if window.parentWidget() else window.screen()
+    if screen is not None:
+        work_area = screen.availableGeometry()
+        width = min(width, max(1, work_area.width() - 32))
+        height = min(height, max(1, work_area.height() - 48))
+    window.setMinimumSize(window.minimumSize().boundedTo(QSize(width, height)))
+    window.resize(width, height)
+
+
+def scroll_content(content: QWidget) -> QScrollArea:
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+    scroll.setWidget(content)
+    return scroll
 
 
 def load_theme_preference(settings_path: Path) -> str:
@@ -383,11 +400,17 @@ def paint_innovibe_backdrop(widget: QWidget) -> None:
 # Firmware 0.5. Klucze to odczytane kody, wartości to sprawdzone żądania.
 MIC_GAIN_REQUESTS = {-3072: -3072, -2304: -2304, -1920: -1920, -1536: -1536, -1152: -1024, -384: -512, 0: 0}
 UAC2_PLAYBACK_MODES = (
-    (1, "S16_LE", "16-bit"),
-    (2, "S24_3LE", "24-bit"),
-    (3, "S32_LE", "32-bit"),
+    (1, "S16_LE", 16),
+    (2, "S24_3LE", 24),
+    (3, "S32_LE", 32),
 )
 UAC2_SAMPLE_RATES = (44100, 48000, 96000, 192000, 384000)
+AUTOEQ_FIT_RANGES = (
+    ("autoeq.fit_full", (20000, 8)),
+    ("autoeq.fit_6k", (6000, 6)),
+    ("autoeq.fit_4k", (4000, 6)),
+    ("autoeq.fit_2k", (2000, 5)),
+)
 DEFAULT_EQ_FREQUENCIES = (20, 54, 144, 386, 1036, 2779, 7455, 20000)
 DEFAULT_EQ_Q = 182 / 256  # 0.7109375 (~0.711)
 EQ_PLOT_FREQUENCIES = tuple(20 * 10 ** (index / 320) for index in range(961))
@@ -607,6 +630,7 @@ class Profile:
     target_name: str | None = None
     target_curve: tuple[tuple[float, float], ...] = ()
     coefficients: tuple[bytes, ...] = ()
+    fit_range: tuple[int, int] | None = None
 
     def matches_eq(self, state: DeviceState) -> bool:
         return state.slot == self.slot and (
@@ -657,6 +681,8 @@ def load_profile(path: Path, name: str | None = None, *, pad_bands: bool = False
     target_name = meta.get("target_name")
     target = valid_curve(meta.get("target_curve", ()))
     fit_meta = meta.get("meta")
+    stored_range = fit_meta.get("fit_range") if isinstance(fit_meta, dict) else None
+    fit_range = next((limits for _, limits in AUTOEQ_FIT_RANGES if list(limits) == stored_range), None)
     if not target and (
         path.resolve() == BUILTIN_PROFILE.resolve()
         or (isinstance(fit_meta, dict) and fit_meta.get("target") == HARMAN_TARGET.name)
@@ -677,6 +703,7 @@ def load_profile(path: Path, name: str | None = None, *, pad_bands: bool = False
         source=source if isinstance(source, str) else None,
         target_name=target_name if isinstance(target_name, str) else None,
         target_curve=target,
+        fit_range=fit_range,
     )
 
 
@@ -1023,6 +1050,8 @@ def save_profile(path: str, profile: Profile) -> None:
     if profile.target_curve:
         data["target_name"] = profile.target_name
         data["target_curve"] = profile.target_curve
+    if profile.fit_range is not None:
+        data["meta"] = {"fit_range": profile.fit_range}
     if profile.global_gain_db is not None:
         data["global_gain_db"] = profile.global_gain_db
     if profile.mic_gain_raw is not None:
@@ -1215,7 +1244,7 @@ def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str 
     if target.suffix.casefold() != ".json":
         target = target.with_suffix(".json")
     save_profile(target, profile)
-    return "Profil zapisany do pliku JSON."
+    return tr("export.saved_json")
 
 
 class ResponsePlot(QWidget):
@@ -1246,9 +1275,7 @@ class ResponsePlot(QWidget):
         self.hover_hz: float | None = None
         self.setMouseTracking(True)
         self.setMinimumHeight(95 if correction else 135)
-        self.setAccessibleName(
-            "Korekcja EQ w dB" if correction else "Charakterystyka słuchawek MOONDROP:Gravity Position w dB SPL"
-        )
+        self.setAccessibleName(tr("plot.eq_title" if correction else "plot.fr_title"))
 
     def set_primary_points(self, points: list[tuple[float, float]]) -> None:
         self.points = points
@@ -1270,10 +1297,15 @@ class ResponsePlot(QWidget):
 
     def set_profile(self, profile: Profile | None) -> None:
         self.active_bands = list(profile.bands) if (self.interactive and profile is not None) else []
-        self.set_primary_points(self.acoustic_points(profile))
+        self.set_primary_points(self.profile_points(profile))
 
     def set_reference(self, profile: Profile | None) -> None:
-        self.set_reference_points(self.acoustic_points(profile))
+        self.set_reference_points(self.profile_points(profile))
+
+    def profile_points(self, profile: Profile | None) -> list[tuple[float, float]]:
+        if self.correction:
+            return response_points(profile, EQ_PLOT_FREQUENCIES) if profile is not None else []
+        return self.acoustic_points(profile)
 
     def set_reference_points(self, points: list[tuple[float, float]]) -> None:
         self.reference_points = points
@@ -1334,7 +1366,7 @@ class ResponsePlot(QWidget):
         ]
 
     def series_pen(self, role: int) -> QPen:
-        dark_bg = self.palette().base().color().lightness() < 128
+        dark_bg = QApplication.palette().base().color().lightness() < 128
         # Role: 0 = wybrany/edytowany, 1 = obecnie w DSP / referencja, 2 = pomiar Position, 3 = cel AutoEq
         palette_hex = (
             ("#ff9524", "#e879f9", "#22d3ee", "#4ade80") if dark_bg else ("#e55300", "#a21caf", "#0284c7", "#15803d")
@@ -1345,10 +1377,11 @@ class ResponsePlot(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        palette = self.palette()
+        palette = QApplication.palette()
         text = palette.color(QPalette.ColorRole.Text)
         card_rect = self.rect().adjusted(0, 0, -1, -1)
-        painter.setBrush(palette.base())
+        plot_background = QApplication.palette().base()
+        painter.setBrush(plot_background)
         painter.setPen(QPen(palette.color(QPalette.ColorRole.Mid), 1))
         painter.drawRoundedRect(card_rect, 8, 8)
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -1443,7 +1476,7 @@ class ResponsePlot(QWidget):
                 self._draw_hover_readout(painter, plot, groups, hx, text)
         self.band_handles = []
         if self.interactive and self.points and self.active_bands:
-            accent = QColor("#ff8a1f" if palette.base().color().lightness() < 128 else "#e5470a")
+            accent = QColor("#ff8a1f" if plot_background.color().lightness() < 128 else "#a83a08")
             handle_font = painter.font()
             handle_font.setPointSizeF(max(8.0, handle_font.pointSizeF() * 0.85))
             handle_font.setBold(True)
@@ -1457,7 +1490,7 @@ class ResponsePlot(QWidget):
                 active = idx in (self.drag_index, self.hover_index)
                 radius = 10.5 if active else 8.5
                 painter.setPen(QPen(accent if active else text, 2.2 if active else 1.5))
-                painter.setBrush(accent if active else palette.base().color())
+                painter.setBrush(accent if active else plot_background.color())
                 painter.drawEllipse(QPointF(hx, hy), radius, radius)
                 painter.setPen(palette.highlightedText().color() if active else text)
                 label_rect = painter.boundingRect(
@@ -1625,11 +1658,10 @@ class CurveSwatch(QWidget):
 
 
 class _FlowLayout(QLayout):
-    def __init__(self, parent=None, spacing: int = 6, max_per_row: int = 0):
+    def __init__(self, parent=None, spacing: int = 6):
         super().__init__(parent)
         self._items = []
         self._spacing = spacing
-        self._max_per_row = max_per_row
 
     def addItem(self, item) -> None:
         self._items.append(item)
@@ -1672,32 +1704,28 @@ class _FlowLayout(QLayout):
         x = effective.x()
         y = effective.y()
         line_height = 0
-        row_count = 0
         for item in self._items:
             widget = item.widget()
-            if widget is not None and not widget.isVisible():
+            if widget is not None and widget.isHidden():
                 continue
             hint = item.sizeHint()
             item_w = min(hint.width(), max(1, effective.width()))
             item_h = hint.height()
             next_x = x + item_w + self._spacing
-            wrap_by_count = self._max_per_row > 0 and row_count >= self._max_per_row
             wrap_by_width = next_x - self._spacing > effective.right() + 1
-            if (wrap_by_count or wrap_by_width) and line_height > 0:
+            if wrap_by_width and line_height > 0:
                 x = effective.x()
                 y += line_height + self._spacing
                 next_x = x + item_w + self._spacing
                 line_height = 0
-                row_count = 0
             if not test_only:
                 item.setGeometry(QRect(x, y, item_w, item_h))
             x = next_x
             line_height = max(line_height, item_h)
-            row_count += 1
         return y + line_height - rect.y() + m.bottom()
 
 
-class _LegendChip(QFrame):
+class _LegendChip(QPushButton):
     def __init__(self, plot: ResponsePlot, role: int, on_toggle=None):
         super().__init__()
         self.setObjectName("legendChip")
@@ -1706,8 +1734,9 @@ class _LegendChip(QFrame):
         self.active_roles: list[int] = [role]
         self.on_toggle = on_toggle
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setCheckable(True)
+        self.setAutoDefault(False)
+        self.clicked.connect(self._trigger_toggle)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         line = QHBoxLayout(self)
         line.setContentsMargins(7, 3, 9, 3)
@@ -1726,19 +1755,26 @@ class _LegendChip(QFrame):
     def set_text(self, text: str) -> None:
         elided = self.label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, 230)
         self.label.setText(elided)
+        self.setAccessibleName(text)
+        self.updateGeometry()
+
+    def sizeHint(self) -> QSize:
+        return self.layout().sizeHint() if self.layout() is not None else super().sizeHint()
 
     def set_dimmed(self, dimmed: bool) -> None:
+        self.setChecked(not dimmed)
         if not dimmed:
             self.setStyleSheet(
-                "QFrame#legendChip { border: 1px solid palette(mid); border-radius: 6px;"
+                "QPushButton#legendChip { border: 1px solid palette(mid); border-radius: 6px;"
                 " background: palette(alternate-base); }"
-                "QFrame#legendChip:hover, QFrame#legendChip:focus { border-color: palette(highlight); }"
+                "QPushButton#legendChip:hover { border-color: palette(link); }"
+                "QPushButton#legendChip:focus { border: 2px solid palette(text); }"
             )
         else:
             self.setStyleSheet(
-                "QFrame#legendChip { border: 1px dashed palette(mid); border-radius: 6px; color: palette(mid); }"
-                "QFrame#legendChip:hover, QFrame#legendChip:focus {"
-                " border-color: palette(highlight); background: palette(alternate-base); }"
+                "QPushButton#legendChip { border: 1px dashed palette(mid); border-radius: 6px; }"
+                "QPushButton#legendChip:hover { border-color: palette(link); }"
+                "QPushButton#legendChip:focus { border: 2px dashed palette(text); }"
             )
         self.swatch.set_dimmed(dimmed)
 
@@ -1748,15 +1784,8 @@ class _LegendChip(QFrame):
         else:
             self.plot.toggle_roles(self.active_roles)
 
-    def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._trigger_toggle()
-            event.accept()
-            return
-        super().mousePressEvent(event)
-
     def keyPressEvent(self, event) -> None:
-        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._trigger_toggle()
             event.accept()
             return
@@ -1778,22 +1807,18 @@ class PlotKey(QWidget):
         plot: ResponsePlot,
         labels: tuple[str, ...],
         linked_plots: list[ResponsePlot] | None = None,
-        fixed_rows: int = 0,
     ):
         super().__init__()
         self.plot = plot
         self.labels = labels
         self.linked_plots = linked_plots or []
         self.chips: list[_LegendChip] = []
-        self.flow = _FlowLayout(self, spacing=6, max_per_row=2 if fixed_rows == 2 else 0)
+        self.flow = _FlowLayout(self, spacing=6)
         self.flow.setContentsMargins(0, 2, 0, 2)
         for role in range(len(labels)):
             chip = _LegendChip(plot, role, on_toggle=self._toggle_chip_roles)
             self.chips.append(chip)
             self.flow.addWidget(chip)
-        if fixed_rows > 0 and self.chips:
-            row_h = max(self.chips[0].sizeHint().height(), self.fontMetrics().lineSpacing() + 8)
-            self.setFixedHeight(fixed_rows * row_h + max(0, fixed_rows - 1) * 6 + 4)
         plot.curves_changed.connect(self.refresh)
         self.refresh()
 
@@ -1837,8 +1862,8 @@ class EqualizerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("editor.title"))
         self.setStyleSheet(APP_STYLE)
-        self.setMinimumSize(780, 720)
-        self.resize(860, 800)
+        self.setMinimumSize(625, 460)
+        size_to_screen(self, 900, 850)
         self.result_profile = None
         self.result_apply = False
         self.device_window = parent
@@ -1851,44 +1876,63 @@ class EqualizerDialog(QDialog):
         self.pending_exit = None
         self.live_error = ""
         self.rows = []
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(10)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(16, 12, 16, 12)
+        outer.setSpacing(8)
 
-        top_bar = QHBoxLayout()
-        top_bar.setSpacing(10)
+        listen_row = QHBoxLayout()
+        self.live = QCheckBox(tr("editor.live"))
+        self.live.setEnabled(device_path is not None)
+        self.live.setToolTip(tr("editor.live_hint"))
+        self.live.toggled.connect(self.toggle_live)
+        listen_row.addWidget(self.live)
+        self.live_status = QLabel(tr("editor.live_offline" if device_path is None else "editor.live_off"))
+        self.live_status.setTextFormat(Qt.TextFormat.PlainText)
+        self.live_status.setWordWrap(True)
+        listen_row.addWidget(self.live_status, 1)
+        outer.addLayout(listen_row)
+
+        self.editor_content = QWidget()
+        layout = QVBoxLayout(self.editor_content)
+        layout.setContentsMargins(0, 0, 5, 0)
+        layout.setSpacing(8)
+        outer.addWidget(scroll_content(self.editor_content), 1)
+
+        name_row = QHBoxLayout()
         self.name = QLineEdit()
         self.name.setAccessibleName(tr("editor.profile_label"))
         self.name.setPlaceholderText(tr("editor.profile_placeholder"))
         self.name.setToolTip(tr("tooltip.editor_name"))
-        top_bar.addWidget(QLabel(tr("editor.profile_label")))
-        top_bar.addWidget(self.name, 1)
-        self.preamp = self.decimal(-128, 0, 0.1)
-        self.preamp.setSuffix(" dB")
-        self.preamp.setFixedWidth(120)
-        self.preamp.setAccessibleName(tr("editor.preamp_label"))
-        self.preamp.setToolTip(tr("tooltip.editor_preamp"))
-        top_bar.addWidget(QLabel(tr("editor.preamp_label")))
-        top_bar.addWidget(self.preamp)
-        self.auto_headroom_btn = QPushButton(tr("editor.auto_headroom"))
-        self.auto_headroom_btn.setToolTip(tr("tooltip.editor_auto_headroom"))
-        self.auto_headroom_btn.clicked.connect(self.apply_auto_headroom)
-        top_bar.addWidget(self.auto_headroom_btn)
+        profile_label = QLabel(tr("editor.profile_label"))
+        profile_label.setBuddy(self.name)
+        name_row.addWidget(profile_label)
+        name_row.addWidget(self.name, 1)
         if current is not None:
             copy = QPushButton(tr("editor.load_dac"))
             copy.setToolTip(tr("tooltip.editor_load_dac"))
             copy.clicked.connect(lambda: self.set_profile(current))
-            top_bar.addWidget(copy)
-        self.live = QCheckBox(tr("editor.live"))
-        self.live.setEnabled(device_path is not None)
-        self.live.setToolTip(
-            "Regulacja EQ i pre-gainu w DAC-u podczas edycji."
-            if device_path is not None
-            else "Podłącz DAC, aby włączyć odsłuch."
-        )
-        self.live.toggled.connect(self.toggle_live)
-        top_bar.addWidget(self.live)
-        layout.addLayout(top_bar)
+            name_row.addWidget(copy)
+        layout.addLayout(name_row)
+
+        gain_row = QHBoxLayout()
+        self.preamp = self.decimal(-128, 0, 0.1)
+        self.preamp.setSuffix(" dB")
+        self.preamp.setMinimumWidth(88)
+        self.preamp.setAccessibleName(tr("editor.preamp_label"))
+        self.preamp.setToolTip(tr("tooltip.editor_preamp"))
+        preamp_label = QLabel(tr("editor.preamp_label"))
+        preamp_label.setBuddy(self.preamp)
+        gain_row.addWidget(preamp_label)
+        gain_row.addWidget(self.preamp)
+        self.auto_headroom_btn = QPushButton(tr("editor.auto_headroom"))
+        self.auto_headroom_btn.setToolTip(tr("tooltip.editor_auto_headroom"))
+        self.auto_headroom_btn.clicked.connect(self.apply_auto_headroom)
+        gain_row.addWidget(self.auto_headroom_btn)
+        self.headroom_label = QLabel()
+        self.headroom_label.setWordWrap(True)
+        self.headroom_label.setTextFormat(Qt.TextFormat.PlainText)
+        gain_row.addWidget(self.headroom_label, 1)
+        layout.addLayout(gain_row)
         gain_panel = QWidget()
         gain_form = QFormLayout(gain_panel)
         gain_form.setContentsMargins(0, 0, 0, 0)
@@ -1913,42 +1957,57 @@ class EqualizerDialog(QDialog):
         mic_row.addWidget(self.mic_gain)
         gain_form.addRow(tr("editor.mic_gain"), mic_row)
 
-        self.plot = ResponsePlot(interactive=True)
-        self.plot.setMinimumHeight(180)
-        self.plot.set_factory(factory)
+        self.plot = ResponsePlot(correction=True, interactive=True)
+        self.plot.setMinimumHeight(160)
         self.plot.band_changed.connect(self.on_plot_band_changed)
         self.plot.band_q_changed.connect(self.on_plot_band_q_changed)
-        plot_header = QHBoxLayout()
-        plot_header.addWidget(QLabel(tr("plot.fr_title")))
-        self.headroom_label = QLabel()
-        self.headroom_label.setTextFormat(Qt.TextFormat.PlainText)
-        plot_header.addSpacing(12)
-        plot_header.addWidget(self.headroom_label)
-        plot_header.addStretch()
+        self.acoustic_plot = ResponsePlot()
+        self.acoustic_plot.setMinimumHeight(160)
+        self.acoustic_plot.set_factory(factory)
         self.compare = QCheckBox(tr("editor.compare"))
         self.compare.setToolTip(tr("tooltip.editor_compare"))
         self.compare.toggled.connect(self.update_reference)
-        plot_header.addWidget(self.compare)
-        layout.addLayout(plot_header)
-        layout.addWidget(self.plot, 1)
-        layout.addWidget(
-            PlotKey(self.plot, tuple(tr(key) for key in ("plot.key.draft", "plot.key.initial", "plot.key.measured")))
-        )
-        measurement_note = QLabel(tr("plot.measurement_note") + " · " + tr("plot.treble_note"))
-        measurement_note.setWordWrap(True)
-        if factory is None:
-            measurement_note.setText(measurement_note.text() + " · podgląd zakłada neutralne EQ fabryczne")
-        layout.addWidget(measurement_note)
+        views = QTabWidget()
+        views.setDocumentMode(True)
+        views.setCornerWidget(self.compare, Qt.Corner.TopRightCorner)
+
+        eq_page = QWidget()
+        eq_view = QVBoxLayout(eq_page)
+        eq_view.setContentsMargins(0, 6, 0, 0)
+        eq_view.addWidget(self.plot)
+        eq_labels = (tr("plot.key.draft"), tr("plot.key.initial"))
+        eq_view.addWidget(PlotKey(self.plot, eq_labels))
         drag_hint = QLabel(tr("editor.plot_drag_hint"))
         drag_hint.setWordWrap(True)
-        layout.addWidget(drag_hint)
+        eq_view.addWidget(drag_hint)
+        views.addTab(eq_page, tr("plot.view_eq"))
+
+        acoustic_page = QWidget()
+        acoustic_view = QVBoxLayout(acoustic_page)
+        acoustic_view.setContentsMargins(0, 6, 0, 0)
+        acoustic_view.addWidget(self.acoustic_plot)
+        acoustic_view.addWidget(PlotKey(self.acoustic_plot, (*eq_labels, tr("plot.key.measured"))))
+        notes = [tr("plot.measurement_note"), tr("plot.treble_note")]
+        if factory is None:
+            notes.append(tr("plot.neutral_factory"))
+        measurement_note = QLabel(" · ".join(notes))
+        measurement_note.setWordWrap(True)
+        acoustic_view.addWidget(measurement_note)
+        views.addTab(acoustic_page, tr("plot.view_response"))
+        layout.addWidget(views)
         self.plot_timer = QTimer(self, singleShot=True, interval=0)
         self.plot_timer.timeout.connect(self.update_draft)
         self.live_timer = QTimer(self, singleShot=True, interval=140)
         self.live_timer.timeout.connect(self.send_live)
         self.preamp.valueChanged.connect(lambda: self.plot_timer.start())
-        grid = QGridLayout()
-        grid.setVerticalSpacing(6)
+        bands_panel = QWidget()
+        bands_panel.setObjectName("editorBands")
+        bands_panel.setStyleSheet(
+            "QWidget#editorBands QSpinBox, QWidget#editorBands QDoubleSpinBox { padding: 2px 8px; }"
+        )
+        grid = QGridLayout(bands_panel)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setVerticalSpacing(4)
         grid.setHorizontalSpacing(8)
         for column, title in enumerate(
             (
@@ -1980,7 +2039,7 @@ class EqualizerDialog(QDialog):
             slider = QSlider(Qt.Orientation.Horizontal)
             slider.setRange(-180, 120)
             slider.setPageStep(10)
-            slider.setMinimumWidth(105)
+            slider.setMinimumWidth(65)
             slider.valueChanged.connect(lambda value, box=gain: box.setValue(value / 10))
             gain.valueChanged.connect(lambda value, control=slider: self.sync_gain_slider(control, value))
             q = self.decimal(26 / 256, 10, 0.01)
@@ -1988,14 +2047,14 @@ class EqualizerDialog(QDialog):
             for control in (kind, frequency, gain, q):
                 control.setMinimumHeight(28)
             grid.addWidget(QLabel(str(number)), number, 0)
-            for column, label, widget in (
-                (1, "Typ filtra", kind),
-                (2, "Częstotliwość", frequency),
-                (3, "Suwak gainu", slider),
-                (4, "Gain", gain),
-                (5, "Q", q),
+            for column, key, widget in (
+                (1, "editor.col_type", kind),
+                (2, "editor.col_freq", frequency),
+                (3, "editor.gain_slider", slider),
+                (4, "editor.col_gain", gain),
+                (5, "editor.col_q", q),
             ):
-                widget.setAccessibleName(f"{label}, pasmo {number}")
+                widget.setAccessibleName(tr("editor.band_field", label=tr(key), band=number))
                 grid.addWidget(widget, number, column)
             self.rows.append((kind, frequency, gain, q))
             kind.currentIndexChanged.connect(
@@ -2003,7 +2062,7 @@ class EqualizerDialog(QDialog):
             )
             for control in (frequency, gain, q):
                 control.valueChanged.connect(lambda: self.plot_timer.start())
-        layout.addLayout(grid)
+        layout.addWidget(bands_panel)
         self.gain_options = QToolButton()
         self.gain_options.setText(tr("editor.gain_options"))
         self.gain_options.setToolTip(tr("tooltip.editor_gain_options"))
@@ -2018,15 +2077,10 @@ class EqualizerDialog(QDialog):
         layout.addWidget(gain_panel)
         gain_panel.hide()
 
-        self.live_status = QLabel()
-        self.live_status.setTextFormat(Qt.TextFormat.PlainText)
-        self.live_status.setWordWrap(True)
-        self.live_status.hide()
-        layout.addWidget(self.live_status)
-        self.message = QLabel()
+        self.message = FeedbackLabel()
         self.message.setTextFormat(Qt.TextFormat.PlainText)
         self.message.setWordWrap(True)
-        layout.addWidget(self.message)
+        outer.addWidget(self.message)
         buttons = QDialogButtonBox()
         buttons.addButton(tr("editor.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         pick = buttons.addButton(tr("editor.save_profile"), QDialogButtonBox.ButtonRole.AcceptRole)
@@ -2042,7 +2096,10 @@ class EqualizerDialog(QDialog):
         buttons.rejected.connect(self.reject)
         pick.clicked.connect(self.select_draft)
         save.clicked.connect(self.save_draft)
-        layout.addWidget(buttons)
+        for button in buttons.buttons():
+            button.setAutoDefault(False)
+        self.editor_buttons = buttons
+        outer.addWidget(buttons)
 
         if source is None:
             source = Profile("Własny EQ", dac.CUSTOM_SLOT, default_custom_bands(), 0)
@@ -2099,7 +2156,9 @@ class EqualizerDialog(QDialog):
         self.message.clear()
 
     def update_reference(self) -> None:
-        self.plot.set_reference(self.reference if self.compare.isChecked() else None)
+        reference = self.reference if self.compare.isChecked() else None
+        self.plot.set_reference(reference)
+        self.acoustic_plot.set_reference(reference)
 
     def draft(self) -> Profile:
         bands = [
@@ -2125,6 +2184,7 @@ class EqualizerDialog(QDialog):
             source=self.reference.source,
             target_name=self.reference.target_name,
             target_curve=self.reference.target_curve,
+            fit_range=self.reference.fit_range,
         )
 
     def select_draft(self) -> None:
@@ -2166,6 +2226,7 @@ class EqualizerDialog(QDialog):
             self.headroom_label.setText(tr("editor.headroom_ok", peak=net_peak))
             self.headroom_label.setStyleSheet("color: palette(placeholder-text);")
         self.plot.set_profile(profile)
+        self.acoustic_plot.set_profile(profile)
         if self.live.isChecked() and not self.live_timer.isActive():
             self.live_timer.start()
 
@@ -2187,7 +2248,7 @@ class EqualizerDialog(QDialog):
             return
         self.live_error = ""
         self.live.setEnabled(False)
-        self.show_live_status("Odczytuję ustawienia DAC-a przed odsłuchem…")
+        self.show_live_status(tr("editor.live_reading"))
         self.run_live(
             lambda: begin_live_eq(self.device_window.open_device, self.device_path),
             self.live_started,
@@ -2196,7 +2257,7 @@ class EqualizerDialog(QDialog):
     def live_started(self, snapshot, error: str) -> None:
         self.live_busy = False
         if error:
-            self.fail_live("Nie udało się uruchomić odsłuchu.", error)
+            self.fail_live(tr("editor.live_start_error"), error)
             self.settle_live()
             return
         self.live_snapshot = snapshot
@@ -2216,11 +2277,9 @@ class EqualizerDialog(QDialog):
         if (profile.bands, profile.preamp) == (previous.bands, previous.preamp):
             self.plot.set_profile(replace(profile, preamp=self.live_preamp))
             if dac.preamp_matches(self.live_preamp, profile.preamp):
-                self.show_live_status("Odsłuch aktywny. Zmieniaj suwaki i ustawienia pasm.")
+                self.show_live_status(tr("editor.live_active"))
             else:
-                self.show_live_status(
-                    f"Odsłuch aktywny · pre-gain DAC-a {self.live_preamp:+.2f} dB (profil {profile.preamp:+.2f} dB)."
-                )
+                self.show_live_status(tr("editor.live_preamp", actual=self.live_preamp, requested=profile.preamp))
             return
         snapshot = self.live_snapshot
         actual_preamp = self.live_preamp
@@ -2232,7 +2291,7 @@ class EqualizerDialog(QDialog):
     def live_written(self, profile: Profile, preamp: float | None, error: str) -> None:
         self.live_busy = False
         if error:
-            self.fail_live("Odsłuch przerwany.", error)
+            self.fail_live(tr("editor.live_interrupted"), error)
         else:
             self.live_previous = profile
             self.live_preamp = preamp
@@ -2255,7 +2314,7 @@ class EqualizerDialog(QDialog):
             snapshot = self.live_snapshot
             previous = self.live_previous if not self.live_error else None
             self.live.setEnabled(False)
-            self.show_live_status("Przywracam EQ sprzed odsłuchu…")
+            self.show_live_status(tr("editor.live_restoring"))
             self.run_live(lambda: end_live_eq(self.device_window.open_device, snapshot, previous), self.live_restored)
             return
         if self.pending_exit is not None:
@@ -2264,7 +2323,7 @@ class EqualizerDialog(QDialog):
             super().done(self.pending_exit)
         else:
             self.live.setEnabled(self.device_path is not None)
-            self.show_live_status(self.live_error)
+            self.show_live_status(self.live_error or tr("editor.live_off"))
 
     def live_restored(self, _result, error: str) -> None:
         self.live_busy = False
@@ -2272,15 +2331,18 @@ class EqualizerDialog(QDialog):
         self.live_previous = None
         self.live_preamp = None
         if error:
-            self.fail_live("Przywrócenie EQ sprzed odsłuchu niepotwierdzone.", error)
+            self.fail_live(tr("editor.live_restore_error"), error)
             self.upload.setEnabled(False)
             if self.pending_exit is not None and self.result_apply:
                 self.pending_exit = QDialog.DialogCode.Rejected
         self.settle_live()
 
     def done(self, result: int) -> None:
+        if self.pending_exit is not None:
+            return
         self.pending_exit = result
-        self.setEnabled(False)
+        self.editor_content.setEnabled(False)
+        self.editor_buttons.setEnabled(False)
         self.live_timer.stop()
         if self.live.isChecked():
             self.live.setChecked(False)
@@ -2336,6 +2398,9 @@ class AutoEqPanel(QWidget):
         self.entries = [catalog.Entry("Harman In-Ear 2019", "Krzywa referencyjna", "target", str(HARMAN_TARGET), True)]
         self.result = None
         self.result_entry = None
+        self.result_range = None
+        self.fit_active = False
+        self.fit_cancelled = False
         self.preview_entry = None
         self.preview_curve: list[tuple[float, float]] = []
         self.preview_request_id = 0
@@ -2357,8 +2422,6 @@ class AutoEqPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        filter_row = QHBoxLayout()
-        filter_row.setSpacing(8)
         self.mode = QComboBox()
         self.mode.addItem(tr("autoeq.mode.all"), "all")
         self.mode.addItem(tr("autoeq.mode.in_ear"), "in-ear")
@@ -2368,13 +2431,13 @@ class AutoEqPanel(QWidget):
         self.source_filter = QComboBox()
         self.source_filter.setAccessibleName(tr("autoeq.source_a11y"))
         self.source_filter.addItem(tr("autoeq.source_all"), "")
-        filter_row.addWidget(self.mode, 1)
-        filter_row.addWidget(self.source_filter, 1)
-        layout.addLayout(filter_row)
-
-        search_row = QHBoxLayout()
-        search_row.setSpacing(8)
+        for combo in (self.mode, self.source_filter):
+            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(9)
         self.search = search_field(tr("search.autoeq_placeholder"), tr("search.autoeq_a11y"))
+        layout.addWidget(self.search)
+        layout.addWidget(self.mode)
+        layout.addWidget(self.source_filter)
         self.catalog_menu = QMenu(self)
         self.refresh_action = QAction(tr("autoeq.download_catalog"), self)
         self.refresh_action.triggered.connect(self.download_catalog)
@@ -2384,36 +2447,30 @@ class AutoEqPanel(QWidget):
         self.catalog_button.setDefaultAction(self.refresh_action)
         self.catalog_button.setMenu(self.catalog_menu)
         self.catalog_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        self.catalog_button.setMinimumWidth(148)
-        search_row.addWidget(self.search, 1)
-        search_row.addWidget(self.catalog_button)
-        layout.addLayout(search_row)
 
-        range_row = QHBoxLayout()
-        range_row.setSpacing(8)
         self.fit_range_label = QLabel(tr("autoeq.fit_range_label"))
         self.fit_range = QComboBox()
         self.fit_range.setAccessibleName(tr("autoeq.fit_range_label"))
         self.fit_range.setToolTip(tr("tooltip.autoeq_fit_range"))
-        self.fit_range.addItem(tr("autoeq.fit_full"), (20000.0, 8))
-        self.fit_range.addItem(tr("autoeq.fit_6k"), (6000.0, 6))
-        self.fit_range.addItem(tr("autoeq.fit_4k"), (4000.0, 6))
-        self.fit_range.addItem(tr("autoeq.fit_2k"), (2000.0, 5))
-        range_row.addWidget(self.fit_range_label)
-        range_row.addWidget(self.fit_range, 1)
-        layout.addLayout(range_row)
+        for key, limits in AUTOEQ_FIT_RANGES:
+            self.fit_range.addItem(tr(key), limits)
+        self.fit_range_label.setBuddy(self.fit_range)
 
         self.target_model = CatalogListModel(self)
         self.targets = QListView()
         self.targets.setModel(self.target_model)
         self.targets.setUniformItemSizes(True)
-        self.targets.setAccessibleName("Cele dopasowania AutoEq")
+        self.targets.setAccessibleName(tr("autoeq.target_list"))
         self.targets.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.targets.setTextElideMode(Qt.TextElideMode.ElideRight)
         layout.addWidget(self.targets, 1)
 
         self.status = self.text_label()
         layout.addWidget(self.status)
+        layout.addWidget(self.catalog_button, 0, Qt.AlignmentFlag.AlignLeft)
+        self.fit_status = FeedbackLabel()
+        self.fit_status.setTextFormat(Qt.TextFormat.PlainText)
+        self.fit_status.setWordWrap(True)
         self.generate = QPushButton(tr("autoeq.compute"))
         self.cancel = QPushButton(tr("autoeq.cancel"))
         self.cancel.hide()
@@ -2423,6 +2480,7 @@ class AutoEqPanel(QWidget):
         self.source_filter.currentIndexChanged.connect(self.update_results)
         self.search.textChanged.connect(self.update_results)
         self.targets.selectionModel().currentChanged.connect(self.target_changed)
+        self.fit_range.currentIndexChanged.connect(self.range_changed)
         self.generate.clicked.connect(self.generate_profile)
         self.cancel.clicked.connect(self.cancel_fit)
         for path in (self.index_path, self.local_index_path):
@@ -2530,7 +2588,13 @@ class AutoEqPanel(QWidget):
         self.folder_action.setText(tr("autoeq.open_local"))
         self.file_action.setText(tr("autoeq.open_custom"))
         self.source_filter.setAccessibleName(tr("autoeq.source_a11y"))
-        self.generate.setText(tr("autoeq.compute"))
+        self.fit_range_label.setText(tr("autoeq.fit_range_label"))
+        self.fit_range.setAccessibleName(tr("autoeq.fit_range_label"))
+        self.fit_range.setToolTip(tr("tooltip.autoeq_fit_range"))
+        for index, (key, _) in enumerate(AUTOEQ_FIT_RANGES):
+            self.fit_range.setItemText(index, tr(key))
+        self.targets.setAccessibleName(tr("autoeq.target_list"))
+        self.update_generate_label()
         self.cancel.setText(tr("autoeq.cancel"))
         self.apply_tooltips()
         self.update_results()
@@ -2539,6 +2603,8 @@ class AutoEqPanel(QWidget):
         entry = self.current_entry()
         if entry is None or entry != self.result_entry:
             self.result = None
+            if not self.fit_active:
+                self.fit_status.clear()
         if entry is None:
             self.preview_timer.stop()
             self.preview_entry = None
@@ -2550,7 +2616,17 @@ class AutoEqPanel(QWidget):
             self.preview_request_id += 1
             self.preview_timer.start()
         self.update_actions()
-        self.preview_changed.emit()
+
+    def range_changed(self) -> None:
+        self.update_actions()
+
+    def update_generate_label(self) -> None:
+        self.generate.setText(tr("autoeq.recompute" if self.result is not None else "autoeq.compute"))
+
+    def ready_result(self) -> Profile | None:
+        if self.result_range == self.fit_range.currentData() and self.result_entry == self.current_entry():
+            return self.result
+        return None
 
     def load_selected_preview(self) -> None:
         entry = self.preview_entry
@@ -2578,12 +2654,16 @@ class AutoEqPanel(QWidget):
         self.preview_changed.emit()
 
     def update_actions(self) -> None:
-        busy = self.job is not None or self.temporary is not None
+        busy = self.job is not None or self.fit_active
+        self.update_generate_label()
         self.generate.setEnabled(not busy and self.current_entry() is not None)
-        self.generate.setStyleSheet(PRIMARY_ACTION_STYLE if self.result is None else "")
+        self.generate.setStyleSheet(PRIMARY_ACTION_STYLE if self.ready_result() is None else "")
         self.targets.setEnabled(not busy)
         self.search.setEnabled(not busy)
         self.mode.setEnabled(not busy)
+        self.source_filter.setEnabled(not busy)
+        self.fit_range.setEnabled(not busy)
+        self.cancel.setEnabled(self.fit_active and not self.fit_cancelled)
         for action in (self.refresh_action, self.folder_action, self.file_action):
             action.setEnabled(not busy)
         self.preview_changed.emit()
@@ -2605,12 +2685,12 @@ class AutoEqPanel(QWidget):
         self.preview_changed.emit()
 
     def download_catalog(self) -> None:
-        self.status.setText("Pobieram indeks pomiarów AutoEq…")
+        self.status.setText(tr("autoeq.loading_catalog"))
         self.start_job(lambda: catalog.download_index(self.index_path), self.catalog_downloaded)
 
     def catalog_downloaded(self, entries, error: str) -> None:
         if error:
-            self.status.setText(f"Nie udało się pobrać katalogu. {error}")
+            self.status.setText(tr("autoeq.catalog_failed", error=error))
             return
         self.entries = [entry for entry in self.entries if entry.local] + entries
         self.update_results()
@@ -2618,7 +2698,7 @@ class AutoEqPanel(QWidget):
     def open_catalog(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Wybierz folder repozytorium AutoEq")
         if path:
-            self.status.setText("Indeksuję lokalne pomiary…")
+            self.status.setText(tr("autoeq.indexing_catalog"))
             self.start_job(lambda: self.index_local_catalog(Path(path)), self.catalog_opened)
 
     def index_local_catalog(self, root: Path) -> list[catalog.Entry]:
@@ -2655,28 +2735,34 @@ class AutoEqPanel(QWidget):
 
     def generate_profile(self) -> None:
         entry = self.current_entry()
-        if entry is None:
+        if entry is None or self.job is not None or self.fit_active:
             return
         self.result = None
         self.result_entry = entry
-        self.status.setText("Odczytuję pomiar docelowy…")
+        self.result_range = self.fit_range.currentData()
+        self.fit_active = True
+        self.fit_cancelled = False
+        self.fit_status.setText(tr("autoeq.reading_target"))
         self.start_job(lambda: catalog.resolve_curve(entry, self.cache_directory / "curves"), self.start_fit)
 
     def start_fit(self, target, error: str) -> None:
-        if self.result_entry is None:
+        if self.fit_cancelled:
+            self.finish_fit()
             return
         if error:
-            self.status.setText(f"Nie udało się odczytać celu. {error}")
+            self.fit_status.setText(tr("autoeq.target_error", error=error))
+            self.finish_fit()
             return
         try:
             self.target_curve = read_target_curve(target)
         except (OSError, ValueError) as exc:
-            self.status.setText(f"Nieprawidłowa krzywa docelowa. {exc}")
+            self.fit_status.setText(tr("autoeq.target_error", error=exc))
+            self.finish_fit()
             return
         self.fit_factory = self.window.factory_profile
         measurement = DATA_DIR / "pomiary" / "Moondrop Position (B&K 5128).csv"
         if not measurement.exists():
-            self.status.setText(tr("autoeq.missing_measurement"))
+            self.fit_status.setText(tr("autoeq.missing_measurement"))
             self.finish_fit()
             return
         try:
@@ -2694,17 +2780,14 @@ class AutoEqPanel(QWidget):
                         )
                     )
         except OSError as exc:
-            self.status.setText(f"Nie udało się przygotować danych dla AutoEq. {exc}")
+            self.fit_status.setText(tr("autoeq.fit_error", error=exc))
             self.finish_fit()
             return
         self.output = work / "profile.json"
-        self.status.setText("AutoEq oblicza osiem pasm dla MOONDROP:Gravity Position…")
-        self.cancel.show()
-        self.preview_changed.emit()
-        self.fit_cancelled = False
         self.fit_timer.start()
         python = DATA_DIR.parent / ".venvs/autoeq/bin/python"
-        max_fc, fit_bands = self.fit_range.currentData() or (20000.0, 8)
+        max_fc, fit_bands = self.result_range
+        self.fit_status.setText(tr("autoeq.calculating", bands=fit_bands))
         self.process.start(
             str(python if python.is_file() else Path(sys.executable)),
             [
@@ -2728,17 +2811,18 @@ class AutoEqPanel(QWidget):
 
     def fit_error(self, error: QProcess.ProcessError) -> None:
         if error == QProcess.ProcessError.FailedToStart:
-            self.status.setText(f"Nie udało się uruchomić AutoEq. {self.process.errorString()}")
+            self.fit_status.setText(tr("autoeq.fit_error", error=self.process.errorString()))
             self.finish_fit()
 
     def fit_timeout(self) -> None:
         self.fit_cancelled = True
-        self.status.setText("AutoEq przekroczył limit czasu.")
+        self.fit_status.setText(tr("autoeq.fit_timeout"))
         self.process.kill()
 
     def cancel_fit(self) -> None:
         self.fit_cancelled = True
-        self.status.setText("Obliczenia przerwane.")
+        self.fit_status.setText(tr("autoeq.fit_cancelled"))
+        self.cancel.setEnabled(False)
         self.process.kill()
 
     def fit_finished(self, code: int, _exit_status) -> None:
@@ -2748,7 +2832,7 @@ class AutoEqPanel(QWidget):
             pass
         elif code != 0:
             message = next((line for line in reversed(stderr.splitlines()) if line.strip()), "")
-            self.status.setText(f"AutoEq nie obliczył profilu. {message}")
+            self.fit_status.setText(tr("autoeq.fit_error", error=message))
         else:
             try:
                 name = f"Position → {self.result_entry.name}"
@@ -2758,16 +2842,17 @@ class AutoEqPanel(QWidget):
                     source=f"AutoEq · {self.result_entry.source}",
                     target_name=self.result_entry.name,
                     target_curve=self.target_curve,
+                    fit_range=self.result_range,
                 )
             except (OSError, ValueError, dac.HidError) as exc:
-                self.status.setText(f"Nie udało się wczytać wyniku AutoEq. {exc}")
+                self.fit_status.setText(tr("autoeq.fit_error", error=exc))
             else:
-                self.status.setText("Profil gotowy do wgrania lub zapisania na później.")
+                self.fit_status.clear()
         self.finish_fit()
 
     def finish_fit(self) -> None:
         self.fit_timer.stop()
-        self.cancel.hide()
+        self.fit_active = False
         if self.temporary is not None:
             self.temporary.cleanup()
             self.temporary = None
@@ -2776,7 +2861,7 @@ class AutoEqPanel(QWidget):
 
     def reset_preview(self) -> None:
         self.result_entry = None
-        if self.process.state() != QProcess.ProcessState.NotRunning:
+        if self.fit_active:
             self.cancel_fit()
         self.targets.setCurrentIndex(QModelIndex())
         self.target_changed()
@@ -2812,8 +2897,8 @@ class ProfilesWindow(QWidget):
         self.setWindowTitle("MOONDROP:Gravity Position")
         self.setStyleSheet(APP_STYLE)
         self.setAcceptDrops(True)
-        self.setMinimumSize(840, 660)
-        self.resize(1040, 750)
+        self.setMinimumSize(720, 500)
+        size_to_screen(self, 1140, 820)
         app_data = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         self.library_directory = library_directory or Path(app_data) / ("profiles-demo" if demo else "profiles")
         self.settings_path = self.library_directory.parent / "settings.json"
@@ -2830,6 +2915,7 @@ class ProfilesWindow(QWidget):
 
         self.demo = demo
         self.demo_forced_rate = 0
+        self.observed_forced_rate = None
         demo_device = DemoDevice() if demo else None
         self.open_device = (lambda _path=None: demo_device) if demo else open_position
         self.pool = QThreadPool(self)
@@ -2843,6 +2929,8 @@ class ProfilesWindow(QWidget):
         self.readback_profile = None
         self.factory_profile = Profile("Fabryczny EQ", 0, list(POSITION_FACTORY_BANDS), 0.0)
         self.preview_sources = None
+        self.applying_profile = None
+        self.apply_error = ""
         self.tray = None
         self.allow_quit = False
         self.tray_notice_shown = False
@@ -2857,6 +2945,9 @@ class ProfilesWindow(QWidget):
         heading.setFont(font)
         self.connection = QLabel(tr("status.demo") if demo else tr("status.searching"))
         self.connection.setTextFormat(Qt.TextFormat.PlainText)
+        self.connection.setWordWrap(True)
+        self.connection.setMinimumWidth(170)
+        self.connection.setMaximumWidth(330)
         self.connection.setStyleSheet(STATUS_PILL_STYLE)
         header = QHBoxLayout()
         header.addWidget(heading)
@@ -2877,7 +2968,6 @@ class ProfilesWindow(QWidget):
         self.device_box = QGroupBox(tr("device.read_settings"))
         details = QGridLayout(self.device_box)
         details.setColumnStretch(1, 1)
-        details.setColumnStretch(3, 1)
         self.active_slot = QLabel("—")
         self.active_profile = QLabel("—")
         self.preamp = QLabel("—")
@@ -2885,17 +2975,17 @@ class ProfilesWindow(QWidget):
         self.global_gain = QLabel("—")
         self.mic_gain = QLabel("—")
         self.detail_labels: dict[str, QLabel] = {}
-        for row, column, key, value in (
-            (0, 0, "device.active_slot", self.active_slot),
-            (0, 2, "device.firmware", self.firmware),
-            (1, 0, "device.profile", self.active_profile),
-            (1, 2, "device.preamp", self.preamp),
+        for row, key, value in (
+            (0, "device.profile", self.active_profile),
+            (1, "device.preamp", self.preamp),
+            (2, "device.active_slot", self.active_slot),
         ):
             value.setTextFormat(Qt.TextFormat.PlainText)
+            value.setWordWrap(True)
             lbl = QLabel(tr(key))
             self.detail_labels[key] = lbl
-            details.addWidget(lbl, row, column)
-            details.addWidget(value, row, column + 1)
+            details.addWidget(lbl, row, 0)
+            details.addWidget(value, row, 1)
         self.gains_box = QGroupBox(tr("device.gain_group"))
         gains_form = QFormLayout(self.gains_box)
         global_row = QHBoxLayout()
@@ -2921,22 +3011,25 @@ class ProfilesWindow(QWidget):
         self.defaults_button = QPushButton(tr("device.factory_reset"))
         self.defaults_button.setEnabled(False)
         self.maintenance_box = QGroupBox(tr("device.backup_group"))
-        device_actions = QHBoxLayout(self.maintenance_box)
-        device_actions.setSpacing(10)
-        device_actions.addWidget(self.backup_button, 1)
-        device_actions.addWidget(self.defaults_button, 1)
+        device_actions = _FlowLayout(self.maintenance_box, spacing=8)
+        device_actions.setContentsMargins(10, 12, 10, 10)
+        device_actions.addWidget(self.backup_button)
+        device_actions.addWidget(self.defaults_button)
 
         self.playback_box = QGroupBox(tr("device.playback_group"))
         playback_form = QFormLayout(self.playback_box)
+        playback_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        playback_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.playback_format = QLabel("—")
         self.playback_format.setTextFormat(Qt.TextFormat.PlainText)
+        self.playback_format.setWordWrap(True)
         self.playback_rate = QLabel("—")
         self.playback_rate.setTextFormat(Qt.TextFormat.PlainText)
+        self.playback_rate.setWordWrap(True)
         self.playback_stream_label = QLabel(tr("device.active_stream"))
         self.playback_rate_label = QLabel(tr("device.sample_rate"))
         self.playback_force_label = QLabel(tr("device.force_rate"))
         playback_form.addRow(self.playback_stream_label, self.playback_format)
-        playback_form.addRow(self.playback_rate_label, self.playback_rate)
 
         rate_row = QHBoxLayout()
         self.sample_rate_combo = QComboBox()
@@ -2952,13 +3045,46 @@ class ProfilesWindow(QWidget):
         rate_row.addWidget(self.apply_rate_button)
         rate_row.addWidget(self.refresh_rate_button)
         rate_row.addStretch()
+        self.playback_force_label.setBuddy(self.sample_rate_combo)
         playback_form.addRow(self.playback_force_label, rate_row)
 
-        modes_text = " · ".join(f"Alt {alt}: {fmt} ({bits})" for alt, fmt, bits in UAC2_PLAYBACK_MODES)
+        self.pipewire_scope = QLabel(tr("device.pipewire_scope"))
+        self.pipewire_scope.setWordWrap(True)
+        playback_form.addRow(self.pipewire_scope)
+
+        self.usb_details = QToolButton()
+        self.usb_details.setText(tr("device.usb_details"))
+        self.usb_details.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.usb_details.setArrowType(Qt.ArrowType.RightArrow)
+        self.usb_details.setCheckable(True)
+        playback_form.addRow(self.usb_details)
+        usb_content = QWidget()
+        usb_form = QFormLayout(usb_content)
+        usb_form.setContentsMargins(0, 4, 0, 0)
+        usb_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        usb_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.detail_labels["device.firmware"] = QLabel(tr("device.firmware"))
+        usb_form.addRow(self.detail_labels["device.firmware"], self.firmware)
+        self.raw_stream_label = QLabel(tr("device.usb_format"))
+        self.playback_raw = QLabel("—")
+        self.playback_raw.setTextFormat(Qt.TextFormat.PlainText)
+        self.playback_raw.setWordWrap(True)
+        usb_form.addRow(self.raw_stream_label, self.playback_raw)
+        usb_form.addRow(self.playback_rate_label, self.playback_rate)
+
+        modes_text = " · ".join(
+            f"Alt {alt} · {fmt} ({tr('device.bit_depth', bits=bits)})" for alt, fmt, bits in UAC2_PLAYBACK_MODES
+        )
         self.playback_hint = QLabel(tr("device.playback_hint", modes=modes_text))
         self.playback_hint.setWordWrap(True)
         self.playback_hint.setTextFormat(Qt.TextFormat.PlainText)
-        playback_form.addRow(self.playback_hint)
+        usb_form.addRow(self.playback_hint)
+        playback_form.addRow(usb_content)
+        usb_content.hide()
+        self.usb_details.toggled.connect(usb_content.setVisible)
+        self.usb_details.toggled.connect(
+            lambda opened: self.usb_details.setArrowType(Qt.ArrowType.DownArrow if opened else Qt.ArrowType.RightArrow)
+        )
 
         self.language_box = QGroupBox(tr("device.language_group"))
         lang_form = QFormLayout(self.language_box)
@@ -2985,26 +3111,14 @@ class ProfilesWindow(QWidget):
         self.language_combo.currentIndexChanged.connect(self.change_language)
         lang_form.addRow(self.language_label, self.language_combo)
 
-        self.tips_box = QGroupBox(tr("device.tips_group"))
-        tips_layout = QVBoxLayout(self.tips_box)
-        self.tips_label = QLabel()
-        self.tips_label.setTextFormat(Qt.TextFormat.RichText)
-        self.tips_label.setWordWrap(True)
-        tips_layout.addWidget(self.tips_label)
-
         device_layout.addWidget(self.device_box, 0, 0)
         device_layout.addWidget(self.gains_box, 0, 1)
         device_layout.addWidget(self.playback_box, 1, 0, 1, 2)
-        device_layout.addWidget(self.language_box, 2, 0)
-        device_layout.addWidget(self.maintenance_box, 2, 1)
-        device_layout.addWidget(self.tips_box, 3, 0, 1, 2)
-        device_layout.setRowStretch(4, 1)
+        device_layout.addWidget(self.maintenance_box, 2, 0)
+        device_layout.addWidget(self.language_box, 2, 1)
+        device_layout.setRowStretch(3, 1)
 
-        device_scroll = QScrollArea()
-        device_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        device_scroll.setWidgetResizable(True)
-        device_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        device_scroll.setWidget(device_page)
+        device_scroll = scroll_content(device_page)
 
         self.profile_page = QWidget()
         profile_layout = QVBoxLayout(self.profile_page)
@@ -3044,14 +3158,14 @@ class ProfilesWindow(QWidget):
         self.profile_search = search_field(tr("search.profiles_placeholder"), tr("search.profiles_a11y"))
         library_layout.addWidget(self.profile_search)
         self.profiles = QListWidget()
-        self.profiles.setAccessibleName("Biblioteka profili EQ")
+        self.profiles.setAccessibleName(tr("tuning.library"))
         self.profiles.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.profiles.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.profiles.setMinimumWidth(205)
         self.profiles.setMinimumHeight(162)
         self.user_heading = None
-        self.add_library_heading("Wbudowane")
-        self.factory_item = self.add_profile(Profile("Fabryczny EQ", 0, [], None))
+        self.builtin_heading = self.add_library_heading(tr("tuning.builtin"))
+        self.factory_item = self.add_profile(Profile(tr("tuning.factory"), 0, [], None))
         self.flat_item = self.add_profile(
             Profile(tr("profile.flat_bypass"), dac.CUSTOM_SLOT, default_custom_bands(), 0.0)
         )
@@ -3090,22 +3204,15 @@ class ProfilesWindow(QWidget):
         library_actions.addWidget(self.add_button)
         library_actions.addWidget(self.more_button)
         source_actions.addWidget(self.library_actions)
-        source_actions.addWidget(self.autoeq_panel.generate)
-        source_actions.addWidget(self.autoeq_panel.cancel)
         source_actions.addStretch()
         source_layout.addLayout(source_actions)
         library_split.addWidget(source_panel)
-        preview_panel = QWidget()
-        preview_panel.setStyleSheet("background: transparent;")
-        preview = QVBoxLayout(preview_panel)
-        preview.setContentsMargins(14, 12, 14, 10)
-        preview.setSpacing(6)
-        preview_header = QHBoxLayout()
-        preview_header.setContentsMargins(0, 0, 0, 0)
-        preview_header.setSpacing(12)
-        preview_header_text = QVBoxLayout()
-        preview_header_text.setContentsMargins(0, 0, 0, 0)
-        preview_header_text.setSpacing(2)
+        preview_card = QFrame()
+        preview_card.setObjectName("previewCard")
+        card = QVBoxLayout(preview_card)
+        card.setContentsMargins(12, 10, 12, 10)
+        card.setSpacing(8)
+
         self.preview_title = QLabel()
         self.preview_title.setTextFormat(Qt.TextFormat.PlainText)
         self.preview_title.setWordWrap(True)
@@ -3113,84 +3220,145 @@ class ProfilesWindow(QWidget):
         title_font.setPointSizeF(title_font.pointSizeF() * 1.2)
         title_font.setBold(True)
         self.preview_title.setFont(title_font)
-        preview_header_text.addWidget(self.preview_title)
         self.profile_info = QLabel()
         self.profile_info.setTextFormat(Qt.TextFormat.PlainText)
         self.profile_info.setWordWrap(True)
-        self.profile_info.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        preview_header_text.addWidget(self.profile_info)
-        preview_header.addLayout(preview_header_text, 1)
-        self.save_fit_button = QPushButton(tr("actions.save_later"))
-        self.save_fit_button.setMinimumHeight(32)
-        self.edit_button = QPushButton(tr("actions.edit_eq"))
-        self.edit_button.setStyleSheet(SECONDARY_ACCENT_STYLE)
-        self.edit_button.setMinimumHeight(32)
-        self.edit_button.setIconSize(QSize(16, 16))
-        self.apply_button = QPushButton(tr("actions.apply_dac"))
-        self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
-        self.apply_button.setMinimumWidth(140)
-        self.apply_button.setMinimumHeight(32)
-        self.apply_button.setEnabled(False)
-        preview_header_actions = QHBoxLayout()
-        preview_header_actions.setContentsMargins(0, 0, 0, 0)
-        preview_header_actions.setSpacing(8)
-        preview_header_actions.addWidget(self.save_fit_button)
-        preview_header_actions.addWidget(self.edit_button)
-        preview_header_actions.addWidget(self.apply_button)
-        preview_header.addLayout(preview_header_actions)
-        preview.addLayout(preview_header)
-        self.fr_title_label = QLabel(tr("plot.fr_title"))
-        self.fr_title_label.setStyleSheet("font-weight: 600;")
-        preview.addWidget(self.fr_title_label)
-        self.preview_plot = ResponsePlot()
-        preview.addWidget(self.preview_plot, 2)
-        self.correction_plot = ResponsePlot(correction=True)
-        self.preview_key = PlotKey(
-            self.preview_plot,
-            (
-                tr("plot.key.selected"),
-                tr("plot.key.current_dsp"),
-                tr("plot.key.measured"),
-                tr("plot.key.target_default"),
-            ),
-            linked_plots=[self.correction_plot],
-            fixed_rows=2,
-        )
-        preview.addWidget(self.preview_key)
+        self.active_summary = QLabel()
+        self.active_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.active_summary.setWordWrap(True)
+
+        preview_panel = QWidget()
+        preview = QVBoxLayout(preview_panel)
+        preview.setContentsMargins(0, 0, 5, 0)
+        preview.setSpacing(6)
+        preview.addWidget(self.preview_title)
+        preview.addWidget(self.profile_info)
+        preview.addWidget(self.active_summary)
+        self.fit_controls = QWidget()
+        range_row = QFormLayout(self.fit_controls)
+        range_row.setContentsMargins(0, 0, 0, 0)
+        range_row.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        range_row.addRow(self.autoeq_panel.fit_range_label, self.autoeq_panel.fit_range)
+        preview.addWidget(self.fit_controls)
+        self.fit_provenance = FeedbackLabel()
+        self.fit_provenance.setWordWrap(True)
+        preview.addWidget(self.fit_provenance)
+
+        summary_row = QHBoxLayout()
+        summary_row.setSpacing(8)
         self.fit_summary = FeedbackLabel()
         self.fit_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.fit_summary.setWordWrap(True)
-        preview.addWidget(self.fit_summary)
-        preview.addSpacing(4)
-        section_divider = QWidget()
-        section_divider.setFixedHeight(1)
-        section_divider.setStyleSheet("background: palette(mid);")
-        preview.addWidget(section_divider)
-        preview.addSpacing(4)
+        summary_row.addWidget(self.fit_summary, 1)
+        self.fit_detail_button = QToolButton()
+        self.fit_detail_button.setText(tr("plot.fit_disclosure"))
+        self.fit_detail_button.setCheckable(True)
+        self.fit_detail_button.toggled.connect(self.toggle_fit_details)
+        summary_row.addWidget(self.fit_detail_button)
+        preview.addLayout(summary_row)
+        self.fit_details = FeedbackLabel()
+        self.fit_details.setTextFormat(Qt.TextFormat.PlainText)
+        self.fit_details.setWordWrap(True)
+        preview.addWidget(self.fit_details)
+        self.fit_details_text = ""
+
+        self.plot_switcher = QWidget()
+        view_row = QHBoxLayout(self.plot_switcher)
+        view_row.setContentsMargins(0, 0, 0, 0)
+        self.plot_view_group = QButtonGroup(self)
+        for index, key in enumerate(("plot.view_response", "plot.view_eq")):
+            button = QPushButton(tr(key))
+            button.setCheckable(True)
+            button.setStyleSheet(SEGMENT_BUTTON_STYLE)
+            self.plot_view_group.addButton(button, index)
+            view_row.addWidget(button)
+        view_row.addStretch()
+        self.plot_view_group.button(0).setChecked(True)
+        self.plot_view_group.idClicked.connect(self.update_plot_layout)
+        preview.addWidget(self.plot_switcher)
+
+        self.response_section = QWidget()
+        response_layout = QVBoxLayout(self.response_section)
+        response_layout.setContentsMargins(0, 0, 0, 0)
+        response_layout.setSpacing(6)
+        self.fr_title_label = QLabel(tr("plot.fr_title"))
+        self.fr_title_label.setStyleSheet("font-weight: 600;")
+        response_layout.addWidget(self.fr_title_label)
+        self.preview_plot = ResponsePlot()
+        response_layout.addWidget(self.preview_plot, 1)
+        self.correction_plot = ResponsePlot(correction=True)
+        self.preview_key = PlotKey(
+            self.preview_plot,
+            tuple(
+                tr(key)
+                for key in ("plot.key.selected", "plot.key.current_dsp", "plot.key.measured", "plot.key.target_default")
+            ),
+            linked_plots=[self.correction_plot],
+        )
+        response_layout.addWidget(self.preview_key)
+        self.plot_legend = QLabel()
+        self.plot_legend.setTextFormat(Qt.TextFormat.PlainText)
+        self.plot_legend.setWordWrap(True)
+        response_layout.addWidget(self.plot_legend)
+        preview.addWidget(self.response_section, 2)
+
+        self.correction_section = QWidget()
+        correction_layout = QVBoxLayout(self.correction_section)
+        correction_layout.setContentsMargins(0, 0, 0, 0)
+        correction_layout.setSpacing(6)
         self.correction_title = QLabel(tr("plot.eq_title"))
         self.correction_title.setStyleSheet("font-weight: 600;")
-        preview.addWidget(self.correction_title)
-        preview.addWidget(self.correction_plot, 1)
+        correction_layout.addWidget(self.correction_title)
+        correction_layout.addWidget(self.correction_plot, 1)
+        self.correction_key = PlotKey(
+            self.correction_plot,
+            (tr("plot.key.profile_eq"), tr("plot.key.current_dsp")),
+            linked_plots=[self.preview_plot],
+        )
+        correction_layout.addWidget(self.correction_key)
+        preview.addWidget(self.correction_section, 1)
         self.preamp_summary = FeedbackLabel()
         self.preamp_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.preamp_summary.setWordWrap(True)
         preview.addWidget(self.preamp_summary)
-        self.plot_legend = QLabel()
-        self.plot_legend.setTextFormat(Qt.TextFormat.PlainText)
-        self.plot_legend.setWordWrap(True)
-        self.plot_legend.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        preview.addWidget(self.plot_legend)
-        preview_scroll = QScrollArea()
-        preview_scroll.setObjectName("previewCard")
-        preview_scroll.viewport().setStyleSheet("background: transparent;")
-        preview_scroll.setWidgetResizable(True)
-        preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        preview_scroll.setWidget(preview_panel)
-        library_split.addWidget(preview_scroll)
-        source_panel.setMinimumWidth(315)
-        library_split.setStretchFactor(0, 2)
-        library_split.setStretchFactor(1, 4)
-        library_split.setSizes([360, 640])
+
+        self.preview_scroll = scroll_content(preview_panel)
+        self.preview_scroll.viewport().setAutoFillBackground(False)
+        preview_panel.setAutoFillBackground(False)
+        self.preview_scroll.viewport().installEventFilter(self)
+        card.addWidget(self.preview_scroll, 1)
+        card.addWidget(self.autoeq_panel.fit_status)
+        self.apply_status = FeedbackLabel()
+        self.apply_status.setTextFormat(Qt.TextFormat.PlainText)
+        self.apply_status.setWordWrap(True)
+        card.addWidget(self.apply_status)
+
+        self.save_fit_button = QPushButton(tr("actions.save_later"))
+        self.edit_button = QPushButton(tr("actions.edit_eq"))
+        self.edit_button.setStyleSheet(SECONDARY_ACCENT_STYLE)
+        self.edit_button.setIconSize(QSize(16, 16))
+        self.apply_button = QPushButton(tr("actions.apply_dac"))
+        self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
+        self.apply_button.setEnabled(False)
+        action_bar = QWidget()
+        self.preview_actions = _FlowLayout(action_bar, spacing=8)
+        self.preview_actions.setContentsMargins(0, 0, 0, 0)
+        for button in (
+            self.autoeq_panel.generate,
+            self.autoeq_panel.cancel,
+            self.save_fit_button,
+            self.edit_button,
+            self.apply_button,
+        ):
+            button.setMinimumHeight(32)
+            self.preview_actions.addWidget(button)
+        card.addWidget(action_bar)
+
+        library_split.addWidget(preview_card)
+        source_panel.setMinimumWidth(245)
+        library_split.setStretchFactor(0, 1)
+        library_split.setStretchFactor(1, 3)
+        library_split.setSizes([310, 800])
         profile_layout.addWidget(library_split, 1)
         self.tabs.addTab(self.profile_page, tr("tab.tuning"))
         self.tabs.addTab(device_scroll, tr("tab.device"))
@@ -3216,7 +3384,8 @@ class ProfilesWindow(QWidget):
         guide_tips_layout.addWidget(self.guide_tips_label)
 
         self.links_box = QGroupBox(tr("help.links_group"))
-        links_layout = QHBoxLayout(self.links_box)
+        links_layout = _FlowLayout(self.links_box, spacing=8)
+        links_layout.setContentsMargins(10, 12, 10, 10)
         links_layout.setSpacing(10)
         self.guide_hub_btn = QPushButton(tr("help.open_hub"))
         self.guide_hub_btn.clicked.connect(lambda: self.open_external_url(OFFICIAL_HUB_URL))
@@ -3226,19 +3395,17 @@ class ProfilesWindow(QWidget):
         self.guide_author_btn.setToolTip(tr("footer.author_tooltip"))
         self.guide_author_btn.clicked.connect(lambda: self.open_external_url(tr("footer.author_url")))
         self.guide_coffee_btn = QPushButton(tr("help.coffee_link"))
-        self.guide_coffee_btn.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.guide_coffee_btn.setToolTip(tr("footer.coffee_tooltip"))
         self.guide_coffee_btn.clicked.connect(lambda: self.open_external_url(tr("footer.coffee_url")))
         links_layout.addWidget(self.guide_hub_btn)
         links_layout.addWidget(self.guide_author_btn)
         links_layout.addWidget(self.guide_coffee_btn)
-        links_layout.addStretch()
 
         guide_layout.addWidget(self.why_box)
         guide_layout.addWidget(self.guide_tips_box)
         guide_layout.addWidget(self.links_box)
         guide_layout.addStretch()
-        self.tabs.addTab(guide_page, tr("tab.guide"))
+        self.tabs.addTab(scroll_content(guide_page), tr("tab.guide"))
         self.search_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
         self.search_shortcut.activated.connect(self.focus_search)
         self.import_shortcut = QShortcut(QKeySequence.StandardKey.Open, self)
@@ -3250,18 +3417,6 @@ class ProfilesWindow(QWidget):
         self.feedback.setWordWrap(True)
         layout.addWidget(self.feedback)
 
-        footer_widget = QWidget()
-        footer_widget.setStyleSheet(FOOTER_BUTTON_STYLE)
-        footer = QHBoxLayout(footer_widget)
-        footer.setContentsMargins(0, 0, 0, 0)
-        footer.setSpacing(6)
-        self.author_button = QPushButton(tr("footer.author_label"))
-        self.author_button.setIcon(QIcon(str(INNOVIBE_ICON)))
-        self.author_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.author_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(tr("footer.author_url"))))
-        self.coffee_button = QPushButton(tr("footer.coffee"))
-        self.coffee_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.coffee_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(tr("footer.coffee_url"))))
         self.report_button = QToolButton()
         self.report_button.setText(tr("footer.report"))
         self.report_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -3276,11 +3431,7 @@ class ProfilesWindow(QWidget):
         self.report_menu.addSeparator()
         self.copy_diag_action = self.report_menu.addAction(tr("footer.copy_diag"), self.copy_diagnostic_info)
         self.report_button.setMenu(self.report_menu)
-        footer.addWidget(self.author_button)
-        footer.addStretch()
-        footer.addWidget(self.coffee_button)
-        footer.addWidget(self.report_button)
-        layout.addWidget(footer_widget)
+        links_layout.addWidget(self.report_button)
         self.apply_tooltips()
         self.update_accent_texts()
 
@@ -3322,7 +3473,21 @@ class ProfilesWindow(QWidget):
         return self.sources.currentWidget() is self.autoeq_panel
 
     def candidate_profile(self) -> Profile | None:
-        return self.autoeq_panel.result if self.catalog_selected() else self.selected_profile()
+        return self.autoeq_panel.ready_result() if self.catalog_selected() else self.selected_profile()
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Resize and watched is self.preview_scroll.viewport():
+            self.update_plot_layout()
+        return super().eventFilter(watched, event)
+
+    def update_plot_layout(self) -> None:
+        compact = self.preview_scroll.width() < 560 or self.preview_scroll.height() < 505
+        self.plot_switcher.setVisible(compact)
+        self.response_section.setVisible(not compact or self.plot_view_group.checkedId() == 0)
+        self.correction_section.setVisible(not compact or self.plot_view_group.checkedId() == 1)
+
+    def toggle_fit_details(self, opened: bool) -> None:
+        self.fit_details.setText(self.fit_details_text if opened else "")
 
     def filter_profiles(self, query: str) -> None:
         words = query.casefold().split()
@@ -3353,11 +3518,10 @@ class ProfilesWindow(QWidget):
 
     def update_accent_texts(self) -> None:
         dark = self.palette().window().color().lightness() < 128
-        accent = "#ffb347" if dark else "#e5470a"
+        accent = "#ffb347" if dark else "#a83a08"
         if hasattr(self, "edit_button"):
             self.edit_button.setIcon(build_eq_sliders_icon(accent))
-        if hasattr(self, "tips_label"):
-            self.tips_label.setText(tr("device.tips_body", accent=accent))
+        if hasattr(self, "why_label"):
             self.why_label.setText(tr("help.why_body", accent=accent))
             self.guide_tips_label.setText(tr("help.tips_body", accent=accent))
 
@@ -3408,8 +3572,8 @@ class ProfilesWindow(QWidget):
         self.language_combo.setToolTip(tr("tooltip.language"))
         self.backup_button.setToolTip(tr("tooltip.export_dac"))
         self.defaults_button.setToolTip(tr("tooltip.factory_reset"))
-        self.author_button.setToolTip(tr("footer.author_tooltip"))
-        self.coffee_button.setToolTip(tr("footer.coffee_tooltip"))
+        self.guide_author_btn.setToolTip(tr("footer.author_tooltip"))
+        self.guide_coffee_btn.setToolTip(tr("footer.coffee_tooltip"))
         self.report_button.setToolTip(tr("footer.report_tooltip"))
 
     def paintEvent(self, event) -> None:
@@ -3468,8 +3632,6 @@ class ProfilesWindow(QWidget):
 
     def retranslate_ui(self) -> None:
         self.setWindowTitle(tr("app.title"))
-        self.author_button.setText(tr("footer.author_label"))
-        self.coffee_button.setText(tr("footer.coffee"))
         self.report_button.setText(tr("footer.report"))
         self.report_bug_action.setText(tr("footer.report_bug"))
         self.report_feature_action.setText(tr("footer.report_feature"))
@@ -3495,10 +3657,16 @@ class ProfilesWindow(QWidget):
         self.playback_stream_label.setText(tr("device.active_stream"))
         self.playback_rate_label.setText(tr("device.sample_rate"))
         self.playback_force_label.setText(tr("device.force_rate"))
+        self.sample_rate_combo.setAccessibleName(tr("device.force_rate"))
         self.sample_rate_combo.setItemText(0, tr("device.rate_auto"))
         self.apply_rate_button.setText(tr("device.apply"))
         self.refresh_rate_button.setText(tr("device.refresh"))
-        modes_text = " · ".join(f"Alt {alt}: {fmt} ({bits})" for alt, fmt, bits in UAC2_PLAYBACK_MODES)
+        self.pipewire_scope.setText(tr("device.pipewire_scope"))
+        self.usb_details.setText(tr("device.usb_details"))
+        self.raw_stream_label.setText(tr("device.usb_format"))
+        modes_text = " · ".join(
+            f"Alt {alt} · {fmt} ({tr('device.bit_depth', bits=bits)})" for alt, fmt, bits in UAC2_PLAYBACK_MODES
+        )
         self.playback_hint.setText(tr("device.playback_hint", modes=modes_text))
         self.language_box.setTitle(tr("device.language_group"))
         self.theme_label.setText(tr("device.theme_label"))
@@ -3511,14 +3679,25 @@ class ProfilesWindow(QWidget):
         self.maintenance_box.setTitle(tr("device.backup_group"))
         self.backup_button.setText(tr("device.export_dac"))
         self.defaults_button.setText(tr("device.factory_reset"))
-        self.tips_box.setTitle(tr("device.tips_group"))
         self.update_accent_texts()
         for index, key in enumerate(("source.my_profiles", "source.autoeq_catalog")):
             self.source_group.button(index).setText(tr(key))
         self.profile_search.setPlaceholderText(tr("search.profiles_placeholder"))
         self.profile_search.setAccessibleName(tr("search.profiles_a11y"))
+        self.profiles.setAccessibleName(tr("tuning.library"))
+        self.builtin_heading.setText(tr("tuning.builtin"))
+        self.factory_item.setData(PROFILE_ROLE, Profile(tr("tuning.factory"), 0, [], None))
+        self.factory_item.setToolTip(tr("tuning.factory"))
+        if self.user_heading is not None:
+            self.user_heading.setText(tr("source.my_profiles"))
         self.fr_title_label.setText(tr("plot.fr_title"))
         self.correction_title.setText(tr("plot.eq_title"))
+        self.preview_plot.setAccessibleName(tr("plot.fr_title"))
+        self.correction_plot.setAccessibleName(tr("plot.eq_title"))
+        self.plot_view_group.button(0).setText(tr("plot.view_response"))
+        self.plot_view_group.button(1).setText(tr("plot.view_eq"))
+        self.fit_detail_button.setText(tr("plot.fit_disclosure"))
+        self.correction_key.set_labels((tr("plot.key.profile_eq"), tr("plot.key.current_dsp")))
         self.add_button.setText(tr("actions.add_profile"))
         self.new_profile_action.setText(tr("actions.new_empty"))
         self.import_profile_action.setText(tr("actions.import_profile"))
@@ -3568,7 +3747,7 @@ class ProfilesWindow(QWidget):
     def populate_tray(self) -> None:
         menu = self.tray_menu
         menu.clear()
-        status = self.active_profile.text() if self.state else self.connection.text()
+        status = tr("tuning.active_profile", name=self.active_profile.text()) if self.state else self.connection.text()
         menu.addAction(status).setEnabled(False)
         if self.isVisible():
             menu.addAction(tr("tray.hide"), self.hide)
@@ -3579,7 +3758,10 @@ class ProfilesWindow(QWidget):
         for item in self.profile_items():
             profile = item.data(PROFILE_ROLE)
             action = profiles_menu.addAction(profile.name)
-            action.setEnabled(self.state is not None and not profile.matches(self.state))
+            matches = self.state is not None and profile.matches(self.state)
+            action.setCheckable(True)
+            action.setChecked(matches and profile.name == self.active_profile.text())
+            action.setEnabled(self.state is not None and not matches)
             action.triggered.connect(lambda _checked, item=item: self.apply_from_tray(item))
         reset = menu.addAction(tr("device.factory_reset"), self.confirm_defaults)
         reset.setEnabled(self.defaults_button.isEnabled())
@@ -3608,7 +3790,7 @@ class ProfilesWindow(QWidget):
 
     def add_profile(self, profile: Profile, path: Path | None = None) -> QListWidgetItem:
         if path is not None and self.user_heading is None:
-            self.user_heading = self.add_library_heading("Moje profile")
+            self.user_heading = self.add_library_heading(tr("source.my_profiles"))
         item = QListWidgetItem(profile.name)
         item.setToolTip(profile.name)
         size = item.sizeHint()
@@ -3674,33 +3856,45 @@ class ProfilesWindow(QWidget):
             and not self.autoeq_panel.preview_jobs
         ):
             self.autoeq_panel.preview_timer.start()
+        panel = self.autoeq_panel
         profile = self.candidate_profile()
-        busy_fit = (
-            self.autoeq_panel.job is not None or self.autoeq_panel.process.state() != QProcess.ProcessState.NotRunning
-        )
+        shown = panel.result if using_catalog else profile
+        self.apply_error = ""
         self.library_actions.setVisible(not using_catalog)
-        self.autoeq_panel.generate.setVisible(using_catalog and not busy_fit)
-        self.autoeq_panel.cancel.setVisible(using_catalog and busy_fit)
-        self.edit_button.setVisible(not using_catalog or profile is not None)
+        self.fit_controls.setVisible(using_catalog)
+        panel.generate.setVisible(using_catalog and not panel.fit_active)
+        panel.cancel.setVisible(using_catalog and panel.fit_active)
+        panel.fit_status.setVisible(using_catalog and bool(panel.fit_status.text()))
+        self.edit_button.setVisible(profile is not None)
         self.save_fit_button.setVisible(using_catalog and profile is not None)
-        if using_catalog and profile is None:
-            entry = self.autoeq_panel.current_entry()
-            self.preview_title.setText(entry.name if entry else "Wybierz cel AutoEq")
+        if shown is not None:
+            self.preview_title.setText(tr("tuning.selected_profile", name=shown.name))
+            context = tr("plot.profile_bands", count=len(shown.bands)) if shown.slot == dac.CUSTOM_SLOT else ""
+            if shown.source:
+                context = " · ".join(filter(None, (context, shown.source)))
+            self.profile_info.setText(context)
+        elif using_catalog:
+            entry = panel.current_entry()
+            self.preview_title.setText(entry.name if entry else tr("autoeq.select_target"))
             self.profile_info.setText(entry.source if entry else "")
         else:
-            self.preview_title.setText(profile.name if profile else "Brak profili pasujących do wyszukiwania")
-        if profile is not None and profile.slot == dac.CUSTOM_SLOT:
-            context = tr("plot.profile_bands", count=len(profile.bands))
-            if profile.source:
-                context += f" · {profile.source}"
-            self.profile_info.setText(context)
-        elif not using_catalog:
-            self.profile_info.setText("Wybrano fabryczny EQ" if profile else "")
+            self.preview_title.setText(tr("tuning.no_profiles"))
+            self.profile_info.clear()
+        self.profile_info.setVisible(bool(self.profile_info.text()))
+        provenance = ""
+        shown_range = (panel.result_range if using_catalog else shown.fit_range) if shown is not None else None
+        if shown_range is not None:
+            fit_range = panel.fit_range.itemText(panel.fit_range.findData(shown_range))
+            provenance = tr("autoeq.computed_range", range=fit_range)
+            if profile is None:
+                provenance += " · " + tr("autoeq.stale_result")
+        self.fit_provenance.setText(provenance)
+        self.preview_actions.invalidate()
         self.update_comparison()
         self.refresh_buttons()
 
     def update_comparison(self) -> None:
-        selected = self.candidate_profile()
+        selected = self.autoeq_panel.result if self.catalog_selected() else self.selected_profile()
         waiting_for_fit = self.catalog_selected() and selected is None
         preview_entry = self.autoeq_panel.preview_entry if waiting_for_fit else None
         preview_curve = self.autoeq_panel.preview_curve if waiting_for_fit else []
@@ -3732,14 +3926,16 @@ class ProfilesWindow(QWidget):
         )
         self.preview_plot.set_target_points(target_points)
         summary = ""
+        self.fit_details_text = ""
         if fit and predicted:
             low = f"{fit.low_hz:g} Hz" if fit.low_hz < 1000 else f"{fit.low_hz / 1000:g} kHz"
             high = f"{fit.high_hz:g} Hz" if fit.high_hz < 1000 else f"{fit.high_hz / 1000:g} kHz"
             summary = tr("plot.fit_summary", rms=fit.rms_db, low=low, high=high)
-            self.fit_summary.setToolTip(
-                tr("plot.fit_details", offset=fit.offset_db, peak=fit.peak_db, freq=fit.peak_hz)
-            )
+            self.fit_details_text = tr("plot.fit_details", offset=fit.offset_db, peak=fit.peak_db, freq=fit.peak_hz)
+        self.fit_summary.setToolTip(self.fit_details_text)
         self.fit_summary.setText(summary)
+        self.fit_detail_button.setVisible(bool(summary))
+        self.toggle_fit_details(self.fit_detail_button.isChecked())
 
         electrical = self.factory_profile if selected and selected.slot == 0 else selected
         self.correction_plot.set_primary_points(response_points(electrical, EQ_PLOT_FREQUENCIES) if electrical else [])
@@ -3779,14 +3975,14 @@ class ProfilesWindow(QWidget):
             active_name = preferred.name
         else:
             active = max(matches, key=match_priority, default=None)
-            active_name = active.data(PROFILE_ROLE).name if active else "Własne ustawienia"
+            active_name = active.data(PROFILE_ROLE).name if active else tr("tuning.custom_settings")
         for item in items:
             name = item.data(PROFILE_ROLE).name
-            label = f"{name} · aktywny" if item is active else name
+            label = tr("tuning.active_item", name=name) if item is active else name
             if item.text() != label:
                 item.setText(label)
         if state is None:
-            self.connection.setText(error.split("\n\n", 1)[0] if error else "Podłącz MOONDROP:Gravity Position.")
+            self.connection.setText(error.split("\n\n", 1)[0] if error else tr("tuning.dac_offline"))
             if self.tray:
                 self.tray.setToolTip(f"MOONDROP:Gravity Position · {self.connection.text()}")
             for label in (
@@ -3800,7 +3996,7 @@ class ProfilesWindow(QWidget):
                 label.setText("—")
             return
         self.connection.setText(tr("status.demo") if state.path == "demo" else tr("status.connected"))
-        slot_name = {0: "Fabryczny EQ", dac.CUSTOM_SLOT: "Własny EQ"}.get(state.slot)
+        slot_name = {0: tr("tuning.factory"), dac.CUSTOM_SLOT: tr("tuning.custom")}.get(state.slot)
         self.active_slot.setText(f"{state.slot} · {slot_name}" if slot_name else str(state.slot))
         self.active_profile.setText(active_name)
         if self.tray:
@@ -3812,12 +4008,23 @@ class ProfilesWindow(QWidget):
 
     def refresh_buttons(self) -> None:
         profile = self.candidate_profile()
-        self.apply_button.setEnabled(
-            not self.command_active
-            and self.state is not None
-            and profile is not None
-            and not profile.matches(self.state)
+        active = profile is not None and self.state is not None and profile.matches(self.state)
+        self.active_summary.setText(
+            tr("tuning.active_profile", name=self.active_profile.text()) if self.state else tr("tuning.dac_offline")
         )
+        self.apply_button.setEnabled(
+            not self.command_active and self.state is not None and profile is not None and not active
+        )
+        self.apply_button.setVisible(profile is not None and not active)
+        self.preview_actions.invalidate()
+        message = self.apply_error
+        if self.applying_profile is not None:
+            message = tr("tuning.applying")
+        elif not message and active:
+            message = tr("tuning.already_active")
+        elif not message and profile is not None and self.state is None:
+            message = tr("tuning.connect_to_apply")
+        self.apply_status.setText(message)
         custom_selected = profile is not None and profile.slot == dac.CUSTOM_SLOT
         saved = (
             self.catalog_selected()
@@ -3909,23 +4116,34 @@ class ProfilesWindow(QWidget):
     def refresh_playback_quality(self) -> None:
         quality = read_playback_quality(demo=self.demo, demo_forced_rate=self.demo_forced_rate)
         if quality.altset is not None and quality.audio_format:
-            ch = f"{quality.channels} ch (FL, FR)" if quality.channels == 2 else f"{quality.channels or 2} ch"
             status = tr("device.stream_running") if quality.running else tr("device.stream_ready")
-            self.playback_format.setText(f"Alt {quality.altset} · {quality.audio_format} · {ch} ({status})")
+            channels = ""
+            if quality.channels is not None:
+                channels = (
+                    tr("device.stereo") if quality.channels == 2 else tr("device.channels", count=quality.channels)
+                )
+            rate = format_rate_khz(quality.rate_hz) if quality.rate_hz and (quality.running or self.demo) else ""
+            bit_depth = next((bits for _, fmt, bits in UAC2_PLAYBACK_MODES if fmt == quality.audio_format), None)
+            format_name = tr("device.bit_depth", bits=bit_depth) if bit_depth else quality.audio_format
+            self.playback_format.setText(" · ".join(filter(None, (rate, format_name, channels, status))))
+            self.playback_raw.setText(f"Alt {quality.altset} · {quality.audio_format}")
         else:
             missing = tr("device.stream_missing") if not quality.pipewire_available else tr("device.stream_waiting")
             self.playback_format.setText(missing)
+            self.playback_raw.setText("—")
 
         if quality.rate_hz:
-            mode = "wymuszone" if quality.forced_rate_hz else "Auto PipeWire"
-            self.playback_rate.setText(f"{format_rate_khz(quality.rate_hz)} ({mode}, {quality.source})")
+            mode = tr("device.rate_forced" if quality.forced_rate_hz else "device.rate_auto")
+            self.playback_rate.setText(f"{format_rate_khz(quality.rate_hz)} · {mode} · {quality.source}")
         else:
             self.playback_rate.setText("—")
 
-        target_rate = quality.forced_rate_hz if quality.forced_rate_hz is not None else 0
-        index = self.sample_rate_combo.findData(target_rate)
-        if index >= 0 and self.sample_rate_combo.currentIndex() != index:
-            self.sample_rate_combo.setCurrentIndex(index)
+        target_rate = quality.forced_rate_hz or 0
+        if self.observed_forced_rate != target_rate:
+            self.observed_forced_rate = target_rate
+            index = self.sample_rate_combo.findData(target_rate)
+            if index >= 0:
+                self.sample_rate_combo.setCurrentIndex(index)
         self.apply_rate_button.setEnabled(quality.pipewire_available)
 
     def apply_playback_rate(self) -> None:
@@ -3935,17 +4153,17 @@ class ProfilesWindow(QWidget):
         if self.demo:
             self.demo_forced_rate = int(rate_hz)
             self.refresh_playback_quality()
-            label = "Automatyczna (PipeWire)" if rate_hz == 0 else format_rate_khz(rate_hz)
-            self.feedback.setText(f"[Symulator] Ustawiono częstotliwość próbkowania: {label}.")
+            label = tr("device.rate_auto") if rate_hz == 0 else format_rate_khz(rate_hz)
+            self.feedback.setText(tr("device.rate_simulated", rate=label))
             return
         try:
             confirmed = apply_pipewire_sample_rate(int(rate_hz))
         except (ValueError, RuntimeError) as exc:
-            self.feedback.setText(f"Nie zmieniono częstotliwości próbkowania. {exc}")
+            self.feedback.setText(tr("device.rate_failed", error=exc))
             return
         self.refresh_playback_quality()
-        label = "Automatyczna (PipeWire)" if confirmed == 0 else format_rate_khz(confirmed)
-        self.feedback.setText(f"PipeWire potwierdził częstotliwość próbkowania: {label}.")
+        label = tr("device.rate_auto") if confirmed == 0 else format_rate_khz(confirmed)
+        self.feedback.setText(tr("device.rate_changed", rate=label))
 
     def import_profile_from_path(self, source: Path) -> bool:
         try:
@@ -4020,9 +4238,9 @@ class ProfilesWindow(QWidget):
         super().dropEvent(event)
 
     def save_fit(self) -> None:
-        profile = self.autoeq_panel.result
+        profile = self.autoeq_panel.ready_result()
         if self.save_fit_button.isEnabled() and profile is not None and self.persist_profile(profile):
-            self.feedback.setText("Profil zapisany w Moich profilach.")
+            self.feedback.setText(tr("actions.saved_library"))
 
     def export_selected(self) -> None:
         profile = self.selected_profile()
@@ -4043,11 +4261,11 @@ class ProfilesWindow(QWidget):
         path = Path(item.data(PATH_ROLE))
         profile = item.data(PROFILE_ROLE)
         box = QMessageBox(self)
-        box.setWindowTitle("Usuń profil")
+        box.setWindowTitle(tr("actions.delete_title"))
         box.setTextFormat(Qt.TextFormat.PlainText)
-        box.setText(f"Usunąć „{profile.name}” z Moich profili?")
-        remove = box.addButton("Usuń profil", QMessageBox.ButtonRole.DestructiveRole)
-        cancel = box.addButton("Anuluj", QMessageBox.ButtonRole.RejectRole)
+        box.setText(tr("actions.delete_confirm", name=profile.name))
+        remove = box.addButton(tr("actions.delete_title"), QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("editor.cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel)
         box.setEscapeButton(cancel)
         box.exec()
@@ -4058,7 +4276,7 @@ class ProfilesWindow(QWidget):
                 raise OSError("Plik znajduje się poza katalogiem Moje profile.")
             path.unlink(missing_ok=True)
         except OSError as exc:
-            self.feedback.setText(f"Nie udało się usunąć profilu. {exc}")
+            self.feedback.setText(tr("actions.delete_failed", error=exc))
             return
         active = self.state is not None and profile.matches(self.state)
         self.profiles.takeItem(self.profiles.row(item))
@@ -4067,7 +4285,7 @@ class ProfilesWindow(QWidget):
             self.user_heading = None
         self.render_state()
         self.update_selection()
-        self.feedback.setText("Profil usunięty. EQ pozostaje aktywny w DAC-u." if active else "Profil usunięty.")
+        self.feedback.setText(tr("actions.deleted_active" if active else "actions.deleted"))
 
     def edit_profile(self, *, duplicate: bool = False, new: bool = False) -> None:
         if self.command_active or self.editor_active:
@@ -4076,7 +4294,7 @@ class ProfilesWindow(QWidget):
         item = None if new or self.catalog_selected() else self.profiles.currentItem()
         source = selected if selected is not None and selected.slot == dac.CUSTOM_SLOT else None
         if source is not None and (duplicate or (item is not None and not item.data(PATH_ROLE))):
-            source = replace(source, name=f"{source.name} – kopia")
+            source = replace(source, name=tr("actions.profile_copy", name=source.name))
         current = None
         state = self.state
         if state is not None and state.slot == dac.CUSTOM_SLOT and all(state.bands):
@@ -4103,7 +4321,7 @@ class ProfilesWindow(QWidget):
             if editor.result_apply:
                 self.apply_candidate(editor.result_profile)
             elif self.persist_profile(editor.result_profile, None if duplicate else item):
-                self.feedback.setText("Profil zapisany w bibliotece.")
+                self.feedback.setText(tr("actions.saved_library"))
         editor.deleteLater()
         self.refresh()
 
@@ -4114,8 +4332,9 @@ class ProfilesWindow(QWidget):
         if self.state is None or self.command_active or self.editor_active or profile is None:
             return
         path = self.state.path
-        self.requested_profile = profile
-        self.feedback.setText("Stosuję profil i sprawdzam odczyt…")
+        self.applying_profile = profile
+        self.apply_error = ""
+        self.feedback.clear()
         self.start(lambda: apply_profile(self.open_device, path, profile), self.apply_done)
 
     def edit_global_gain(self) -> None:
@@ -4196,13 +4415,13 @@ class ProfilesWindow(QWidget):
         if self.state is None or self.command_active or self.state.slot != dac.CUSTOM_SLOT:
             return
         path = self.state.path
-        self.feedback.setText("Odczytuję i sprawdzam ustawienia EQ na DAC-u…")
+        self.feedback.setText(tr("device.backup_reading"))
         self.start(lambda: read_custom_backup(self.open_device, path), self.backup_done)
 
     def backup_done(self, profile: Profile | None, error: str) -> None:
         self.refresh_buttons()
         if profile is None:
-            self.feedback.setText(f"Nie udało się odczytać kopii. {error}")
+            self.feedback.setText(tr("device.backup_failed", error=error))
             return
         path, _selected_filter = QFileDialog.getSaveFileName(
             self, "Eksportuj EQ z DAC-a", f"{profile.name}.json", "Profile JSON (*.json)"
@@ -4213,22 +4432,23 @@ class ProfilesWindow(QWidget):
         try:
             save_profile(path, profile)
         except OSError as exc:
-            self.feedback.setText(f"Błąd zapisu kopii. {exc}")
+            self.feedback.setText(tr("device.backup_failed", error=exc))
             return
-        self.feedback.setText("EQ zapisany do pliku JSON. Aby użyć go ponownie, wybierz „Importuj JSON…”.")
+        self.feedback.setText(tr("device.backup_saved"))
 
     def apply_done(self, state, error: str) -> None:
+        profile = self.applying_profile
+        self.applying_profile = None
+        self.apply_error = tr("tuning.apply_error", error=error) if error else ""
         if not error:
-            self.last_applied_profile = self.requested_profile
+            self.last_applied_profile = profile
         self.refresh_done(state, error)
         if error:
-            self.feedback.setText(f"Zapis niepotwierdzony. {error}")
-        else:
-            message = f"DAC potwierdził wgranie: {self.active_profile.text()}."
-            requested_preamp = self.requested_profile.preamp
-            if requested_preamp is not None and not dac.preamp_matches(state.preamp, requested_preamp):
-                message += f" Pre-gain DAC-a {state.preamp:+.2f} dB (profil {requested_preamp:+.2f} dB)."
-            self.feedback.setText(message)
+            if self.tabs.currentWidget() is not self.profile_page:
+                self.feedback.setText(self.apply_error)
+            return
+        if profile.preamp is not None and not dac.preamp_matches(state.preamp, profile.preamp):
+            self.feedback.setText(tr("tuning.applied_preamp", actual=state.preamp, requested=profile.preamp))
 
     def confirm_defaults(self) -> None:
         if self.editor_active or not self.defaults_button.isEnabled():
@@ -4236,31 +4456,29 @@ class ProfilesWindow(QWidget):
         path = self.state.path
         self.open_window()
         box = QMessageBox(self)
-        box.setWindowTitle("Ustawienia fabryczne")
-        box.setText("Przełączyć na fabryczny EQ i ustawić wzmocnienia na 0 dB?")
-        gains = "pre-gain, global gain"
-        if self.state.mic_gain_raw is not None:
-            gains += " i wzmocnienie mikrofonu"
-        box.setInformativeText(f"Zakres potwierdzony na Position: fabryczny EQ, {gains}.")
-        restore = box.addButton("Przywróć", QMessageBox.ButtonRole.AcceptRole)
-        cancel = box.addButton("Anuluj", QMessageBox.ButtonRole.RejectRole)
+        box.setWindowTitle(tr("device.factory_reset"))
+        box.setText(tr("device.reset_question"))
+        box.setInformativeText(tr("device.reset_mic" if self.state.mic_gain_raw is not None else "device.reset_scope"))
+        restore = box.addButton(tr("device.restore"), QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("editor.cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
         box.exec()
         if box.clickedButton() is restore:
-            self.feedback.setText("Przywracam ustawienia domyślne…")
+            self.feedback.setText(tr("device.resetting"))
             self.start(lambda: restore_defaults(self.open_device, path), self.defaults_done)
 
     def defaults_done(self, state, error: str) -> None:
         self.refresh_done(state, error)
         if error:
-            self.feedback.setText(f"Nie potwierdzono ustawień domyślnych. {error}")
+            self.feedback.setText(tr("device.reset_failed", error=error))
             return
         self.last_applied_profile = self.factory_item.data(PROFILE_ROLE)
         self.profile_search.clear()
         self.profiles.setCurrentItem(self.factory_item)
         self.autoeq_panel.reset_preview()
         self.switch_source(0)
-        self.feedback.setText("DAC potwierdził fabryczny EQ i wzmocnienia 0 dB.")
+        self.feedback.setText(tr("device.reset_done"))
 
     def closeEvent(self, event) -> None:
         if self.editor_active:

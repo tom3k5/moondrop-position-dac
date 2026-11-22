@@ -10,6 +10,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QStandardPaths
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 import position_gui as gui
@@ -106,7 +107,7 @@ def test_single_instance_server_activates_existing(tmp_path: Path) -> None:
         server.close()
 
 
-def test_help_dialog_tooltips_and_footer_links(tmp_path: Path, monkeypatch) -> None:
+def test_guide_tooltips_and_support_links(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     QStandardPaths.setTestModeEnabled(True)
@@ -115,8 +116,8 @@ def test_help_dialog_tooltips_and_footer_links(tmp_path: Path, monkeypatch) -> N
     window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
     try:
         assert window.tabs.count() == 3
-        assert window.author_button.text() == "InnoVibe"
-        assert window.coffee_button.toolTip()
+        assert "InnoVibe" in window.guide_author_btn.text()
+        assert window.guide_coffee_btn.toolTip()
         assert window.report_button.toolTip()
         assert "Mode: demo" in window.diagnostic_summary()
         window.state = gui.DeviceState(path="/dev/hidraw0", firmware="0.5", slot=7, preamp=-2.5, bands=[])
@@ -138,6 +139,8 @@ def test_help_dialog_tooltips_and_footer_links(tmp_path: Path, monkeypatch) -> N
         window.theme_combo.setCurrentIndex(light_idx)
         assert app.palette().window().color().name() == "#faf7f2"
         assert app.palette().highlight().color().name() == "#ff6a00"
+        assert app.palette().highlightedText().color().name() == "#1c1917"
+        assert window.preview_plot.series_pen(2).color().name() == "#0284c7"
     finally:
         window.quit_from_tray()
         app.processEvents()
@@ -162,11 +165,16 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         assert window.acceptDrops() is True
         assert "1.06 dB" in window.fit_summary.text()
         assert "20 Hz–10 kHz" in window.fit_summary.text()
+        window.fit_detail_button.click()
+        assert window.fit_details.text() == window.fit_summary.toolTip()
         assert "-4.66 dB" in window.preamp_summary.text()
         assert window.preview_plot.points != window.preview_plot.factory_points
         assert window.correction_plot.points == gui.response_points(sample, gui.EQ_PLOT_FREQUENCIES)
 
         editor = gui.EqualizerDialog(window, sample, sample, window.factory_profile, device_path=None)
+        assert editor.plot.correction and editor.plot.interactive
+        assert not editor.acoustic_plot.correction
+        assert not editor.upload.autoDefault()
         editor.preamp.setValue(0.0)
         editor.on_plot_band_changed(0, 120.0, 5.5)
         assert editor.rows[0][1].value() == 120
@@ -200,6 +208,44 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         window.preview_key.chips[1]._trigger_toggle()
         assert not window.preview_plot.is_role_hidden([1])
         assert not window.correction_plot.is_role_hidden([1])
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+def test_compact_tuning_keeps_actions_visible_and_blocks_stale_autoeq(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"light"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        assert window.width() <= window.screen().availableGeometry().width()
+        assert window.height() <= window.screen().availableGeometry().height()
+        window.resize(840, 620)
+        window.show()
+        window.switch_source(1)
+        panel = window.autoeq_panel
+        panel.add_custom_target_path(gui.HARMAN_TARGET)
+        panel.fit_range.setCurrentIndex(3)
+        panel.result_entry = panel.current_entry()
+        panel.result_range = panel.fit_range.currentData()
+        sample = gui.load_profile(gui.BUILTIN_PROFILE, "Bardzo długa nazwa profilu z pomiaru porównawczego AutoEq")
+        panel.result = sample
+        window.refresh_done(gui.read_state(window.open_device()), "")
+        window.update_selection()
+        QTest.qWait(60)
+        assert window.candidate_profile() == sample
+        assert window.apply_button.isVisible() and window.apply_button.isEnabled()
+        assert window.apply_button.parentWidget().rect().contains(window.apply_button.geometry())
+        assert window.plot_switcher.isVisible()
+        window.plot_view_group.button(1).click()
+        assert window.correction_plot.isVisible() and not window.preview_plot.isVisible()
+
+        panel.fit_range.setCurrentIndex(0)
+        assert window.candidate_profile() is None
+        assert not window.apply_button.isEnabled()
+        assert not window.save_fit_button.isEnabled()
+        assert "do 2 khz" in window.fit_provenance.text().casefold()
+        assert panel.generate.text() == "Przelicz profil"
     finally:
         window.quit_from_tray()
         app.processEvents()

@@ -57,6 +57,13 @@ Użycie `1× LSQ + 1× HSQ + 6× PK` zmniejsza błąd RMS blisko 5-krotnie (`0,4
 
 ### Dopasowanie widoczne w zakładce Strojenie
 
+W Moich profilach i Katalogu AutoEq wspólny panel oddziela wybór od
+aktywnego profilu DAC-a. Podgląd AutoEq pokazuje cel i zakres obliczeń.
+Po zmianie zakresu poprzedni wykres nadal jest widoczny wraz z zakresem,
+dla którego powstał. Zapis lub wgranie z katalogu wymaga wyniku zgodnego
+z bieżącym zakresem. Zapis profilu JSON zachowuje zakres w polu
+`meta.fit_range` jako parę maksymalnej częstotliwości w Hz i liczby pasm.
+
 Górny wykres pokazuje dane fabryczne B&K 5128, cel i przewidywaną odpowiedź
 akustyczną. Dla Custom aplikacja dodaje odpowiedź wybranych filtrów i odejmuje
 odpowiedź filtrów fabrycznego slotu 0. Korzysta z odczytu slotu 0 lub z wartości
@@ -64,6 +71,10 @@ referencyjnych odczytanych wcześniej z firmware 0.5. Dolny wykres pokazuje
 sumę odpowiedzi elektrycznych filtrów przy 96 kHz. Pre-gain jest podany osobno
 i nie wpływa na ocenę kształtu krzywej. Krzywa DSP korzysta ze współczynników
 Q2.30 odczytanych z urządzenia.
+
+W kompaktowym oknie wykresy przełącza się przyciskami **Charakterystyka**
+i **Korekcja EQ**. **Szczegóły dopasowania** można otworzyć myszą lub
+klawiaturą. Pasek obliczeń, zapisu i wgrania pozostaje pod podglądem.
 
 GUI interpoluje w skali logarytmicznej i liczy RMS w części wspólnej danych
 od 20 Hz do 10 kHz. Każda próbka siatki logarytmicznej ma tę samą wagę.
@@ -210,8 +221,9 @@ sprzętowy na firmware 0.5 potwierdził oba sloty (w tym `HSQ` w fabrycznym sloc
 | Widok | Obsługa |
 |---|---|
 | **Strojenie** | Moje profile i Katalog AutoEq korzystają ze wspólnego podglądu charakterystyki i korekcji EQ. „Wgraj do DAC-a” sprawdza wynik odczytem. „Więcej → Usuń profil…” usuwa wpis użytkownika z biblioteki po potwierdzeniu. |
-| **Edytor EQ** | Osiem pasm z suwakami gainu, częstotliwością, typem, Q i pre-gainem. Odsłuch włącza się domyślnie przy otwarciu edytora z podłączonym DAC-em i zmienia jego ustawienia bez zapisu do flash. Wyłączenie lub zamknięcie przywraca poprzedni stan. „Wgraj do DAC-a” i „Zapisz profil” są osobnymi akcjami. |
-| **Urządzenie** | Odczyt firmware, aktywnego slotu i wzmocnień, regulacja wyjścia i mikrofonu, eksport kopii oraz przywracanie ustawień fabrycznych. Zakres prób dodatkowych funkcji opisuje README §7. |
+| **Edytor EQ** | Domyślny wykres korekcji obsługuje punkty ośmiu pasm. Przewidywana charakterystyka jest w sąsiedniej zakładce. Status odsłuchu jest nad przewijaną częścią edytora. Odsłuch jest tymczasowy i przywraca stan po wyłączeniu lub zamknięciu. Zapis profilu, eksport i wgranie do DAC-a są dostępne na osobnym pasku. |
+| **Urządzenie** | Aktywny profil, slot i wzmocnienia, czytelny opis strumienia, kopia EQ i przywracanie. Surowy format ALSA i firmware są w **Szczegółach USB i PipeWire**. Wymuszone próbkowanie obowiązuje całą sesję PipeWire. |
+| **Przewodnik** | Kroki wgrywania, odsłuchu, interpretacji wykresów, importu i diagnostyki. Tu znajdują się też skróty, odnośniki do wsparcia i kopiowanie raportu diagnostycznego. |
 
 Default i Custom to sloty sprzętowe. Biblioteka może mieć dowolną liczbę
 profili, a zastosowanie profilu użytkownika aktualizuje Custom. Przy

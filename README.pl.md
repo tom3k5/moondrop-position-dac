@@ -44,22 +44,25 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 ## Zrzuty ekranu
 
 ### Strojenie i podgląd charakterystyki
-Górny wykres pokazuje **krzywą fabryczną**, **cel** i **przewidywany wynik**. **Korekcja EQ** pokazuje sumaryczną odpowiedź elektryczną filtrów przy 96 kHz. Pod nią są wartości pre-gainu profilu i DSP. Krzywa **Obecnie w DSP** korzysta z odczytanych współczynników biquad, także po użyciu **Wgraj do DAC-a**.
+**Wybrany profil** i **Aktywny w DAC-u** są widoczne osobno. Akcje pozostają pod podglądem podczas przewijania. Przy zgodnym stanie zamiast przycisku wgrania pojawia się „Już aktywny w DAC-u”. Główne okno startuje w rozmiarze do 1140 × 820 pikseli logicznych dopasowanym do obszaru pulpitu. W małym oknie wykresy przełącza się między **Charakterystyką** a **Korekcją EQ**.
 
-RMS dopasowania korzysta z siatki logarytmicznej we wspólnym paśmie 20 Hz–10 kHz. Poziom celu wyrównuje jedno średnie przesunięcie. Po najechaniu na wynik widać wartość przesunięcia i największą odchyłkę w tym paśmie. Cieniowanie powyżej 10 kHz oznacza mniejszą wiarygodność oceny akustycznej.
+Charakterystyka pokazuje krzywą fabryczną, cel i przewidywany wynik. Korekcja EQ pokazuje odpowiedź elektryczną filtrów przy 96 kHz. Pre-gain profilu i DSP jest podany osobno, a krzywa **Obecnie w DSP** pochodzi z odczytu współczynników biquad. W **Szczegółach dopasowania** można odczytać średnie przesunięcie celu i największą odchyłkę w paśmie 20 Hz–10 kHz. Cieniowanie powyżej 10 kHz oznacza mniejszą wiarygodność oceny akustycznej.
 
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
 
 ### Wbudowany katalog AutoEq
-Filtrowanie po typie słuchawek, źródle pomiaru oraz **zakresie częstotliwości dopasowania** (`20–20 kHz` lub do `6 / 4 / 2 kHz`):
+W katalogu można filtrować po typie słuchawek i źródle pomiaru. Podgląd grupuje cel, zakres obliczeń i akcje obliczania oraz anulowania. Wynik zawiera użyty zakres również po zapisaniu profilu na dysku. Po zmianie zakresu trzeba przeliczyć wynik przed zapisem lub wgraniem.
+
 ![Katalog AutoEq](docs/screenshots/02-autoeq-catalog.png)
 
 ### Edytor 8-pasmowego EQ (interaktywne punkty i odsłuch na żywo)
-Przeciąganie ponumerowanych punktów `1–8` bezpośrednio na wykresie (Hz / dB / kółko Q), przycisk **Auto Headroom** z wykrywaniem clippingu oraz eksport do JSON i Equalizer APO (`.txt`):
+Korekcję EQ można edytować punktami `1–8`, suwakami i polami liczbowymi. **Charakterystyka** pokazuje przewidywaną odpowiedź akustyczną. **Ustaw automatycznie** dobiera pre-gain na podstawie zapasu do przesterowania. Stan odsłuchu pozostaje u góry, a osobne akcje zapisu, wgrania i eksportu są dostępne pod przewijaną częścią edytora.
+
 ![Edytor EQ](docs/screenshots/04-eq-editor.png)
 
 ### Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
-Dwukolumnowy widok bez przewijania: odczyt DAC-a, wzmocnienie, próbkowanie UAC2/PipeWire oraz wybór motywu i języka:
+Aktywny profil, wzmocnienia i format strumienia są widoczne od razu. **Szczegóły USB i PipeWire** zawierają surowy format, firmware oraz informacje o częstotliwości i jej źródle. Wymuszanie częstotliwości zmienia ustawienie całej sesji PipeWire.
+
 ![Ustawienia urządzenia](docs/screenshots/03-device-settings.png)
 
 ### Wbudowany Przewodnik, skróty i wsparcie
@@ -119,7 +122,7 @@ Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)
 ## Wsparcie, zgłoszenia i autor
 
 - **Autor:** [InnoVibe](https://www.innovibe.pl)
-- **Postaw mi kawę:** Podoba Ci się projekt? [Wesprzyj rozwój (płatności PL i EU)](https://innovibe.pl/ko-fi/) — lub kliknij **☕ Postaw mi kawę** bezpośrednio w stopce aplikacji.
+- **Postaw mi kawę:** Skorzystaj z przycisku w zakładce **Przewodnik** lub [wesprzyj rozwój na InnoVibe](https://innovibe.pl/ko-fi/).
 - **Znalazłeś błąd lub masz pomysł?** Użyj przycisku **Zgłoś błąd / Pomysł** w aplikacji (z kopią diagnostyki jednym kliknięciem) albo otwórz zgłoszenie na [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose). Strukturyzowane formularze są automatycznie oznaczane etykietą obszaru.
 
 ---
