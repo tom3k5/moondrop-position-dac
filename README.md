@@ -21,7 +21,8 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 - **System Tray Ready:** Minimize to the system tray and switch EQ profiles in two clicks between gaming, music, and calls.
 
 ### 2. Massive AutoEq Database Built In
-- **Thousands of IEM & Headphone Measurements:** Browse and filter the full AutoEq catalog (Crinacle, Oratory1990, Rtings, and more), load custom REW/CSV/TXT curves, or **drag & drop** `.json`, Equalizer APO `.txt`, and `.csv` files directly onto the window.
+- **Massive AutoEq Database & Instant Target Preview:** Browse and filter the full AutoEq catalog (Crinacle, Oratory1990, Rtings, and more), load custom REW/CSV/TXT curves, or **drag & drop** `.json`, Equalizer APO `.txt`, and `.csv` files directly onto the window. Selecting any model previews its target curve alongside the factory baseline and **Current in DSP** response before you even run the optimizer.
+- **Interactive Legend & Delta Crosshair:** Click legend pills under the plot to toggle curves across both charts, hover a pill to **solo** a curve, and hover anywhere on the plot for a live `Hz / dB / Δ dB` readout comparing your new tuning against **Current in DSP**.
 - **Hardware-Aware 8-Band Optimization (`1× LSQ + 1× HSQ + 6× PK`):** Automatically fits your chosen target curve to MOONDROP:Gravity Position's exact 8 hardware biquad filters (`96 kHz` DSP, `PK / LSQ / HSQ / LP / HP`, `20–20,000 Hz`, `-18…+12 dB`). Unlike the manufacturer's web app (`hub.moondroplab.tech`, which disables shelf filters for Position and only exposes `PK / LP / HP`), this app unlocks the hardware `LSQ` and `HSQ` shelves verified on firmware 0.5 and defaults AutoEq to `1× LSQ + 1× HSQ + 6× PK` — achieving **significantly lower deviation** from the target curve (e.g. `0.47 dB` RMS / `3.12 dB` max vs `2.20 dB` RMS / `12.48 dB` max with `8× PK` only on Position → Harman In-Ear 2019). Includes a selectable **fit range** (`Full 20–20 kHz`, `Up to 6 kHz`, `4 kHz`, or `2 kHz` to leave upper bands free for manual treble tuning).
 
 ### 3. Full Feature Parity with `hub.moondroplab.tech` — Plus Offline Safety
@@ -30,7 +31,8 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 | 8-band Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Yes (`PK / LP / HP` only — shelves disabled) | **Yes — unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`, much lower target deviation, native USB HID `0x4B`, offline)** |
 | Interactive Plot Handles + Auto Headroom | Sliders only | **Drag handles `1–8` (Freq/Gain/Wheel Q) + Auto Headroom & Clip Check** |
 | Live Auditioning (`Odsłuch na żywo`) | Yes | **Yes, with automatic safe state restore on cancel** |
-| Built-in AutoEq Optimizer (thousands of IEMs) | Basic presets | **Full AutoEq catalog + partial fit range + Drag & Drop CSV/TXT** |
+| Built-in AutoEq Optimizer (thousands of IEMs) | Basic presets | **Full AutoEq catalog + pre-fit target preview + partial fit range + Drag & Drop CSV/TXT** |
+| Live DSP Comparison & Interactive Plot Legend | No | **Compare against Current in DSP on both charts, toggle/solo legend pills, live `Hz / dB / Δ dB` crosshair** |
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
 | Disk Profile Library vs DAC Flash Separation | Limited | **Full local library, Drag & Drop, JSON & Equalizer APO import/export** |
 | PipeWire UAC2 Stream & Sample Rate Monitor | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |

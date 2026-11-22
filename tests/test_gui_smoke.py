@@ -159,6 +159,29 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         editor.apply_auto_headroom()
         assert editor.preamp.value() < 0.0
         editor.close()
+
+        # Verify State A AutoEq target preview, DSP reference curve, and legend chip toggle/solo
+        window.readback_profile = sample
+        window.source_group.button(1).click()
+        window.autoeq_panel.preview_entry = gui.catalog.Entry(
+            "Test Target", "Test Source", "model", "test/path.csv", False
+        )
+        window.autoeq_panel.preview_curve = [(20.0, 0.0), (1000.0, 0.0), (20000.0, -4.0)]
+        window.update_selection()
+        assert len(window.preview_plot.factory_points) > 0
+        assert len(window.preview_plot.reference_points) > 0
+        assert len(window.preview_plot.target_points) > 0
+        assert window.correction_plot.points == []
+
+        window.preview_key.chips[1]._trigger_toggle()
+        assert window.preview_plot.is_role_hidden([1])
+        assert window.correction_plot.is_role_hidden([1])
+        window.preview_plot.set_solo_role(2)
+        assert window.preview_plot.solo_role == 2
+        window.preview_plot.set_solo_role(None)
+        window.preview_key.chips[1]._trigger_toggle()
+        assert not window.preview_plot.is_role_hidden([1])
+        assert not window.correction_plot.is_role_hidden([1])
     finally:
         window.quit_from_tray()
         app.processEvents()

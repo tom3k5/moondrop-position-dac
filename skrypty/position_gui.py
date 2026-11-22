@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import itertools
 import json
 import math
 import platform
@@ -31,6 +32,8 @@ from PySide6.QtCore import (
     QObject,
     QPointF,
     QProcess,
+    QRect,
+    QRectF,
     QRunnable,
     QSaveFile,
     QSize,
@@ -72,6 +75,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QLabel,
+    QLayout,
     QLineEdit,
     QListView,
     QListWidget,
@@ -80,6 +84,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSlider,
     QSpinBox,
     QSplitter,
@@ -262,8 +267,8 @@ QToolTip {
     border: 1px solid palette(mid);
     border-radius: 6px;
     padding: 6px 9px;
-    background: palette(tool-tip-base);
-    color: palette(tool-tip-text);
+    background-color: palette(base);
+    color: palette(text);
 }
 """
 SEGMENT_BUTTON_STYLE = (
@@ -1223,8 +1228,10 @@ class ResponsePlot(QWidget):
         self.hover_index: int | None = None
         self.drag_start_y = 0.0
         self.drag_start_gain = 0.0
-        if interactive:
-            self.setMouseTracking(True)
+        self.hidden_roles: set[int] = set()
+        self.solo_role: int | None = None
+        self.hover_hz: float | None = None
+        self.setMouseTracking(True)
         self.setMinimumHeight(95 if correction else 135)
         self.setAccessibleName(
             "Korekcja EQ w dB" if correction else "Charakterystyka słuchawek MOONDROP:Gravity Position w dB SPL"
@@ -1266,6 +1273,38 @@ class ResponsePlot(QWidget):
         self.curves_changed.emit()
         self.update()
 
+    def toggle_role(self, role: int) -> None:
+        self.toggle_roles([role])
+
+    def toggle_roles(self, roles: list[int]) -> None:
+        hidden = self.is_role_hidden(roles)
+        for role in roles:
+            if hidden:
+                self.hidden_roles.discard(role)
+            else:
+                self.hidden_roles.add(role)
+        if not hidden and self.solo_role in roles:
+            self.solo_role = None
+        self.curves_changed.emit()
+        self.update()
+
+    def set_roles_hidden(self, roles: list[int], hidden: bool) -> None:
+        for role in roles:
+            if hidden:
+                self.hidden_roles.add(role)
+            else:
+                self.hidden_roles.discard(role)
+        self.curves_changed.emit()
+        self.update()
+
+    def set_solo_role(self, role: int | None) -> None:
+        if self.solo_role != role:
+            self.solo_role = role
+            self.update()
+
+    def is_role_hidden(self, roles: list[int]) -> bool:
+        return bool(roles) and all(role in self.hidden_roles for role in roles)
+
     def set_factory(self, profile: Profile | None) -> None:
         if profile != self.factory_filter:
             self.factory_filter = profile
@@ -1301,13 +1340,12 @@ class ResponsePlot(QWidget):
 
     def series_pen(self, role: int) -> QPen:
         dark_bg = self.palette().base().color().lightness() < 128
-        colors = (
-            ("#ff8a1f", "#38bdf8", "#c9bfb4", "#34d399") if dark_bg else ("#e55d00", "#0284c7", "#57534e", "#059669")
+        # Role: 0 = wybrany/edytowany, 1 = obecnie w DSP / referencja, 2 = pomiar Position, 3 = cel AutoEq
+        palette_hex = (
+            ("#ff9524", "#e879f9", "#22d3ee", "#4ade80") if dark_bg else ("#e55300", "#a21caf", "#0284c7", "#15803d")
         )
-        # Role: 0 = wybrany/edytowany, 1 = referencja/DAC, 2 = pomiar Position, 3 = cel AutoEq
-        palette_hex = (colors[0], colors[2], colors[1], colors[3])
         styles = (Qt.PenStyle.SolidLine, Qt.PenStyle.DashLine, Qt.PenStyle.DotLine, Qt.PenStyle.DashDotLine)
-        return QPen(QColor(palette_hex[role]), (2.2, 1.6, 2.0, 1.9)[role], styles[role])
+        return QPen(QColor(palette_hex[role]), (2.5, 2.0, 2.2, 2.2)[role], styles[role])
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -1369,21 +1407,39 @@ class ResponsePlot(QWidget):
             painter.drawText(xx - painter.fontMetrics().horizontalAdvance(label) // 2, plot.bottom() + 18, label)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         for roles, points in reversed(groups):
+            if self.is_role_hidden(roles):
+                continue
             curve = QPainterPath(QPointF(x(points[0][0]), y(points[0][1])))
             for hz, db in points[1:]:
                 curve.lineTo(QPointF(x(hz), y(db)))
+            pen = self.series_pen(roles[0])
+            dimmed = self.solo_role is not None and self.solo_role not in roles
+            if dimmed:
+                c = pen.color()
+                c.setAlpha(48)
+                pen.setColor(c)
+            elif self.solo_role is not None:
+                pen.setWidthF(pen.widthF() + 0.6)
             if self.correction and roles[0] == 0:
                 fill_path = QPainterPath(curve)
                 baseline_y = y(0.0)
                 fill_path.lineTo(QPointF(x(points[-1][0]), baseline_y))
                 fill_path.lineTo(QPointF(x(points[0][0]), baseline_y))
                 fill_path.closeSubpath()
-                fill_color = self.series_pen(0).color()
-                fill_color.setAlpha(38)
+                fill_color = pen.color()
+                fill_color.setAlpha(14 if dimmed else 38)
                 painter.fillPath(fill_path, fill_color)
-            painter.setPen(self.series_pen(roles[0]))
+            painter.setPen(pen)
             painter.drawPath(curve)
         self.plot_bounds = (plot, low, high)
+        if self.hover_hz is not None and self.drag_index is None and plot.width() > 0:
+            hx = x(self.hover_hz)
+            if plot.left() <= hx <= plot.right():
+                hair_color = QColor(text)
+                hair_color.setAlpha(105)
+                painter.setPen(QPen(hair_color, 1.0, Qt.PenStyle.DashLine))
+                painter.drawLine(QPointF(hx, plot.top()), QPointF(hx, plot.bottom()))
+                self._draw_hover_readout(painter, plot, groups, hx, text)
         self.band_handles = []
         if self.interactive and self.points and self.active_bands:
             accent = QColor("#ff8a1f" if palette.base().color().lightness() < 128 else "#e5470a")
@@ -1413,20 +1469,69 @@ class ResponsePlot(QWidget):
                 )
                 painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, str(idx + 1))
 
-    def _interpolate_db(self, target_hz: float) -> float:
-        if not self.points:
+    @staticmethod
+    def _interpolate_series(points: list[tuple[float, float]], target_hz: float) -> float:
+        if not points:
             return 0.0
-        if target_hz <= self.points[0][0]:
-            return self.points[0][1]
-        if target_hz >= self.points[-1][0]:
-            return self.points[-1][1]
+        if target_hz <= points[0][0]:
+            return points[0][1]
+        if target_hz >= points[-1][0]:
+            return points[-1][1]
         log_target = math.log(target_hz)
-        for (f0, d0), (f1, d1) in zip(self.points, self.points[1:], strict=False):
+        for (f0, d0), (f1, d1) in itertools.pairwise(points):
             if f0 <= target_hz <= f1:
                 lf0, lf1 = math.log(f0), math.log(f1)
                 t = (log_target - lf0) / (lf1 - lf0) if lf1 > lf0 else 0.0
                 return d0 + t * (d1 - d0)
-        return self.points[-1][1]
+        return points[-1][1]
+
+    def _interpolate_db(self, target_hz: float) -> float:
+        return self._interpolate_series(self.points, target_hz)
+
+    def _draw_hover_readout(self, painter: QPainter, plot, groups, hx: float, text: QColor) -> None:
+        if self.hover_hz is None:
+            return
+        hz_val = self.hover_hz
+        freq_text = f"{hz_val / 1000:.2f} kHz" if hz_val >= 1000 else f"{round(hz_val)} Hz"
+        values: dict[int, float] = {}
+        parts = [freq_text]
+        short_names = ("Nowy", "DSP") if self.correction else ("Nowy", "DSP", "Fabryka", "Cel")
+        for roles, points in groups:
+            if self.is_role_hidden(roles):
+                continue
+            val = self._interpolate_series(points, hz_val)
+            for role in roles:
+                values[role] = val
+            label = short_names[roles[0]] if roles[0] < len(short_names) else ""
+            if label:
+                parts.append(f"{label}: {val:+.1f}" if self.correction else f"{label}: {val:.1f}")
+        ref_val = values.get(1)
+        cmp_val = values.get(0) if 0 in values else values.get(3)
+        if ref_val is not None and cmp_val is not None and abs(cmp_val - ref_val) >= 0.05:
+            parts.append(f"Δ {cmp_val - ref_val:+.1f} dB")
+        readout = " · ".join(parts)
+        badge_font = painter.font()
+        badge_font.setPointSizeF(max(8.0, badge_font.pointSizeF() * 0.86))
+        painter.setFont(badge_font)
+        fm = painter.fontMetrics()
+        tw = min(plot.width() - 16, fm.horizontalAdvance(readout) + 16)
+        th = fm.height() + 8
+        place_left = hx > plot.center().x()
+        bx = plot.left() + 8 if place_left else plot.right() - tw - 8
+        by = plot.top() + 6
+        bg = self.palette().window().color()
+        bg.setAlpha(215)
+        border = self.palette().color(QPalette.ColorRole.Mid)
+        painter.setBrush(bg)
+        painter.setPen(QPen(border, 1))
+        painter.drawRoundedRect(QRectF(bx, by, tw, th), 5, 5)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(text)
+        painter.drawText(
+            QRectF(bx + 8, by, tw - 16, th),
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+            fm.elidedText(readout, Qt.TextElideMode.ElideRight, int(tw - 16)),
+        )
 
     def _hit_handle(self, pos: QPointF) -> int | None:
         best_idx = None
@@ -1452,11 +1557,8 @@ class ResponsePlot(QWidget):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
-        if not self.interactive:
-            super().mouseMoveEvent(event)
-            return
         pos = event.position()
-        if self.drag_index is not None and self.plot_bounds is not None:
+        if self.interactive and self.drag_index is not None and self.plot_bounds is not None:
             plot, low, high = self.plot_bounds
             if plot.width() > 0 and plot.height() > 0:
                 ratio_x = max(0.0, min(1.0, (pos.x() - plot.left()) / plot.width()))
@@ -1467,12 +1569,30 @@ class ResponsePlot(QWidget):
                 self.band_changed.emit(self.drag_index, float(new_freq), float(new_gain))
             event.accept()
             return
-        hit = self._hit_handle(pos)
-        if hit != self.hover_index:
-            self.hover_index = hit
-            self.setCursor(Qt.CursorShape.OpenHandCursor if hit is not None else Qt.CursorShape.ArrowCursor)
+        new_hover_hz = None
+        if self.plot_bounds is not None:
+            plot, _, _ = self.plot_bounds
+            if plot.contains(pos.toPoint()) and plot.width() > 0:
+                ratio_x = max(0.0, min(1.0, (pos.x() - plot.left()) / plot.width()))
+                new_hover_hz = max(20.0, min(20000.0, 20.0 * (10.0 ** (3.0 * ratio_x))))
+        need_update = new_hover_hz != self.hover_hz
+        self.hover_hz = new_hover_hz
+        if self.interactive:
+            hit = self._hit_handle(pos)
+            if hit != self.hover_index:
+                self.hover_index = hit
+                self.setCursor(Qt.CursorShape.OpenHandCursor if hit is not None else Qt.CursorShape.ArrowCursor)
+                need_update = True
+        if need_update:
             self.update()
         super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if self.hover_hz is not None or self.hover_index is not None:
+            self.hover_hz = None
+            self.hover_index = None
+            self.update()
+        super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
         if self.interactive and self.drag_index is not None:
@@ -1500,48 +1620,225 @@ class CurveSwatch(QWidget):
         super().__init__()
         self.plot = plot
         self.role = role
+        self.dimmed = False
         self.setFixedSize(30, max(14, self.fontMetrics().lineSpacing()))
+
+    def set_dimmed(self, dimmed: bool) -> None:
+        if self.dimmed != dimmed:
+            self.dimmed = dimmed
+            self.update()
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(self.plot.series_pen(self.role))
+        pen = self.plot.series_pen(self.role)
+        if self.dimmed:
+            color = pen.color()
+            color.setAlpha(65)
+            pen.setColor(color)
+        painter.setPen(pen)
         y = self.height() / 2
         painter.drawLine(QPointF(2, y), QPointF(self.width() - 2, y))
 
 
+class _FlowLayout(QLayout):
+    def __init__(self, parent=None, spacing: int = 6, max_per_row: int = 0):
+        super().__init__(parent)
+        self._items = []
+        self._spacing = spacing
+        self._max_per_row = max_per_row
+
+    def addItem(self, item) -> None:
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index: int):
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect: QRect) -> None:
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self) -> QSize:
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        m = self.contentsMargins()
+        return size + QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _do_layout(self, rect: QRect, *, test_only: bool) -> int:
+        m = self.contentsMargins()
+        effective = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x = effective.x()
+        y = effective.y()
+        line_height = 0
+        row_count = 0
+        for item in self._items:
+            widget = item.widget()
+            if widget is not None and not widget.isVisible():
+                continue
+            hint = item.sizeHint()
+            item_w = min(hint.width(), max(1, effective.width()))
+            item_h = hint.height()
+            next_x = x + item_w + self._spacing
+            wrap_by_count = self._max_per_row > 0 and row_count >= self._max_per_row
+            wrap_by_width = next_x - self._spacing > effective.right() + 1
+            if (wrap_by_count or wrap_by_width) and line_height > 0:
+                x = effective.x()
+                y += line_height + self._spacing
+                next_x = x + item_w + self._spacing
+                line_height = 0
+                row_count = 0
+            if not test_only:
+                item.setGeometry(QRect(x, y, item_w, item_h))
+            x = next_x
+            line_height = max(line_height, item_h)
+            row_count += 1
+        return y + line_height - rect.y() + m.bottom()
+
+
+class _LegendChip(QFrame):
+    def __init__(self, plot: ResponsePlot, role: int, on_toggle=None):
+        super().__init__()
+        self.setObjectName("legendChip")
+        self.plot = plot
+        self.role = role
+        self.active_roles: list[int] = [role]
+        self.on_toggle = on_toggle
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        line = QHBoxLayout(self)
+        line.setContentsMargins(7, 3, 9, 3)
+        line.setSpacing(6)
+        self.swatch = CurveSwatch(plot, role)
+        self.swatch.setFixedSize(22, max(12, self.fontMetrics().lineSpacing() - 2))
+        line.addWidget(self.swatch, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.label = QLabel()
+        self.label.setTextFormat(Qt.TextFormat.PlainText)
+        self.label.setWordWrap(False)
+        self.label.setMinimumWidth(0)
+        line.addWidget(self.label, 1)
+        self.setMaximumWidth(275)
+        self.set_dimmed(False)
+
+    def set_text(self, text: str) -> None:
+        elided = self.label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, 230)
+        self.label.setText(elided)
+
+    def set_dimmed(self, dimmed: bool) -> None:
+        if not dimmed:
+            self.setStyleSheet(
+                "QFrame#legendChip { border: 1px solid palette(mid); border-radius: 6px;"
+                " background: palette(alternate-base); }"
+                "QFrame#legendChip:hover, QFrame#legendChip:focus { border-color: palette(highlight); }"
+            )
+        else:
+            self.setStyleSheet(
+                "QFrame#legendChip { border: 1px dashed palette(mid); border-radius: 6px; color: palette(mid); }"
+                "QFrame#legendChip:hover, QFrame#legendChip:focus {"
+                " border-color: palette(highlight); background: palette(alternate-base); }"
+            )
+        self.swatch.set_dimmed(dimmed)
+
+    def _trigger_toggle(self) -> None:
+        if self.on_toggle is not None:
+            self.on_toggle(self.active_roles)
+        else:
+            self.plot.toggle_roles(self.active_roles)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._trigger_toggle()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._trigger_toggle()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def enterEvent(self, event) -> None:
+        if not self.plot.is_role_hidden(self.active_roles):
+            self.plot.set_solo_role(self.role)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self.plot.set_solo_role(None)
+        super().leaveEvent(event)
+
+
 class PlotKey(QWidget):
-    def __init__(self, plot: ResponsePlot, labels: tuple[str, ...]):
+    def __init__(
+        self,
+        plot: ResponsePlot,
+        labels: tuple[str, ...],
+        linked_plots: list[ResponsePlot] | None = None,
+        fixed_rows: int = 0,
+    ):
         super().__init__()
         self.plot = plot
         self.labels = labels
-        self.rows = []
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        self.linked_plots = linked_plots or []
+        self.chips: list[_LegendChip] = []
+        self.flow = _FlowLayout(self, spacing=6, max_per_row=2 if fixed_rows == 2 else 0)
+        self.flow.setContentsMargins(0, 2, 0, 2)
         for role in range(len(labels)):
-            row = QWidget()
-            line = QHBoxLayout(row)
-            line.setContentsMargins(0, 0, 0, 0)
-            line.addWidget(CurveSwatch(plot, role), 0, Qt.AlignmentFlag.AlignTop)
-            label = QLabel()
-            label.setTextFormat(Qt.TextFormat.PlainText)
-            label.setWordWrap(True)
-            label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            line.addWidget(label, 1)
-            layout.addWidget(row)
-            self.rows.append((row, label))
-        layout.addStretch(1)
+            chip = _LegendChip(plot, role, on_toggle=self._toggle_chip_roles)
+            self.chips.append(chip)
+            self.flow.addWidget(chip)
+        if fixed_rows > 0 and self.chips:
+            row_h = max(self.chips[0].sizeHint().height(), self.fontMetrics().lineSpacing() + 8)
+            self.setFixedHeight(fixed_rows * row_h + max(0, fixed_rows - 1) * 6 + 4)
         plot.curves_changed.connect(self.refresh)
+        self.refresh()
+
+    def _toggle_chip_roles(self, roles: list[int]) -> None:
+        self.plot.toggle_roles(roles)
+        hidden = self.plot.is_role_hidden(roles)
+        sync_roles = [r for r in roles if r in (0, 1)]
+        if sync_roles:
+            for linked in self.linked_plots:
+                linked.set_roles_hidden(sync_roles, hidden)
+
+    def set_labels(self, labels: tuple[str, ...]) -> None:
+        self.labels = labels
         self.refresh()
 
     def refresh(self) -> None:
         groups = {roles[0]: roles for roles, _ in self.plot.series()}
-        for role, (row, label) in enumerate(self.rows):
+        for role, chip in enumerate(self.chips):
             roles = groups.get(role, [])
-            row.setVisible(bool(roles))
+            chip.setVisible(bool(roles))
             if roles:
-                label.setText(" = ".join(self.labels[index] for index in roles))
+                chip.active_roles = list(roles)
+                text = " = ".join(self.labels[index] for index in roles if self.labels[index])
+                chip.set_text(text)
+                chip.setToolTip(tr("plot.key.chip_tooltip", label=text))
+                chip.set_dimmed(self.plot.is_role_hidden(roles))
+        self.flow.invalidate()
+        self.updateGeometry()
 
 
 class EqualizerDialog(QDialog):
@@ -2057,6 +2354,14 @@ class AutoEqPanel(QWidget):
         self.result = None
         self.result_entry = None
         self.result_details = ""
+        self.preview_entry = None
+        self.preview_curve: list[tuple[float, float]] = []
+        self.preview_request_id = 0
+        self.preview_timer = QTimer(self, singleShot=True, interval=200)
+        self.preview_timer.timeout.connect(self.load_selected_preview)
+        self.preview_pool = QThreadPool(self)
+        self.preview_pool.setMaxThreadCount(1)
+        self.preview_jobs: set[Job] = set()
         self.job = None
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(1)
@@ -2253,7 +2558,42 @@ class AutoEqPanel(QWidget):
         if entry is None or entry != self.result_entry:
             self.result = None
             self.result_details = ""
+        if entry is None:
+            self.preview_timer.stop()
+            self.preview_entry = None
+            self.preview_curve = []
+            self.preview_request_id += 1
+        elif entry != self.preview_entry:
+            self.preview_entry = entry
+            self.preview_curve = []
+            self.preview_request_id += 1
+            self.preview_timer.start()
         self.update_actions()
+        self.preview_changed.emit()
+
+    def load_selected_preview(self) -> None:
+        entry = self.preview_entry
+        if entry is None or (not entry.local and not self.isVisible()):
+            return
+        req_id = self.preview_request_id
+        cache_dir = self.cache_directory / "curves"
+        job = Job(lambda: read_target_curve(catalog.resolve_curve(entry, cache_dir)))
+        self.preview_jobs.add(job)
+        job.signals.finished.connect(
+            lambda result, error, rid=req_id, target_entry=entry, done_job=job: self._preview_loaded(
+                rid, target_entry, result, error, done_job
+            )
+        )
+        self.preview_pool.start(job)
+
+    def _preview_loaded(self, req_id: int, entry: catalog.Entry, result, error: str, done_job: Job) -> None:
+        self.preview_jobs.discard(done_job)
+        if req_id != self.preview_request_id or entry != self.preview_entry:
+            return
+        if error or not result:
+            self.preview_curve = []
+            return
+        self.preview_curve = list(result)
         self.preview_changed.emit()
 
     def update_actions(self) -> None:
@@ -2482,6 +2822,8 @@ class AutoEqPanel(QWidget):
         self.status.setText("Fabryczny EQ jest aktywny. Wybierz cel, aby obliczyć nowy profil.")
 
     def shutdown(self) -> None:
+        self.preview_timer.stop()
+        self.preview_pool.waitForDone(1000)
         if self.process.state() != QProcess.ProcessState.NotRunning:
             self.cancel_fit()
             self.process.waitForFinished(1000)
@@ -2837,23 +3179,32 @@ class ProfilesWindow(QWidget):
         preview_header.addLayout(preview_header_actions)
         preview.addLayout(preview_header)
         self.fr_title_label = QLabel(tr("plot.fr_title"))
+        self.fr_title_label.setStyleSheet("font-weight: 600;")
         preview.addWidget(self.fr_title_label)
         self.preview_plot = ResponsePlot(include_preamp=False)
         preview.addWidget(self.preview_plot, 2)
+        self.correction_plot = ResponsePlot(correction=True)
         self.preview_key = PlotKey(
             self.preview_plot,
             (
                 tr("plot.key.selected"),
-                "",
+                tr("plot.key.current_dsp"),
                 tr("plot.key.measured"),
                 tr("plot.key.target_default"),
             ),
+            linked_plots=[self.correction_plot],
+            fixed_rows=2,
         )
-        self.preview_key.setFixedHeight(self.preview_key.fontMetrics().lineSpacing() * 3 + 10)
         preview.addWidget(self.preview_key)
+        preview.addSpacing(4)
+        section_divider = QWidget()
+        section_divider.setFixedHeight(1)
+        section_divider.setStyleSheet("background: palette(mid);")
+        preview.addWidget(section_divider)
+        preview.addSpacing(4)
         self.correction_title = QLabel("Korekcja EQ · dB")
+        self.correction_title.setStyleSheet("font-weight: 600;")
         preview.addWidget(self.correction_title)
-        self.correction_plot = ResponsePlot(correction=True)
         preview.addWidget(self.correction_plot, 1)
         self.plot_legend = QLabel()
         self.plot_legend.setTextFormat(Qt.TextFormat.PlainText)
@@ -3346,6 +3697,14 @@ class ProfilesWindow(QWidget):
 
     def update_selection(self) -> None:
         using_catalog = self.catalog_selected()
+        if (
+            using_catalog
+            and self.autoeq_panel.preview_entry is not None
+            and not self.autoeq_panel.preview_curve
+            and not self.autoeq_panel.preview_timer.isActive()
+            and not self.autoeq_panel.preview_jobs
+        ):
+            self.autoeq_panel.preview_timer.start()
         profile = self.candidate_profile()
         busy_fit = (
             self.autoeq_panel.job is not None or self.autoeq_panel.process.state() != QProcess.ProcessState.NotRunning
@@ -3373,51 +3732,83 @@ class ProfilesWindow(QWidget):
 
     def update_comparison(self) -> None:
         selected = self.candidate_profile()
+        waiting_for_fit = self.catalog_selected() and selected is None
         details = self.autoeq_panel.result_details if self.catalog_selected() else ""
-        sources = (selected, self.readback_profile, self.factory_profile, self.state, details)
+        preview_entry = self.autoeq_panel.preview_entry if waiting_for_fit else None
+        preview_curve = self.autoeq_panel.preview_curve if waiting_for_fit else []
+        sources = (
+            selected,
+            self.readback_profile,
+            self.factory_profile,
+            self.state,
+            details,
+            preview_entry,
+            len(preview_curve),
+        )
         if sources == self.preview_sources:
             return
         self.preview_sources = sources
         measured = self.preview_plot.factory_points
+        raw_target = selected.target_curve if (selected and selected.target_curve) else preview_curve
         target_points = []
-        if selected and selected.target_curve and measured:
+        if raw_target and measured:
             level_at_1khz = self.autoeq_panel.level_at_1khz
-            shift = level_at_1khz(measured) - level_at_1khz(selected.target_curve)
-            target_points = [(hz, db + shift) for hz, db in selected.target_curve]
-        target_label = selected.target_name if selected and selected.target_name else tr("plot.key.target_default")
-        self.preview_key.labels = (
-            selected.name if selected else tr("plot.key.selected"),
-            "",
-            tr("plot.key.measured"),
-            tr("plot.key.target", name=target_label),
+            shift = level_at_1khz(measured) - level_at_1khz(raw_target)
+            target_points = [(hz, db + shift) for hz, db in raw_target]
+        target_label = (
+            selected.target_name
+            if selected and selected.target_name
+            else (preview_entry.name if preview_entry is not None else tr("plot.key.target_default"))
+        )
+        self.preview_key.set_labels(
+            (
+                selected.name if selected else tr("plot.key.selected"),
+                tr("plot.key.current_dsp"),
+                tr("plot.key.measured"),
+                tr("plot.key.target", name=target_label),
+            )
         )
         self.preview_plot.set_factory(self.factory_profile)
         self.preview_plot.set_profile(selected)
+        self.preview_plot.set_reference(self.readback_profile)
         self.preview_plot.set_target_points(target_points)
 
-        waiting_for_fit = self.catalog_selected() and selected is None
         from_device = (
             (not waiting_for_fit)
             and self.readback_profile is not None
             and (selected is None or (self.state is not None and selected.matches_eq(self.state)))
         )
         correction = None if waiting_for_fit else (self.readback_profile if from_device else selected)
-        self.correction_title.setText(
-            tr("plot.eq_waiting") if waiting_for_fit else tr("plot.eq_dac") if from_device else tr("plot.eq_preview")
-        )
         frequencies = self.preview_plot.frequencies
-        correction_points = []
-        if correction is not None:
-            if correction.slot == 0 and not from_device:
-                correction_points = [(hz, 0.0) for hz in frequencies]
-            else:
-                correction_points = response_points(correction, frequencies)
-                if self.factory_profile is not None:
-                    factory = response_points(self.factory_profile, frequencies)
-                    correction_points = [
-                        (hz, db - baseline) for (hz, db), (_, baseline) in zip(correction_points, factory, strict=False)
-                    ]
+
+        def _correction_curve(profile: Profile | None, device_readback: bool) -> list[tuple[float, float]]:
+            if profile is None:
+                return []
+            if profile.slot == 0 and not device_readback:
+                return [(hz, 0.0) for hz in frequencies]
+            pts = response_points(profile, frequencies)
+            if self.factory_profile is not None:
+                factory = response_points(self.factory_profile, frequencies)
+                pts = [(hz, db - baseline) for (hz, db), (_, baseline) in zip(pts, factory, strict=False)]
+            return pts
+
+        correction_points = _correction_curve(correction, from_device)
+        dsp_correction_points = (
+            _correction_curve(self.readback_profile, True)
+            if (not waiting_for_fit and not from_device and self.readback_profile is not None)
+            else []
+        )
+        self.correction_title.setText(
+            tr("plot.eq_waiting")
+            if waiting_for_fit
+            else tr("plot.eq_dac")
+            if from_device
+            else tr("plot.eq_compare")
+            if dsp_correction_points
+            else tr("plot.eq_preview")
+        )
         self.correction_plot.set_primary_points(correction_points)
+        self.correction_plot.set_reference_points(dsp_correction_points)
 
         notes = []
         if details:
@@ -3429,7 +3820,7 @@ class ProfilesWindow(QWidget):
         if measured:
             notes.append(tr("plot.measurement_note"))
         self.plot_legend.setText("\n".join(notes))
-        plot_description = list(self.preview_key.labels[2 : 4 if target_points else 3])
+        plot_description = list(self.preview_key.labels[1 : 4 if target_points else 3])
         self.preview_plot.setAccessibleDescription("\n".join(plot_description + notes))
 
     def render_state(self, error: str = "") -> None:
