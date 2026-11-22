@@ -92,7 +92,7 @@ Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka p
 
 ## Zrzuty ekranu
 
-MOONDROP:Gravity Position uruchomiony ze źródeł w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
+MOONDROP:Gravity Position v0.3.7 w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
 
 ### 1. Strojenie i podgląd charakterystyki
 Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (przycisk zmienia się na **Już aktywny w DAC-u**, gdy stan sprzętu jest zgodny z wyborem).

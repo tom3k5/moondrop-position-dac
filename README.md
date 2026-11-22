@@ -92,7 +92,7 @@ The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal su
 
 ## Screenshots
 
-MOONDROP:Gravity Position running from source in demo mode with the **InnoVibe Dark** theme.
+MOONDROP:Gravity Position v0.3.7 running in demo mode with the **InnoVibe Dark** theme.
 
 ### 1. Tuning & Frequency Response Preview
 Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Already active on DAC** once matched).
