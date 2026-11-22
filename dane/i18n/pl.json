@@ -236,6 +236,7 @@
   "tuning.apply_error": "Zapis niepotwierdzony. {error}",
   "tuning.applied_preamp": "DAC potwierdził pre-gain {actual:+.2f} dB. Wartość w profilu {requested:+.2f} dB.",
   "tuning.applied_preamp_short": "DAC {actual:+.2f} dB · profil {requested:+.2f} dB",
+  "tuning.applied_preamp_compact": "DAC {actual:+.2f} dB",
   "tuning.no_profiles": "Brak profili pasujących do wyszukiwania",
   "tuning.factory": "Fabryczny EQ",
   "tuning.custom": "Własny EQ",

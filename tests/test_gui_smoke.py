@@ -274,7 +274,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
             window.apply_done(window.state, "")
             QTest.qWait(40)
             assert window.apply_status.isVisible()
-            assert window.apply_status.text().startswith("DAC ")
+            assert window.apply_status.text().startswith("DAC -4.50 dB")
             assert "-4.50 dB" in window.apply_status.accessibleDescription()
             assert "-4.66 dB" in window.apply_status.accessibleDescription()
             assert window.feedback.isHidden()

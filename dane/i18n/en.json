@@ -236,6 +236,7 @@
   "tuning.apply_error": "Write could not be verified. {error}",
   "tuning.applied_preamp": "DAC confirmed a pre-gain of {actual:+.2f} dB. Profile value {requested:+.2f} dB.",
   "tuning.applied_preamp_short": "DAC {actual:+.2f} dB · profile {requested:+.2f} dB",
+  "tuning.applied_preamp_compact": "DAC {actual:+.2f} dB",
   "tuning.no_profiles": "No profiles match the search",
   "tuning.factory": "Factory EQ",
   "tuning.custom": "Custom EQ",

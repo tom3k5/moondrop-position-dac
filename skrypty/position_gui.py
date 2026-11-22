@@ -3011,9 +3011,10 @@ class FeedbackLabel(QLabel):
 
 
 class ElidingLabel(FeedbackLabel):
-    def set_title(self, title: str, *, wrap: bool, detail: str = "") -> None:
+    def set_title(self, title: str, *, wrap: bool, detail: str = "", compact: str = "") -> None:
         self.full_title = title
         self.detail = detail
+        self.compact_title = compact
         self.setWordWrap(wrap)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred if wrap else QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
@@ -3026,9 +3027,15 @@ class ElidingLabel(FeedbackLabel):
     def update_text(self) -> None:
         title = self.full_title
         if not self.wordWrap():
-            title = self.fontMetrics().elidedText(title, Qt.TextElideMode.ElideRight, self.contentsRect().width())
+            metrics = self.fontMetrics()
+            width = self.contentsRect().width()
+            if self.compact_title and metrics.horizontalAdvance(title) > width:
+                title = self.compact_title
+            title = metrics.elidedText(title, Qt.TextElideMode.ElideRight, width)
         QLabel.setText(self, title)
-        parts = (self.full_title, self.detail) if title != self.full_title else (self.detail,)
+        parts = (
+            (self.full_title, self.detail) if title != self.full_title and not self.compact_title else (self.detail,)
+        )
         self.setToolTip("\n\n".join(filter(None, parts)))
 
     def resizeEvent(self, event) -> None:
@@ -3486,7 +3493,8 @@ class ProfilesWindow(QWidget):
         # Pole pozostaje w układzie, żeby pojawienie się statusu nie zawijało przycisków.
         action_status_box = QWidget()
         action_status_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        action_status_box.setMinimumWidth(self.apply_status.fontMetrics().horizontalAdvance("DAC -0.00 dB"))
+        compact_preamp = tr("tuning.applied_preamp_compact", actual=-0.0)
+        action_status_box.setMinimumWidth(self.apply_status.fontMetrics().horizontalAdvance(compact_preamp))
         status_layout = QVBoxLayout(action_status_box)
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(2)
@@ -4237,6 +4245,7 @@ class ProfilesWindow(QWidget):
         self.preview_actions.invalidate()
         message = self.apply_error
         detail = ""
+        compact = ""
         if self.applying_profile is not None:
             message = tr("tuning.applying")
         elif not message and profile is not None and self.state is None:
@@ -4250,7 +4259,8 @@ class ProfilesWindow(QWidget):
         ):
             message = tr("tuning.applied_preamp_short", actual=self.state.preamp, requested=profile.preamp)
             detail = tr("tuning.applied_preamp", actual=self.state.preamp, requested=profile.preamp)
-        self.apply_status.set_title(message, wrap=False, detail=detail)
+            compact = tr("tuning.applied_preamp_compact", actual=self.state.preamp)
+        self.apply_status.set_title(message, wrap=False, detail=detail, compact=compact)
         custom_selected = profile is not None and profile.slot == dac.CUSTOM_SLOT
         saved = (
             self.catalog_selected()
