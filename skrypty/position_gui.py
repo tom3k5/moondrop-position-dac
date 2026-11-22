@@ -3189,6 +3189,8 @@ class ProfilesWindow(QWidget):
 
         rate_row = QHBoxLayout()
         self.sample_rate_combo = QComboBox()
+        self.sample_rate_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.sample_rate_combo.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.sample_rate_combo.setAccessibleName(tr("device.force_rate"))
         self.sample_rate_combo.addItem(tr("device.rate_auto"), 0)
         for rate in UAC2_SAMPLE_RATES:
@@ -3197,10 +3199,10 @@ class ProfilesWindow(QWidget):
         self.apply_rate_button.setAccessibleName(tr("device.apply"))
         self.refresh_rate_button = QPushButton(tr("device.refresh"))
         self.refresh_rate_button.setAccessibleName(tr("device.refresh"))
-        rate_row.addWidget(self.sample_rate_combo)
+        rate_row.addWidget(self.sample_rate_combo, 1)
         rate_row.addWidget(self.apply_rate_button)
         rate_row.addWidget(self.refresh_rate_button)
-        rate_row.addStretch()
+        rate_row.addStretch(2)
         self.playback_force_label.setBuddy(self.sample_rate_combo)
         playback_form.addRow(self.playback_force_label, rate_row)
 
