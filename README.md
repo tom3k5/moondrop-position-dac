@@ -97,6 +97,7 @@ Browse **My profiles** on the left and inspect the prediction on the right witho
 
 - **Headphone response** compares the **Factory (B&K 5128)** baseline, **Target**, **Predicted result**, and **Current in DSP**; click **Details…** next to RMS to inspect the mean target offset and peak deviation in the `20 Hz–10 kHz` band (frequencies above `10 kHz` are shaded due to lower acoustic confidence).
 - **EQ correction** displays the electrical filter curve at `96 kHz` with profile and DSP pre-gain listed separately. On compact windows, use the view switcher. Hover over a shortened fit summary or status message to read the full text.
+- When the DAC confirms a rounded pre-gain, the action bar beside **Apply to DAC** shows the confirmed value and the profile value.
 - Click legend pills to hide/show curves, hover a pill to **solo** it, or hover the plot for a live `Hz / dB / Δ dB` readout.
 
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)

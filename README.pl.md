@@ -97,6 +97,7 @@ Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt
 
 - **Charakterystyka słuchawek** porównuje krzywą **Fabryczną (B&K 5128)**, **Cel**, **Przewidywany wynik** oraz **Obecnie w DSP**; przycisk **Szczegóły…** obok RMS otwiera okno ze średnim przesunięciem celu i największą odchyłką w paśmie `20 Hz–10 kHz` (zakres powyżej `10 kHz` jest zacieniowany z powodu mniejszej wiarygodności akustycznej).
 - **Korekcja EQ** pokazuje odpowiedź elektryczną filtrów przy `96 kHz` wraz z osobnym pre-gainem profilu i DSP. W mniejszym oknie użyj przełącznika wykresów. Najedź na skrócone podsumowanie dopasowania lub komunikat stanu, żeby odczytać pełny tekst.
+- Gdy DAC potwierdzi zaokrąglony pre-gain, pasek akcji obok **Wgraj do DAC-a** pokazuje wartość potwierdzoną przez urządzenie i wartość z profilu.
 - Klikaj pigułki legendy, aby ukrywać/pokazywać krzywe, najedź na pigułkę dla trybu **Solo**, lub najedź na wykres, by odczytać na żywo `Hz / dB / Δ dB`.
 
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)

@@ -255,6 +255,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
         window.setMinimumWidth(608)
         for width, height in ((1140, 820), (840, 620), (608, 592)):
             window.resize(width, height)
+            window.last_applied_profile = None
             window.profiles.setCurrentItem(harman_item)
             QTest.qWait(40)
             reference = [plot_geometry(plot) for plot in (window.preview_plot, window.correction_plot)]
@@ -268,6 +269,18 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
             else:
                 assert window.edit_button.geometry().right() == window.apply_button.geometry().right()
 
+            actions = [plot_geometry(button) for button in (window.edit_button, window.apply_button)]
+            window.applying_profile = sample
+            window.apply_done(window.state, "")
+            QTest.qWait(40)
+            assert window.apply_status.isVisible()
+            assert window.apply_status.text().startswith("DAC ")
+            assert "-4.50 dB" in window.apply_status.accessibleDescription()
+            assert "-4.66 dB" in window.apply_status.accessibleDescription()
+            assert window.feedback.isHidden()
+            assert plot_geometry(window.preview_plot) == reference[0]
+            assert [plot_geometry(button) for button in (window.edit_button, window.apply_button)] == actions
+
             for item in (window.flat_item, window.factory_item):
                 window.profiles.setCurrentItem(item)
                 QTest.qWait(40)
@@ -276,6 +289,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
                     assert plot_geometry(window.correction_plot) == reference[1]
                 assert not window.fit_detail_button.isEnabled()
                 assert window.apply_button.isEnabled()
+                assert window.apply_status.isHidden()
 
             if width >= 840:
                 window.applying_profile = window.flat_item.data(gui.PROFILE_ROLE)
