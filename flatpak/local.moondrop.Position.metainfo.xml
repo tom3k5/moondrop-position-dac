@@ -17,6 +17,13 @@
   <url type="homepage">https://innovibe.pl/moondrop-position-dac/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.3.7" date="2026-11-22">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.7</url>
+      <description>
+        <p>The EQ editor opens with all eight bands visible and wider numeric spinbox margins, and the main window fits the Device and Guide tabs before showing even with larger fonts.</p>
+        <p xml:lang="pl">Edytor EQ otwiera się z widocznymi ośmioma pasmami i większym marginesem w polach liczbowych, a okno główne mieści zakładki Urządzenie i Przewodnik przed pokazaniem, także przy większej czcionce.</p>
+      </description>
+    </release>
     <release version="0.3.6" date="2026-11-22">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.6</url>
       <description>
