@@ -92,6 +92,8 @@ The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal su
 
 ## Screenshots
 
+MOONDROP:Gravity Position v0.3.6 running in demo mode with the **InnoVibe Dark** theme.
+
 ### 1. Tuning & Frequency Response Preview
 Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Already active on DAC** once matched).
 
@@ -100,10 +102,17 @@ Browse **My profiles** on the left and inspect the prediction on the right witho
 - When the DAC confirms a rounded pre-gain, the action bar beside **Apply to DAC** shows the confirmed value and the profile value.
 - Click legend pills to hide/show curves, hover a pill to **solo** it, or hover the plot for a live `Hz / dB / Δ dB` readout.
 
-![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
+![Tuning with both plots and the confirmed DAC pre-gain beside Apply to DAC](docs/screenshots/01-tuning-profiles.png)
+
+<details>
+<summary>Compact Tuning view</summary>
+
+![Compact Tuning with a switch between frequency response and EQ correction](docs/screenshots/06-tuning-compact.png)
+
+</details>
 
 ### 2. Built-in AutoEq Catalog (6,800+ Models)
-Switch to **AutoEq catalog** to search and filter thousands of IEM and over-ear measurements by database (Crinacle, Oratory1990, etc.) and form factor, or drag & drop your own `.csv` / `.txt` curve onto the window.
+Switch to **AutoEq catalog** to filter thousands of IEM and over-ear measurements by source and headphone type, then search by model. You can also drop your own `.csv` / `.txt` curve onto the window.
 
 - Pick a **Fit range** (`20 Hz–20 kHz` or up to `6 / 4 / 2 kHz` to keep upper bands free for manual treble tweaks) and click **Compute profile**.
 - Each computed profile records its fit range (including when saved to disk) and prompts you to recompute if you change the range before saving or applying.
@@ -125,7 +134,14 @@ Check your active DAC profile, slot (`0` Factory / `7` Custom), pre-gain, and ou
 - View the active ALSA playback stream and set the session-wide **PipeWire sample rate**. Choose **Automatic (PipeWire)** or a fixed rate (`44.1–384 kHz`) and select **Apply**. Expand **USB and PipeWire details** for raw USB format and firmware info.
 - Back up your DAC's Custom slot to JSON, run a **Factory reset…**, and switch between **InnoVibe Dark / Light** themes and **EN / PL** languages.
 
-![Device Settings](docs/screenshots/03-device-settings.png)
+![Device settings with the full Automatic (PipeWire) label](docs/screenshots/03-device-settings.png)
+
+<details>
+<summary>Compact Device view</summary>
+
+![Compact Device view with the full sample-rate label and its Apply and Refresh buttons](docs/screenshots/07-device-compact.png)
+
+</details>
 
 ### 5. Built-in Guide, Shortcuts & Diagnostics
 Everything you need inside the app: quick walkthroughs for tuning and live preview, drag-and-drop import tips, keyboard shortcuts (`Ctrl+F` search, `Ctrl+O` import, `Ctrl+Q` quit), 1-click diagnostic copy for bug reports, and direct support links.
