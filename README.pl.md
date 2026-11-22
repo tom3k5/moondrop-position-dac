@@ -100,7 +100,7 @@ Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
 
 ### 2. Wbudowany katalog AutoEq (ponad 6800 modeli)
-Przełącz się na **Katalog AutoEq**, aby wyszukiwać i filtrować tysiące pomiarów słuchawek IEM i nausznych według typu oraz źródła pomiarów (Crinacle, Oratory1990 i inne), lub przeciągnij na okno własną krzywą `.csv` / `.txt`.
+Przełącz się na **Katalog AutoEq**, aby wyszukiwać i filtrować tysiące pomiarów słuchawek IEM i nausznych według źródła pomiarów (Crinacle, Oratory1990 i inne) oraz typu, lub przeciągnij na okno własną krzywą `.csv` / `.txt`.
 
 - Wybierz **Zakres obliczeń** (`20 Hz–20 kHz` lub do `6 / 4 / 2 kHz`, aby zostawić wyższe pasma do ręcznego strojenia) i kliknij **Oblicz profil**.
 - Wyliczony profil zapamiętuje użyty zakres (również po zapisaniu na dysku) i podpowiada przeliczenie przed zapisem lub wgraniem, jeśli zmienisz zakres.

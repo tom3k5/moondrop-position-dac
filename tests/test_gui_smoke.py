@@ -367,6 +367,7 @@ def test_compact_tuning_keeps_actions_visible_and_blocks_stale_autoeq(tmp_path: 
         window.show()
         window.switch_source(1)
         panel = window.autoeq_panel
+        assert panel.source_filter.y() < panel.mode.y() < panel.search.y()
         panel.add_custom_target_path(gui.HARMAN_TARGET)
         panel.fit_range.setCurrentIndex(3)
         panel.result_entry = panel.current_entry()

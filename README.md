@@ -100,7 +100,7 @@ Browse **My profiles** on the left and inspect the prediction on the right witho
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
 
 ### 2. Built-in AutoEq Catalog (6,800+ Models)
-Switch to **AutoEq catalog** to search and filter thousands of IEM and over-ear measurements by form factor and database (Crinacle, Oratory1990, etc.), or drag & drop your own `.csv` / `.txt` curve onto the window.
+Switch to **AutoEq catalog** to search and filter thousands of IEM and over-ear measurements by database (Crinacle, Oratory1990, etc.) and form factor, or drag & drop your own `.csv` / `.txt` curve onto the window.
 
 - Pick a **Fit range** (`20 Hz–20 kHz` or up to `6 / 4 / 2 kHz` to keep upper bands free for manual treble tweaks) and click **Compute profile**.
 - Each computed profile records its fit range (including when saved to disk) and prompts you to recompute if you change the range before saving or applying.
