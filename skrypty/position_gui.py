@@ -2997,17 +2997,9 @@ class AutoEqPanel(QWidget):
 class FeedbackLabel(QLabel):
     """Etykieta komunikatów statusu ukrywana automatycznie, gdy jest pusta."""
 
-    visibility_changed = Signal(bool)
-
     def __init__(self, text: str = ""):
         super().__init__(text)
-        super().setVisible(bool(text))
-
-    def setVisible(self, visible: bool) -> None:
-        changed = (not self.isHidden()) != visible
-        super().setVisible(visible)
-        if changed:
-            self.visibility_changed.emit(visible)
+        self.setVisible(bool(text))
 
     def setText(self, text: str) -> None:
         super().setText(text)
@@ -3019,23 +3011,31 @@ class FeedbackLabel(QLabel):
 
 
 class ElidingLabel(FeedbackLabel):
-    def set_title(self, title: str, *, wrap: bool, detail: str = "") -> None:
+    def set_title(self, title: str, *, wrap: bool, detail: str = "", compact: str = "") -> None:
         self.full_title = title
         self.detail = detail
+        self.compact_title = compact
         self.setWordWrap(wrap)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred if wrap else QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
         )
         self.setAccessibleName(title)
+        self.setAccessibleDescription(detail)
         self.update_text()
         self.setVisible(bool(title))
 
     def update_text(self) -> None:
         title = self.full_title
         if not self.wordWrap():
-            title = self.fontMetrics().elidedText(title, Qt.TextElideMode.ElideRight, self.contentsRect().width())
+            metrics = self.fontMetrics()
+            width = self.contentsRect().width()
+            if self.compact_title and metrics.horizontalAdvance(title) > width:
+                title = self.compact_title
+            title = metrics.elidedText(title, Qt.TextElideMode.ElideRight, width)
         QLabel.setText(self, title)
-        parts = (self.full_title, self.detail) if title != self.full_title else (self.detail,)
+        parts = (
+            (self.full_title, self.detail) if title != self.full_title and not self.compact_title else (self.detail,)
+        )
         self.setToolTip("\n\n".join(filter(None, parts)))
 
     def resizeEvent(self, event) -> None:
@@ -3490,9 +3490,12 @@ class ProfilesWindow(QWidget):
         for status_label in (self.autoeq_panel.fit_status, self.apply_status):
             status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
-        self.action_status_box = QWidget()
-        self.action_status_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        status_layout = QVBoxLayout(self.action_status_box)
+        # Pole pozostaje w układzie, żeby pojawienie się statusu nie zawijało przycisków.
+        action_status_box = QWidget()
+        action_status_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        compact_preamp = tr("tuning.applied_preamp_compact", actual=-0.0)
+        action_status_box.setMinimumWidth(self.apply_status.fontMetrics().horizontalAdvance(compact_preamp))
+        status_layout = QVBoxLayout(action_status_box)
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(2)
         status_layout.addWidget(self.autoeq_panel.fit_status)
@@ -3522,13 +3525,9 @@ class ProfilesWindow(QWidget):
         footer_layout = QHBoxLayout(footer_bar)
         footer_layout.setContentsMargins(0, 0, 0, 0)
         footer_layout.setSpacing(12)
-        footer_layout.addWidget(self.action_status_box, 1, Qt.AlignmentFlag.AlignVCenter)
+        footer_layout.addWidget(action_status_box, 1, Qt.AlignmentFlag.AlignVCenter)
         footer_layout.addWidget(action_bar, 0, Qt.AlignmentFlag.AlignVCenter)
         card.addWidget(footer_bar)
-
-        self.apply_status.visibility_changed.connect(self.sync_action_status)
-        self.autoeq_panel.fit_status.visibility_changed.connect(self.sync_action_status)
-        self.sync_action_status()
 
         library_split.addWidget(preview_card)
         source_panel.setMinimumWidth(245)
@@ -3675,10 +3674,6 @@ class ProfilesWindow(QWidget):
         required = 2 * max(self.backup_button.sizeHint().width(), self.defaults_button.sizeHint().width())
         wide = available >= required + self.device_actions.spacing()
         self.device_actions.setDirection(QBoxLayout.Direction.LeftToRight if wide else QBoxLayout.Direction.TopToBottom)
-
-    def sync_action_status(self) -> None:
-        has_status = not self.apply_status.isHidden() or not self.autoeq_panel.fit_status.isHidden()
-        self.action_status_box.setVisible(has_status)
 
     def size_apply_button(self) -> None:
         self.apply_button.setMinimumWidth(0)
@@ -4249,11 +4244,23 @@ class ProfilesWindow(QWidget):
         self.apply_button.setVisible(profile is not None)
         self.preview_actions.invalidate()
         message = self.apply_error
+        detail = ""
+        compact = ""
         if self.applying_profile is not None:
             message = tr("tuning.applying")
         elif not message and profile is not None and self.state is None:
             message = tr("tuning.connect_to_apply")
-        self.apply_status.set_title(message, wrap=False)
+        elif (
+            not message
+            and active
+            and profile == self.last_applied_profile
+            and profile.preamp is not None
+            and not dac.preamp_matches(self.state.preamp, profile.preamp)
+        ):
+            message = tr("tuning.applied_preamp_short", actual=self.state.preamp, requested=profile.preamp)
+            detail = tr("tuning.applied_preamp", actual=self.state.preamp, requested=profile.preamp)
+            compact = tr("tuning.applied_preamp_compact", actual=self.state.preamp)
+        self.apply_status.set_title(message, wrap=False, detail=detail, compact=compact)
         custom_selected = profile is not None and profile.slot == dac.CUSTOM_SLOT
         saved = (
             self.catalog_selected()
@@ -4672,12 +4679,8 @@ class ProfilesWindow(QWidget):
         if not error:
             self.last_applied_profile = profile
         self.refresh_done(state, error)
-        if error:
-            if self.tabs.currentWidget() is not self.profile_page:
-                self.feedback.setText(self.apply_error)
-            return
-        if profile.preamp is not None and not dac.preamp_matches(state.preamp, profile.preamp):
-            self.feedback.setText(tr("tuning.applied_preamp", actual=state.preamp, requested=profile.preamp))
+        if error and self.tabs.currentWidget() is not self.profile_page:
+            self.feedback.setText(self.apply_error)
 
     def confirm_defaults(self) -> None:
         if self.editor_active or not self.defaults_button.isEnabled():
