@@ -60,6 +60,7 @@ from PySide6.QtGui import (
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication,
+    QBoxLayout,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -111,17 +112,21 @@ OFFICIAL_HUB_URL = "https://hub.moondroplab.tech/"
 PROFILE_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 PRIMARY_ACTION_STYLE = (
-    "QPushButton { padding: 7px 18px; font-weight: 600; }"
+    "QPushButton { padding: 7px 16px; font-weight: 600; }"
     "QPushButton:enabled { background: palette(highlight); color: palette(highlighted-text);"
     " border: 1px solid palette(highlight); border-radius: 6px; }"
-    "QPushButton:focus { border: 1px solid palette(text); }"
+    "QPushButton:enabled:hover { background: palette(link); color: palette(base); border-color: palette(link); }"
+    "QPushButton:enabled:pressed { background: palette(midlight); color: palette(text); }"
+    "QPushButton:enabled:focus { border-color: palette(text); }"
 )
 SECONDARY_ACCENT_STYLE = (
     "QPushButton { padding: 6px 14px; font-weight: 600; }"
     "QPushButton:enabled { background: palette(button); color: palette(link);"
     " border: 1px solid palette(highlight); border-radius: 6px; }"
-    "QPushButton:enabled:hover { background: palette(alternate-base); border-color: palette(link); }"
-    "QPushButton:focus { border: 1px solid palette(text); }"
+    "QPushButton:enabled:hover { background: palette(alternate-base); color: palette(text);"
+    " border-color: palette(text); }"
+    "QPushButton:enabled:pressed { background: palette(midlight); color: palette(text); }"
+    "QPushButton:enabled:focus { border-color: palette(text); }"
 )
 
 
@@ -187,8 +192,19 @@ QToolButton::menu-indicator {
     right: 6px;
 }
 QPushButton:hover:enabled, QToolButton:hover:enabled {
-    border-color: palette(highlight);
+    border-color: palette(link);
     background: palette(alternate-base);
+}
+QToolButton:checked:enabled {
+    border-color: palette(link);
+    background: palette(alternate-base);
+}
+QPushButton:pressed:enabled, QToolButton:pressed:enabled {
+    border-color: palette(link);
+    background: palette(midlight);
+}
+QPushButton:focus:enabled, QToolButton:focus:enabled {
+    border-color: palette(text);
 }
 QPushButton:disabled, QToolButton:disabled {
     color: palette(placeholder-text);
@@ -206,10 +222,44 @@ QLineEdit:hover:enabled, QComboBox:hover:enabled, QSpinBox:hover:enabled, QDoubl
     background: palette(alternate-base);
 }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-    border-color: palette(highlight);
+    border-color: palette(text);
 }
-QCheckBox::indicator:hover:enabled {
-    border-color: palette(highlight);
+QComboBox:on:enabled {
+    background: palette(midlight);
+}
+QCheckBox:hover:enabled {
+    color: palette(link);
+}
+QCheckBox:pressed:enabled {
+    color: palette(text);
+    background: palette(midlight);
+}
+QSlider::groove:horizontal {
+    height: 5px;
+    border-radius: 2px;
+    background: palette(mid);
+}
+QSlider::sub-page:horizontal:enabled {
+    border-radius: 2px;
+    background: palette(link);
+}
+QSlider::handle:horizontal {
+    width: 14px;
+    margin: -5px 0;
+    border: 1px solid palette(mid);
+    border-radius: 7px;
+    background: palette(button);
+}
+QSlider::handle:horizontal:enabled {
+    border-color: palette(link);
+}
+QSlider::handle:horizontal:hover:enabled, QSlider::handle:horizontal:focus:enabled {
+    border-color: palette(text);
+    background: palette(highlight);
+}
+QSlider::handle:horizontal:pressed:enabled {
+    border-color: palette(link);
+    background: palette(text);
 }
 QListWidget, QListView {
     border: 1px solid palette(mid);
@@ -218,19 +268,27 @@ QListWidget, QListView {
     background: palette(base);
 }
 QListWidget::item, QListView::item {
+    border: 1px solid transparent;
     border-radius: 4px;
     padding: 5px 8px;
 }
-QListWidget::item:hover:!selected, QListView::item:hover:!selected {
+QListWidget::item:hover:!selected:enabled, QListView::item:hover:!selected:enabled {
+    border-color: palette(link);
     background: palette(alternate-base);
 }
 QListWidget::item:selected, QListView::item:selected {
     background: palette(highlight);
     color: palette(highlighted-text);
 }
+QListWidget::item:selected:focus, QListView::item:selected:focus {
+    border-color: palette(highlighted-text);
+}
 QSplitter::handle {
     background: transparent;
     border: none;
+}
+QSplitter::handle:hover, QSplitter::handle:pressed {
+    background: palette(alternate-base);
 }
 QFrame#sourceCard, QFrame#previewCard {
     border: 1px solid palette(mid);
@@ -254,15 +312,28 @@ QTabBar::tab {
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
 }
-QTabBar::tab:hover:!selected {
+QTabBar::tab:hover:!selected:enabled {
     background: palette(alternate-base);
-    border-color: palette(mid);
+    border-color: palette(link);
 }
 QTabBar::tab:selected {
     border-color: palette(mid);
     border-bottom-color: palette(window);
     background: palette(window);
     font-weight: 600;
+}
+QTabBar::tab:pressed:enabled {
+    background: palette(midlight);
+}
+QTabBar::tab:focus:selected {
+    border-top-color: palette(text);
+}
+QMenu::item:selected:enabled {
+    background: palette(highlight);
+    color: palette(highlighted-text);
+}
+QMenu::item:disabled {
+    color: palette(placeholder-text);
 }
 QToolTip {
     border: 1px solid palette(mid);
@@ -274,10 +345,11 @@ QToolTip {
 """
 SEGMENT_BUTTON_STYLE = (
     "QPushButton { border: 1px solid palette(mid); padding: 5px 10px; background: palette(window); }"
-    "QPushButton:hover:!checked { border-color: palette(highlight); background: palette(alternate-base); }"
+    "QPushButton:hover:!checked:enabled { border-color: palette(link); background: palette(alternate-base); }"
     "QPushButton:checked { border-color: palette(highlight); background: palette(highlight);"
     " color: palette(highlighted-text); }"
-    "QPushButton:focus { border-color: palette(text); }"
+    "QPushButton:enabled:pressed { background: palette(midlight); color: palette(text); }"
+    "QPushButton:enabled:focus { border-color: palette(text); }"
 )
 STATUS_PILL_STYLE = "border-radius: 10px; padding: 4px 10px; background: palette(alternate-base);"
 
@@ -1488,7 +1560,7 @@ class ResponsePlot(QWidget):
                 hy = y(curve_db)
                 self.band_handles.append((idx, hx, hy))
                 active = idx in (self.drag_index, self.hover_index)
-                radius = 10.5 if active else 8.5
+                radius = 12.0 if idx == self.drag_index else (10.5 if active else 8.5)
                 painter.setPen(QPen(accent if active else text, 2.2 if active else 1.5))
                 painter.setBrush(accent if active else plot_background.color())
                 painter.drawEllipse(QPointF(hx, hy), radius, radius)
@@ -1658,10 +1730,11 @@ class CurveSwatch(QWidget):
 
 
 class _FlowLayout(QLayout):
-    def __init__(self, parent=None, spacing: int = 6):
+    def __init__(self, parent=None, spacing: int = 6, *, align_right: bool = False):
         super().__init__(parent)
         self._items = []
         self._spacing = spacing
+        self._align_right = align_right
 
     def addItem(self, item) -> None:
         self._items.append(item)
@@ -1704,6 +1777,13 @@ class _FlowLayout(QLayout):
         x = effective.x()
         y = effective.y()
         line_height = 0
+        row = []
+
+        def place_row() -> None:
+            offset = effective.right() + 1 - (x - self._spacing) if self._align_right else 0
+            for item, geometry in row:
+                item.setGeometry(geometry.translated(offset, 0))
+
         for item in self._items:
             widget = item.widget()
             if widget is not None and widget.isHidden() and not widget.sizePolicy().retainSizeWhenHidden():
@@ -1714,14 +1794,17 @@ class _FlowLayout(QLayout):
             next_x = x + item_w + self._spacing
             wrap_by_width = next_x - self._spacing > effective.right() + 1
             if wrap_by_width and line_height > 0:
+                place_row()
+                row.clear()
                 x = effective.x()
                 y += line_height + self._spacing
                 next_x = x + item_w + self._spacing
                 line_height = 0
             if not test_only:
-                item.setGeometry(QRect(x, y, item_w, item_h))
+                row.append((item, QRect(x, y, item_w, item_h)))
             x = next_x
             line_height = max(line_height, item_h)
+        place_row()
         return y + line_height - rect.y() + m.bottom()
 
 
@@ -1733,7 +1816,6 @@ class _LegendChip(QPushButton):
         self.role = role
         self.active_roles: list[int] = [role]
         self.on_toggle = on_toggle
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setCheckable(True)
         self.setAutoDefault(False)
         self.clicked.connect(self._trigger_toggle)
@@ -1750,6 +1832,13 @@ class _LegendChip(QPushButton):
         self.label.setMinimumWidth(0)
         line.addWidget(self.label, 1)
         self.setMaximumWidth(275)
+        self.setStyleSheet(
+            "QPushButton#legendChip { border: 1px dashed palette(mid); border-radius: 6px; }"
+            "QPushButton#legendChip:checked { border-style: solid; background: palette(alternate-base); }"
+            "QPushButton#legendChip:enabled:hover { border-color: palette(link); }"
+            "QPushButton#legendChip:enabled:pressed { background: palette(midlight); }"
+            "QPushButton#legendChip:enabled:focus { border-color: palette(text); }"
+        )
         self.set_dimmed(False)
 
     def set_text(self, text: str) -> None:
@@ -1763,19 +1852,6 @@ class _LegendChip(QPushButton):
 
     def set_dimmed(self, dimmed: bool) -> None:
         self.setChecked(not dimmed)
-        if not dimmed:
-            self.setStyleSheet(
-                "QPushButton#legendChip { border: 1px solid palette(mid); border-radius: 6px;"
-                " background: palette(alternate-base); }"
-                "QPushButton#legendChip:hover { border-color: palette(link); }"
-                "QPushButton#legendChip:focus { border: 2px solid palette(text); }"
-            )
-        else:
-            self.setStyleSheet(
-                "QPushButton#legendChip { border: 1px dashed palette(mid); border-radius: 6px; }"
-                "QPushButton#legendChip:hover { border-color: palette(link); }"
-                "QPushButton#legendChip:focus { border: 2px dashed palette(text); }"
-            )
         self.swatch.set_dimmed(dimmed)
 
     def _trigger_toggle(self) -> None:
@@ -1786,10 +1862,19 @@ class _LegendChip(QPushButton):
 
     def keyPressEvent(self, event) -> None:
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            self._trigger_toggle()
+            if not event.isAutoRepeat():
+                self.setDown(True)
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if not event.isAutoRepeat() and self.isDown():
+                self.click()
+            event.accept()
+            return
+        super().keyReleaseEvent(event)
 
     def enterEvent(self, event) -> None:
         if not self.plot.is_role_hidden(self.active_roles):
@@ -2470,6 +2555,7 @@ class AutoEqPanel(QWidget):
         self.targets = QListView()
         self.targets.setModel(self.target_model)
         self.targets.setUniformItemSizes(True)
+        self.targets.setMouseTracking(True)
         self.targets.setAccessibleName(tr("autoeq.target_list"))
         self.targets.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.targets.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -3021,37 +3107,39 @@ class ProfilesWindow(QWidget):
             details.addWidget(lbl, row, 0)
             details.addWidget(value, row, 1)
         self.gains_box = QGroupBox(tr("device.gain_group"))
-        gains_form = QFormLayout(self.gains_box)
-        global_row = QHBoxLayout()
-        global_row.addWidget(self.global_gain)
+        gains_grid = QGridLayout(self.gains_box)
+        gains_grid.setColumnStretch(0, 1)
         self.global_gain_button = QPushButton(tr("device.adjust"))
         self.global_gain_button.setAccessibleName(tr("device.output_gain"))
         self.global_gain_button.setEnabled(False)
-        global_row.addWidget(self.global_gain_button)
-        global_row.addStretch()
         self.output_gain_label = QLabel(tr("device.output_gain"))
-        gains_form.addRow(self.output_gain_label, global_row)
-        microphone_row = QHBoxLayout()
-        microphone_row.addWidget(self.mic_gain)
         self.mic_gain_button = QPushButton(tr("device.adjust"))
         self.mic_gain_button.setAccessibleName(tr("device.microphone"))
         self.mic_gain_button.setEnabled(False)
-        microphone_row.addWidget(self.mic_gain_button)
-        microphone_row.addStretch()
         self.mic_gain_label = QLabel(tr("device.microphone"))
-        gains_form.addRow(self.mic_gain_label, microphone_row)
+        for row, label, value, button in (
+            (0, self.output_gain_label, self.global_gain, self.global_gain_button),
+            (1, self.mic_gain_label, self.mic_gain, self.mic_gain_button),
+        ):
+            gains_grid.addWidget(label, row, 0)
+            gains_grid.addWidget(value, row, 1, Qt.AlignmentFlag.AlignRight)
+            gains_grid.addWidget(button, row, 2)
         self.backup_button = QPushButton(tr("device.export_dac"))
         self.backup_button.setEnabled(False)
         self.defaults_button = QPushButton(tr("device.factory_reset"))
         self.defaults_button.setEnabled(False)
         self.maintenance_box = QGroupBox(tr("device.backup_group"))
-        device_actions = _FlowLayout(self.maintenance_box, spacing=8)
-        device_actions.setContentsMargins(10, 12, 10, 10)
-        device_actions.addWidget(self.backup_button)
-        device_actions.addWidget(self.defaults_button)
+        self.device_actions = QBoxLayout(QBoxLayout.Direction.TopToBottom, self.maintenance_box)
+        self.device_actions.setSpacing(8)
+        for button in (self.backup_button, self.defaults_button):
+            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            self.device_actions.addWidget(button, 1, Qt.AlignmentFlag.AlignTop)
+        self.device_actions.addStretch()
+        self.maintenance_box.installEventFilter(self)
 
         self.playback_box = QGroupBox(tr("device.playback_group"))
         playback_form = QFormLayout(self.playback_box)
+        playback_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         playback_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         playback_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.playback_format = QLabel("—")
@@ -3094,6 +3182,7 @@ class ProfilesWindow(QWidget):
         playback_form.addRow(self.usb_details)
         usb_content = QWidget()
         usb_form = QFormLayout(usb_content)
+        usb_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         usb_form.setContentsMargins(0, 4, 0, 0)
         usb_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         usb_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -3122,6 +3211,8 @@ class ProfilesWindow(QWidget):
 
         self.language_box = QGroupBox(tr("device.language_group"))
         lang_form = QFormLayout(self.language_box)
+        lang_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        lang_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.theme_label = QLabel(tr("device.theme_label"))
         self.theme_combo = QComboBox()
         self.theme_combo.setAccessibleName(tr("device.theme_label"))
@@ -3192,6 +3283,7 @@ class ProfilesWindow(QWidget):
         self.profile_search = search_field(tr("search.profiles_placeholder"), tr("search.profiles_a11y"))
         library_layout.addWidget(self.profile_search)
         self.profiles = QListWidget()
+        self.profiles.setMouseTracking(True)
         self.profiles.setAccessibleName(tr("tuning.library"))
         self.profiles.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.profiles.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -3371,8 +3463,9 @@ class ProfilesWindow(QWidget):
         self.apply_button = QPushButton(tr("actions.apply_dac"))
         self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.apply_button.setEnabled(False)
+        self.size_apply_button()
         action_bar = QWidget()
-        self.preview_actions = _FlowLayout(action_bar, spacing=8)
+        self.preview_actions = _FlowLayout(action_bar, spacing=8, align_right=True)
         self.preview_actions.setContentsMargins(0, 0, 0, 0)
         for button in (
             self.autoeq_panel.generate,
@@ -3459,7 +3552,6 @@ class ProfilesWindow(QWidget):
 
         self.report_button = QToolButton()
         self.report_button.setText(tr("footer.report"))
-        self.report_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.report_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.report_menu = QMenu(self.report_button)
         self.report_bug_action = self.report_menu.addAction(
@@ -3518,9 +3610,26 @@ class ProfilesWindow(QWidget):
         return self.autoeq_panel.ready_result() if self.catalog_selected() else self.selected_profile()
 
     def eventFilter(self, watched, event):
-        if event.type() == QEvent.Type.Resize and watched is self.preview_scroll.viewport():
-            self.update_plot_layout()
+        if event.type() == QEvent.Type.Resize:
+            if watched is self.maintenance_box:
+                self.update_device_actions_layout()
+            elif watched is self.preview_scroll.viewport():
+                self.update_plot_layout()
         return super().eventFilter(watched, event)
+
+    def update_device_actions_layout(self) -> None:
+        margins = self.device_actions.contentsMargins()
+        available = self.maintenance_box.contentsRect().width() - margins.left() - margins.right()
+        required = 2 * max(self.backup_button.sizeHint().width(), self.defaults_button.sizeHint().width())
+        wide = available >= required + self.device_actions.spacing()
+        self.device_actions.setDirection(QBoxLayout.Direction.LeftToRight if wide else QBoxLayout.Direction.TopToBottom)
+
+    def size_apply_button(self) -> None:
+        self.apply_button.setMinimumWidth(0)
+        self.apply_button.setText(tr("tuning.already_active"))
+        active_width = self.apply_button.sizeHint().width()
+        self.apply_button.setText(tr("actions.apply_dac"))
+        self.apply_button.setMinimumWidth(max(active_width, self.apply_button.sizeHint().width()))
 
     def update_plot_layout(self) -> None:
         compact = self.preview_scroll.width() < 560 or self.preview_scroll.height() < 505
@@ -3734,6 +3843,7 @@ class ProfilesWindow(QWidget):
         self.maintenance_box.setTitle(tr("device.backup_group"))
         self.backup_button.setText(tr("device.export_dac"))
         self.defaults_button.setText(tr("device.factory_reset"))
+        self.update_device_actions_layout()
         self.update_accent_texts()
         for index, key in enumerate(("source.my_profiles", "source.autoeq_catalog")):
             self.source_group.button(index).setText(tr(key))
@@ -3762,7 +3872,7 @@ class ProfilesWindow(QWidget):
         self.export_action.setText(tr("actions.export_selected"))
         self.delete_action.setText(tr("actions.delete_profile"))
         self.edit_button.setText(tr("actions.edit_eq"))
-        self.apply_button.setText(tr("actions.apply_dac"))
+        self.size_apply_button()
         self.autoeq_panel.retranslate_ui()
         self.apply_tooltips()
         flat_profile = self.flat_item.data(PROFILE_ROLE)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint, QStandardPaths
+from PySide6.QtCore import QPoint, QStandardPaths, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -255,6 +255,11 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
             assert window.fit_detail_button.isEnabled()
             assert not window.apply_button.isEnabled()
             assert not window.connection.wordWrap()
+            assert window.apply_button.geometry().right() == window.apply_button.parentWidget().rect().right()
+            if window.edit_button.y() == window.apply_button.y():
+                assert window.edit_button.geometry().right() < window.apply_button.geometry().left()
+            else:
+                assert window.edit_button.geometry().right() == window.apply_button.geometry().right()
 
             for item in (window.flat_item, window.factory_item):
                 window.profiles.setCurrentItem(item)
@@ -264,6 +269,73 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
                     assert plot_geometry(window.correction_plot) == reference[1]
                 assert not window.fit_detail_button.isEnabled()
                 assert window.apply_button.isEnabled()
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+def test_device_form_uses_shared_alignment_and_responsive_actions(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.setMinimumWidth(608)
+        window.resize(1140, 820)
+        window.show()
+        window.tabs.setCurrentIndex(1)
+        QTest.qWait(50)
+        assert window.playback_stream_label.x() == window.playback_force_label.x() == window.pipewire_scope.x()
+        assert window.global_gain_button.x() == window.mic_gain_button.x()
+        assert window.theme_combo.x() == window.language_combo.x()
+        assert window.theme_combo.width() == window.language_combo.width()
+        assert window.backup_button.y() == window.defaults_button.y()
+        assert abs(window.backup_button.width() - window.defaults_button.width()) <= 1
+
+        window.resize(608, 592)
+        QTest.qWait(50)
+        assert window.backup_button.x() == window.defaults_button.x()
+        assert window.backup_button.width() == window.defaults_button.width()
+        assert window.backup_button.geometry().bottom() < window.defaults_button.y()
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+def test_action_hover_and_hold_use_distinct_states(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.refresh_done(gui.read_state(window.open_device()), "")
+        window.show()
+        QTest.qWait(50)
+        applied = []
+        window.apply_button.clicked.disconnect(window.apply_selected)
+        window.apply_button.clicked.connect(lambda: applied.append(True))
+
+        for theme in ("dark", "light"):
+            window.theme_combo.setCurrentIndex(window.theme_combo.findData(theme))
+            for button in (window.edit_button, window.apply_button):
+                QTest.mouseMove(window.connection, window.connection.rect().center())
+                normal = button.grab().toImage()
+                QTest.mouseMove(button, button.rect().center())
+                QTest.qWait(20)
+                assert button.grab().toImage() != normal
+
+        button = window.apply_button
+        hovered = button.grab().toImage()
+        QTest.mousePress(button, Qt.MouseButton.LeftButton)
+        QTest.qWait(650)
+        assert button.isDown() and not applied
+        assert button.grab().toImage() != hovered
+        QTest.mouseRelease(button, Qt.MouseButton.LeftButton)
+        assert applied == [True]
+
+        chip = window.preview_key.chips[0]
+        chip.setFocus()
+        QTest.keyPress(chip, Qt.Key.Key_Return)
+        assert chip.isDown() and not window.preview_plot.is_role_hidden([0])
+        QTest.keyRelease(chip, Qt.Key.Key_Return)
+        assert window.preview_plot.is_role_hidden([0])
     finally:
         window.quit_from_tray()
         app.processEvents()
@@ -292,6 +364,18 @@ def test_compact_tuning_keeps_actions_visible_and_blocks_stale_autoeq(tmp_path: 
         assert window.candidate_profile() == sample
         assert window.apply_button.isVisible() and window.apply_button.isEnabled()
         assert window.apply_button.parentWidget().rect().contains(window.apply_button.geometry())
+        window.setMinimumWidth(608)
+        window.resize(608, 592)
+        QTest.qWait(40)
+        actions = (panel.generate, window.save_fit_button, window.edit_button, window.apply_button)
+        action_bar = window.apply_button.parentWidget().rect()
+        rows: dict[int, int] = {}
+        for action in actions:
+            rect = action.geometry()
+            assert action.isVisible() and action_bar.contains(rect)
+            rows[rect.top()] = max(rect.right(), rows.get(rect.top(), 0))
+        assert len(rows) > 1
+        assert all(right == action_bar.right() for right in rows.values())
         assert window.plot_switcher.isVisible()
         window.plot_view_group.button(1).click()
         assert window.correction_plot.isVisible() and not window.preview_plot.isVisible()

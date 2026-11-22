@@ -44,7 +44,7 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ## Screenshots
 
 ### Tuning & Frequency Response Preview
-Tuning shows the **selected profile** and the **active profile on the DAC** separately. The charts and action positions stay steady when switching built-in profiles. The apply control shows **Already active on DAC** when the hardware matches the selection. The main window starts at up to 1140 × 820 logical pixels and fits the available desktop area. Compact windows let you switch between **Frequency response** and **EQ correction**.
+Tuning shows the **selected profile** and the **active profile on the DAC** separately. The charts and actions stay steady when switching built-in profiles. Editing and apply controls are grouped at the bottom right. The apply control shows **Already active on DAC** when the hardware matches the selection. The main window starts at up to 1140 × 820 logical pixels and fits the available desktop area. Compact windows let you switch between **Frequency response** and **EQ correction**.
 
 **Factory**, **Target**, and **Predicted result** show the acoustic response. **EQ correction** shows the electrical response of the filters at 96 kHz, with profile and DSP pre-gain listed separately. **Current in DSP** uses the biquad coefficients read back from the device. **Details…** beside RMS under the response chart opens a dialog with the mean target offset and the largest deviation in the shared 20 Hz–10 kHz band. Shading above 10 kHz marks lower confidence in the acoustic comparison.
 
@@ -61,11 +61,13 @@ Edit the electrical EQ curve using handles `1–8`, sliders, or numerical inputs
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
 ### Device Status, Gains & PipeWire UAC2 Quality
-See the active profile, slot, gain, and stream format at a glance. Open **USB and PipeWire details** for the raw format, firmware, and sample-rate details. Forcing the sample rate affects the whole PipeWire session.
+See the active profile, slot, gain, and stream format at a glance. Playback labels share a left edge. Backup and reset controls share the card width and stack in narrow windows. Open **USB and PipeWire details** for the raw format, firmware, and sample-rate details. Forcing the sample rate affects the whole PipeWire session.
 
 ![Device Settings](docs/screenshots/03-device-settings.png)
 
 ### Built-in Guide, Shortcuts & Support
+Controls show distinct hover, press, and keyboard focus states. Holding the apply button runs the action once on release. Numeric step controls repeat while held.
+
 ![Guide Tab](docs/screenshots/05-guide-tab.png)
 
 ---

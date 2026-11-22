@@ -44,7 +44,7 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 ## Zrzuty ekranu
 
 ### Strojenie i podgląd charakterystyki
-**Wybrany profil** i **Aktywny w DAC-u** są widoczne osobno. Wykresy i akcje zachowują położenie przy przełączaniu wbudowanych profili. Gdy stan sprzętu jest zgodny z wyborem, przycisk wgrania pokazuje „Już aktywny w DAC-u”. Główne okno startuje w rozmiarze do 1140 × 820 pikseli logicznych dopasowanym do obszaru pulpitu. W małym oknie wykresy przełącza się między **Charakterystyką** a **Korekcją EQ**.
+**Wybrany profil** i **Aktywny w DAC-u** są widoczne osobno. Wykresy i akcje zachowują położenie przy przełączaniu wbudowanych profili. Edycja i wgranie są obok siebie w prawym dolnym rogu podglądu. Gdy stan sprzętu jest zgodny z wyborem, przycisk wgrania pokazuje „Już aktywny w DAC-u”. Główne okno startuje w rozmiarze do 1140 × 820 pikseli logicznych dopasowanym do obszaru pulpitu. W małym oknie wykresy przełącza się między **Charakterystyką** a **Korekcją EQ**.
 
 Charakterystyka pokazuje krzywą fabryczną, cel i przewidywany wynik. Korekcja EQ pokazuje odpowiedź elektryczną filtrów przy 96 kHz. Pre-gain profilu i DSP jest podany osobno, a krzywa **Obecnie w DSP** pochodzi z odczytu współczynników biquad. Przycisk **Szczegóły…** obok RMS pod charakterystyką otwiera okno ze średnim przesunięciem celu i największą odchyłką w paśmie 20 Hz–10 kHz. Cieniowanie powyżej 10 kHz oznacza mniejszą wiarygodność oceny akustycznej.
 
@@ -61,11 +61,13 @@ Korekcję EQ można edytować punktami `1–8`, suwakami i polami liczbowymi. **
 ![Edytor EQ](docs/screenshots/04-eq-editor.png)
 
 ### Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
-Aktywny profil, wzmocnienia i format strumienia są widoczne od razu. **Szczegóły USB i PipeWire** zawierają surowy format, firmware oraz informacje o częstotliwości i jej źródle. Wymuszanie częstotliwości zmienia ustawienie całej sesji PipeWire.
+Aktywny profil, wzmocnienia i format strumienia są widoczne od razu. Etykiety odtwarzania mają wspólną lewą krawędź. Eksport i przywracanie zajmują równe miejsca w karcie, a w wąskim oknie układają się pionowo. **Szczegóły USB i PipeWire** zawierają surowy format, firmware oraz informacje o częstotliwości i jej źródle. Wymuszanie częstotliwości zmienia ustawienie całej sesji PipeWire.
 
 ![Ustawienia urządzenia](docs/screenshots/03-device-settings.png)
 
 ### Wbudowany Przewodnik, skróty i wsparcie
+Najechanie, wciśnięcie i fokus klawiatury mają odrębne oznaczenia. Dłuższe przytrzymanie przycisku wgrania uruchamia akcję jednokrotnie po zwolnieniu. Pola liczbowe obsługują powtarzanie kroku.
+
 ![Zakładka Przewodnik](docs/screenshots/05-guide-tab.png)
 
 ---

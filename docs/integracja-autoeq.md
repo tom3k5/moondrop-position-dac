@@ -76,7 +76,7 @@ W kompaktowym oknie wykresy przełącza się przyciskami **Charakterystyka**
 i **Korekcja EQ**. Przycisk **Szczegóły…** obok RMS pod charakterystyką
 otwiera osobne okno myszą lub klawiaturą. Przełączanie wbudowanych profili
 zachowuje położenie wykresów. Pasek obliczeń, zapisu i wgrania pozostaje
-pod podglądem.
+po prawej stronie pod podglądem.
 
 GUI interpoluje w skali logarytmicznej i liczy RMS w części wspólnej danych
 od 20 Hz do 10 kHz. Każda próbka siatki logarytmicznej ma tę samą wagę.
@@ -224,7 +224,7 @@ sprzętowy na firmware 0.5 potwierdził oba sloty (w tym `HSQ` w fabrycznym sloc
 |---|---|
 | **Strojenie** | Moje profile i Katalog AutoEq korzystają ze wspólnego podglądu charakterystyki i korekcji EQ. „Wgraj do DAC-a” sprawdza wynik odczytem. „Więcej → Usuń profil…” usuwa wpis użytkownika z biblioteki po potwierdzeniu. |
 | **Edytor EQ** | Domyślny wykres korekcji obsługuje punkty ośmiu pasm. Przewidywana charakterystyka jest w sąsiedniej zakładce. Status odsłuchu jest nad przewijaną częścią edytora. Odsłuch jest tymczasowy i przywraca stan po wyłączeniu lub zamknięciu. Zapis profilu, eksport i wgranie do DAC-a są dostępne na osobnym pasku. |
-| **Urządzenie** | Aktywny profil, slot i wzmocnienia, czytelny opis strumienia, kopia EQ i przywracanie. Surowy format ALSA i firmware są w **Szczegółach USB i PipeWire**. Wymuszone próbkowanie obowiązuje całą sesję PipeWire. |
+| **Urządzenie** | Aktywny profil, slot i wzmocnienia, czytelny opis strumienia, kopia EQ i przywracanie. Surowy format ALSA i firmware są w **Szczegółach USB i PipeWire**. Wymuszone próbkowanie obowiązuje całą sesję PipeWire. Etykiety sekcji odtwarzania są wyrównane do lewej. Eksport i przywracanie mają równą szerokość i przy mniejszej karcie układają się pionowo. |
 | **Przewodnik** | Kroki wgrywania, odsłuchu, interpretacji wykresów, importu i diagnostyki. Tu znajdują się też skróty, odnośniki do wsparcia i kopiowanie raportu diagnostycznego. |
 
 Default i Custom to sloty sprzętowe. Biblioteka może mieć dowolną liczbę
