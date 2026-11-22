@@ -13,7 +13,7 @@ import pytest
 from PySide6.QtCore import QPoint, QRect, QStandardPaths, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QStyleOptionComboBox
 
 import position_gui as gui
 
@@ -313,7 +313,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
 
 def test_device_form_uses_shared_alignment_and_responsive_actions(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
-    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    (tmp_path / "settings.json").write_text('{"language":"en","theme":"dark"}')
     window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
     try:
         window.setMinimumWidth(608)
@@ -333,6 +333,22 @@ def test_device_form_uses_shared_alignment_and_responsive_actions(tmp_path: Path
         assert window.backup_button.x() == window.defaults_button.x()
         assert window.backup_button.width() == window.defaults_button.width()
         assert window.backup_button.geometry().bottom() < window.defaults_button.y()
+
+        combo = window.sample_rate_combo
+        for lang, automatic in (("pl", "Automatyczna (PipeWire)"), ("en", "Automatic (PipeWire)")):
+            window.language_combo.setCurrentIndex(window.language_combo.findData(lang))
+            QTest.qWait(50)
+            assert combo.currentText() == automatic
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            text_rect = combo.style().subControlRect(
+                QStyle.ComplexControl.CC_ComboBox, option, QStyle.SubControl.SC_ComboBoxEditField, combo
+            )
+            assert all(
+                text_rect.width() >= combo.fontMetrics().horizontalAdvance(combo.itemText(index))
+                for index in range(combo.count())
+            )
+            assert window.refresh_rate_button.geometry().right() <= window.playback_box.contentsRect().right()
     finally:
         window.quit_from_tray()
         app.processEvents()

@@ -122,7 +122,7 @@ Kliknij **Edytuj EQ…**, aby otworzyć osobny edytor. Przy podłączonym DAC-u 
 ### 4. Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
 Sprawdź od razu aktywny profil na DAC-u, slot (`0` fabryczny / `7` własny), pre-gain oraz wzmocnienie wyjścia i mikrofonu.
 
-- Podglądaj aktywny strumień ALSA i w razie potrzeby wymuszaj **Próbkowanie PipeWire** (`44,1–384 kHz` dla całej sesji); w sekcji **Szczegóły USB i PipeWire** znajdziesz surowy format USB i wersję firmware.
+- Podglądaj aktywny strumień ALSA i ustaw **Próbkowanie PipeWire** dla całej sesji. Wybierz **Automatyczna (PipeWire)** lub stałą częstotliwość (`44,1–384 kHz`) i kliknij **Zastosuj**. W sekcji **Szczegóły USB i PipeWire** znajdziesz surowy format USB i wersję firmware.
 - Wykonaj kopię zapasową slotu Custom do pliku JSON, przywróć **Ustawienia fabryczne…** oraz zmieniaj motyw (**InnoVibe Ciemny / Jasny**) i język (**PL / EN**).
 
 ![Ustawienia urządzenia](docs/screenshots/03-device-settings.png)

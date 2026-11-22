@@ -122,7 +122,7 @@ Click **Edit EQ…** to open the dedicated editor. With a DAC connected, **Live 
 ### 4. Device Status, Gains & PipeWire UAC2 Quality
 Check your active DAC profile, slot (`0` Factory / `7` Custom), pre-gain, and output/microphone gain at a glance.
 
-- View the active ALSA playback stream and optionally force the **PipeWire sample rate** (`44.1–384 kHz`, session-wide); expand **USB and PipeWire details** for raw USB format and firmware info.
+- View the active ALSA playback stream and set the session-wide **PipeWire sample rate**. Choose **Automatic (PipeWire)** or a fixed rate (`44.1–384 kHz`) and select **Apply**. Expand **USB and PipeWire details** for raw USB format and firmware info.
 - Back up your DAC's Custom slot to JSON, run a **Factory reset…**, and switch between **InnoVibe Dark / Light** themes and **EN / PL** languages.
 
 ![Device Settings](docs/screenshots/03-device-settings.png)
