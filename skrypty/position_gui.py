@@ -59,6 +59,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QApplication,
     QBoxLayout,
     QButtonGroup,
@@ -90,6 +91,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QStyle,
+    QStyleOptionTabWidgetFrame,
     QSystemTrayIcon,
     QTabWidget,
     QToolButton,
@@ -2014,7 +2016,8 @@ class EqualizerDialog(QDialog):
         layout = QVBoxLayout(self.editor_content)
         layout.setContentsMargins(0, 0, 5, 0)
         layout.setSpacing(8)
-        outer.addWidget(scroll_content(self.editor_content), 1)
+        self.editor_scroll = scroll_content(self.editor_content)
+        outer.addWidget(self.editor_scroll, 1)
 
         name_row = QHBoxLayout()
         self.name = QLineEdit()
@@ -2035,7 +2038,7 @@ class EqualizerDialog(QDialog):
         gain_row = QHBoxLayout()
         self.preamp = self.decimal(-128, 0, 0.1)
         self.preamp.setSuffix(" dB")
-        self.preamp.setMinimumWidth(88)
+        self.preamp.setMinimumWidth(96)
         self.preamp.setAccessibleName(tr("editor.preamp_label"))
         self.preamp.setToolTip(tr("tooltip.editor_preamp"))
         preamp_label = QLabel(tr("editor.preamp_label"))
@@ -2219,9 +2222,17 @@ class EqualizerDialog(QDialog):
         self.editor_buttons = buttons
         outer.addWidget(buttons)
 
+        for spin_box in self.findChildren(QAbstractSpinBox):
+            spin_box.lineEdit().setTextMargins(6, 0, 2, 0)
+
         if source is None:
             source = Profile("Własny EQ", dac.CUSTOM_SLOT, default_custom_bands(), 0)
         self.set_profile(source)
+        self.ensurePolished()
+        outer.activate()
+        content_height = max(layout.minimumSize().height(), layout.heightForWidth(self.editor_scroll.width()))
+        extra_height = max(0, content_height - self.editor_scroll.height())
+        size_to_screen(self, self.width(), self.height() + extra_height)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -3621,6 +3632,16 @@ class ProfilesWindow(QWidget):
         links_layout.addWidget(self.guide_hub_btn)
         self.apply_tooltips()
         self.update_accent_texts()
+        self.ensurePolished()
+        layout.activate()
+        tab_style = QStyleOptionTabWidgetFrame()
+        self.tabs.initStyleOption(tab_style)
+        tab_contents = self.tabs.style().subElementRect(QStyle.SubElement.SE_TabWidgetTabContents, tab_style, self.tabs)
+        page_height = max(
+            max(page_layout.minimumSize().height(), page_layout.heightForWidth(tab_contents.width()))
+            for page_layout in (device_layout, guide_layout)
+        )
+        size_to_screen(self, self.width(), self.height() + max(0, page_height - tab_contents.height()))
 
         self.load_library()
         self.profiles.currentItemChanged.connect(self.update_selection)

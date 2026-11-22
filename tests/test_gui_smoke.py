@@ -13,7 +13,7 @@ import pytest
 from PySide6.QtCore import QPoint, QRect, QStandardPaths, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QStyleOptionComboBox
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QMessageBox, QStyle, QStyleOptionComboBox, QWidget
 
 import position_gui as gui
 
@@ -159,6 +159,29 @@ def test_guide_tooltips_and_support_links(tmp_path: Path, monkeypatch) -> None:
         app.processEvents()
 
 
+def test_guide_fits_at_start_with_larger_font(tmp_path: Path, monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    original_font = app.font()
+    app.setFont(QFont("DejaVu Sans", 12))
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    with monkeypatch.context() as roomy_screen:
+        roomy_screen.setattr(gui, "size_to_screen", QWidget.resize)
+        window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.show()
+        QTest.qWait(50)
+        start_size = window.size()
+        for index in (1, 2):
+            window.tabs.setCurrentIndex(index)
+            QTest.qWait(50)
+            assert window.tabs.currentWidget().verticalScrollBar().maximum() == 0
+            assert window.size() == start_size
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+        app.setFont(original_font)
+
+
 def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
@@ -187,7 +210,20 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         assert window.preview_plot.points != window.preview_plot.factory_points
         assert window.correction_plot.points == gui.response_points(sample, gui.EQ_PLOT_FREQUENCIES)
 
-        editor = gui.EqualizerDialog(window, sample, sample, window.factory_profile, device_path=None)
+        with monkeypatch.context() as roomy_screen:
+            roomy_screen.setattr(gui, "size_to_screen", QWidget.resize)
+            editor = gui.EqualizerDialog(window, sample, sample, window.factory_profile, device_path=None)
+        editor.show()
+        QTest.qWait(50)
+        assert editor.editor_scroll.verticalScrollBar().maximum() == 0
+        for field in editor.findChildren(QAbstractSpinBox):
+            assert field.lineEdit().textMargins().left() >= 6
+        editor.preamp.setValue(editor.preamp.minimum())
+        preamp_text = editor.preamp.lineEdit()
+        margins = preamp_text.textMargins()
+        assert preamp_text.fontMetrics().horizontalAdvance(preamp_text.text()) + margins.left() + margins.right() <= (
+            preamp_text.width()
+        )
         assert editor.plot.correction and editor.plot.interactive
         assert not editor.acoustic_plot.correction
         assert not editor.upload.autoDefault()

@@ -92,6 +92,8 @@ Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka p
 
 ## Zrzuty ekranu
 
+MOONDROP:Gravity Position uruchomiony ze źródeł w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
+
 ### 1. Strojenie i podgląd charakterystyki
 Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (przycisk zmienia się na **Już aktywny w DAC-u**, gdy stan sprzętu jest zgodny z wyborem).
 
@@ -100,24 +102,32 @@ Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt
 - Gdy DAC potwierdzi zaokrąglony pre-gain, pasek akcji obok **Wgraj do DAC-a** pokazuje wartość potwierdzoną przez urządzenie i wartość z profilu.
 - Klikaj pigułki legendy, aby ukrywać/pokazywać krzywe, najedź na pigułkę dla trybu **Solo**, lub najedź na wykres, by odczytać na żywo `Hz / dB / Δ dB`.
 
-![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
+![Strojenie z dwoma wykresami i potwierdzonym pre-gainem obok przycisku Wgraj do DAC-a](docs/screenshots/pl/01-tuning-profiles.png)
+
+<details>
+<summary>Strojenie w małym oknie</summary>
+
+![Kompaktowe Strojenie z przełącznikiem charakterystyki i korekcji EQ](docs/screenshots/pl/06-tuning-compact.png)
+
+</details>
 
 ### 2. Wbudowany katalog AutoEq (ponad 6800 modeli)
-Przełącz się na **Katalog AutoEq**, aby wyszukiwać i filtrować tysiące pomiarów słuchawek IEM i nausznych według źródła pomiarów (Crinacle, Oratory1990 i inne) oraz typu, lub przeciągnij na okno własną krzywą `.csv` / `.txt`.
+W **Katalogu AutoEq** wybierz źródło pomiarów i typ słuchawek, a następnie wyszukaj model. Możesz też przeciągnąć na okno własną krzywą `.csv` / `.txt`.
 
 - Wybierz **Zakres obliczeń** (`20 Hz–20 kHz` lub do `6 / 4 / 2 kHz`, aby zostawić wyższe pasma do ręcznego strojenia) i kliknij **Oblicz profil**.
 - Wyliczony profil zapamiętuje użyty zakres (również po zapisaniu na dysku) i podpowiada przeliczenie przed zapisem lub wgraniem, jeśli zmienisz zakres.
 
-![Katalog AutoEq](docs/screenshots/02-autoeq-catalog.png)
+![Katalog AutoEq](docs/screenshots/pl/02-autoeq-catalog.png)
 
 ### 3. Edytor 8-pasmowego EQ i odsłuch na żywo
 Kliknij **Edytuj EQ…**, aby otworzyć osobny edytor. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie, pozwala sprawdzać każdą zmianę w czasie rzeczywistym bez zapisu do flash i bezpiecznie przywraca wcześniejsze ustawienia DAC-a po wyłączeniu lub anulowaniu.
 
 - Przeciągaj ponumerowane punkty `1–8` bezpośrednio na wykresie **Korekcja EQ** (częstotliwość / gain / kółko myszy dla Q), korzystaj z suwaków lub pól liczbowych i użyj **Ustaw automatycznie**, aby dobrać pre-gain bez ryzyka przesterowania.
+- Edytor po otwarciu mieści osiem pasm, gdy pozwala na to wysokość ekranu. Rozwiń **Wzmocnienie wyjścia i mikrofonu w profilu** pod pasmami, aby dołączyć te ustawienia.
 - Jeśli stroma półka `LSQ` lub `HSQ` przekracza zakres współczynników DAC-a, zmniejsz Q lub gain. Po zakończeniu odsłuch przywraca pierwotne współczynniki i pre-gain.
 - Przełącz na zakładkę **Charakterystyka**, aby ocenić odpowiedź akustyczną, włącz **Porównaj z profilem wyjściowym**, a dolnym paskiem zapisz profil na dysku (**Zapisz profil**), wyeksportuj (**Eksportuj profil…** do `.txt` / `.json`) lub wgraj do pamięci DAC-a (**Wgraj do DAC-a**).
 
-![Edytor EQ](docs/screenshots/04-eq-editor.png)
+![Edytor EQ](docs/screenshots/pl/04-eq-editor.png)
 
 ### 4. Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
 Sprawdź od razu aktywny profil na DAC-u, slot (`0` fabryczny / `7` własny), pre-gain oraz wzmocnienie wyjścia i mikrofonu.
@@ -125,12 +135,19 @@ Sprawdź od razu aktywny profil na DAC-u, slot (`0` fabryczny / `7` własny), pr
 - Podglądaj aktywny strumień ALSA i ustaw **Próbkowanie PipeWire** dla całej sesji. Wybierz **Automatyczna (PipeWire)** lub stałą częstotliwość (`44,1–384 kHz`) i kliknij **Zastosuj**. W sekcji **Szczegóły USB i PipeWire** znajdziesz surowy format USB i wersję firmware.
 - Wykonaj kopię zapasową slotu Custom do pliku JSON, przywróć **Ustawienia fabryczne…** oraz zmieniaj motyw (**InnoVibe Ciemny / Jasny**) i język (**PL / EN**).
 
-![Ustawienia urządzenia](docs/screenshots/03-device-settings.png)
+![Ustawienia urządzenia z pełną etykietą Automatyczna (PipeWire)](docs/screenshots/pl/03-device-settings.png)
+
+<details>
+<summary>Urządzenie w małym oknie</summary>
+
+![Kompaktowy widok Urządzenia z pełną etykietą próbkowania i przyciskami Zastosuj oraz Odśwież](docs/screenshots/pl/07-device-compact.png)
+
+</details>
 
 ### 5. Wbudowany Przewodnik, skróty i diagnostyka
 Wszystko pod ręką wewnątrz aplikacji: krótkie instrukcje wgrywania i odsłuchu, wyjaśnienie wykresów, obsługa Drag & Drop, skróty klawiszowe (`Ctrl+F` szukanie, `Ctrl+O` import, `Ctrl+Q` wyjście), kopiowanie diagnostyki jednym kliknięciem do zgłoszeń oraz odnośniki do wsparcia.
 
-![Zakładka Przewodnik](docs/screenshots/05-guide-tab.png)
+![Zakładka Przewodnik](docs/screenshots/pl/05-guide-tab.png)
 
 ---
 
