@@ -9,7 +9,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint, QStandardPaths, Qt
+from PySide6.QtCore import QPoint, QRect, QStandardPaths, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -269,6 +269,21 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
                     assert plot_geometry(window.correction_plot) == reference[1]
                 assert not window.fit_detail_button.isEnabled()
                 assert window.apply_button.isEnabled()
+
+            if width >= 840:
+                window.applying_profile = window.flat_item.data(gui.PROFILE_ROLE)
+                window.refresh_buttons()
+                QTest.qWait(40)
+                assert window.apply_status.isVisible()
+                assert plot_geometry(window.preview_plot) == reference[0]
+                assert plot_geometry(window.correction_plot) == reference[1]
+                status_rect = QRect(window.apply_status.mapTo(window, QPoint()), window.apply_status.size())
+                edit_rect = QRect(window.edit_button.mapTo(window, QPoint()), window.edit_button.size())
+                assert status_rect.right() < edit_rect.left()
+                assert abs(status_rect.center().y() - edit_rect.center().y()) <= 2
+                window.applying_profile = None
+                window.refresh_buttons()
+                QTest.qWait(40)
     finally:
         window.quit_from_tray()
         app.processEvents()

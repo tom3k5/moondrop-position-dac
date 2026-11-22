@@ -1762,7 +1762,21 @@ class _FlowLayout(QLayout):
         self._do_layout(rect, test_only=False)
 
     def sizeHint(self) -> QSize:
-        return self.minimumSize()
+        width = 0
+        height = 0
+        visible = 0
+        for item in self._items:
+            widget = item.widget()
+            if widget is not None and widget.isHidden() and not widget.sizePolicy().retainSizeWhenHidden():
+                continue
+            hint = item.sizeHint()
+            width += hint.width()
+            height = max(height, hint.height())
+            visible += 1
+        if visible > 1:
+            width += self._spacing * (visible - 1)
+        m = self.contentsMargins()
+        return QSize(width + m.left() + m.right(), height + m.top() + m.bottom())
 
     def minimumSize(self) -> QSize:
         size = QSize()
@@ -2974,9 +2988,17 @@ class AutoEqPanel(QWidget):
 class FeedbackLabel(QLabel):
     """Etykieta komunikatów statusu ukrywana automatycznie, gdy jest pusta."""
 
+    visibility_changed = Signal(bool)
+
     def __init__(self, text: str = ""):
         super().__init__(text)
-        self.setVisible(bool(text))
+        super().setVisible(bool(text))
+
+    def setVisible(self, visible: bool) -> None:
+        changed = (not self.isHidden()) != visible
+        super().setVisible(visible)
+        if changed:
+            self.visibility_changed.emit(visible)
 
     def setText(self, text: str) -> None:
         super().setText(text)
@@ -3450,11 +3472,19 @@ class ProfilesWindow(QWidget):
         preview_panel.setAutoFillBackground(False)
         self.preview_scroll.viewport().installEventFilter(self)
         card.addWidget(self.preview_scroll, 1)
-        card.addWidget(self.autoeq_panel.fit_status)
         self.apply_status = FeedbackLabel()
         self.apply_status.setTextFormat(Qt.TextFormat.PlainText)
         self.apply_status.setWordWrap(True)
-        card.addWidget(self.apply_status)
+        for status_label in (self.autoeq_panel.fit_status, self.apply_status):
+            status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        self.action_status_box = QWidget()
+        self.action_status_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        status_layout = QVBoxLayout(self.action_status_box)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(2)
+        status_layout.addWidget(self.autoeq_panel.fit_status)
+        status_layout.addWidget(self.apply_status)
 
         self.save_fit_button = QPushButton(tr("actions.save_later"))
         self.edit_button = QPushButton(tr("actions.edit_eq"))
@@ -3476,7 +3506,17 @@ class ProfilesWindow(QWidget):
         ):
             button.setMinimumHeight(34)
             self.preview_actions.addWidget(button)
-        card.addWidget(action_bar)
+        footer_bar = QWidget()
+        footer_layout = QHBoxLayout(footer_bar)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.setSpacing(12)
+        footer_layout.addWidget(self.action_status_box, 1, Qt.AlignmentFlag.AlignVCenter)
+        footer_layout.addWidget(action_bar, 0, Qt.AlignmentFlag.AlignVCenter)
+        card.addWidget(footer_bar)
+
+        self.apply_status.visibility_changed.connect(self.sync_action_status)
+        self.autoeq_panel.fit_status.visibility_changed.connect(self.sync_action_status)
+        self.sync_action_status()
 
         library_split.addWidget(preview_card)
         source_panel.setMinimumWidth(245)
@@ -3623,6 +3663,10 @@ class ProfilesWindow(QWidget):
         required = 2 * max(self.backup_button.sizeHint().width(), self.defaults_button.sizeHint().width())
         wide = available >= required + self.device_actions.spacing()
         self.device_actions.setDirection(QBoxLayout.Direction.LeftToRight if wide else QBoxLayout.Direction.TopToBottom)
+
+    def sync_action_status(self) -> None:
+        has_status = not self.apply_status.isHidden() or not self.autoeq_panel.fit_status.isHidden()
+        self.action_status_box.setVisible(has_status)
 
     def size_apply_button(self) -> None:
         self.apply_button.setMinimumWidth(0)
