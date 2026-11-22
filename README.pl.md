@@ -64,6 +64,8 @@ flatpak build-bundle flatpak-repo position-dac.flatpak local.moondrop.Position
 
 Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)) używa `--device=all` (dostęp do `/dev/hidraw*` dla DSP), `--share=network` (pobieranie katalogu AutoEq na żądanie użytkownika), `--talk-name=org.kde.StatusNotifierWatcher` (ikona w zasobniku systemowym) oraz `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (okno aplikacji).
 
+Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka przekazuje uchwyt do surowego urządzenia USB dla transportu takiego jak libusb. Do pracy z lokalnymi profilami i zapisanymi krzywymi możesz uruchomić sesję offline poleceniem `flatpak run --unshare=network local.moondrop.Position`.
+
 ---
 
 ## Dlaczego wersja dla Linuxa?
@@ -94,7 +96,7 @@ Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)
 Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (przycisk zmienia się na **Już aktywny w DAC-u**, gdy stan sprzętu jest zgodny z wyborem).
 
 - **Charakterystyka słuchawek** porównuje krzywą **Fabryczną (B&K 5128)**, **Cel**, **Przewidywany wynik** oraz **Obecnie w DSP**; przycisk **Szczegóły…** obok RMS otwiera okno ze średnim przesunięciem celu i największą odchyłką w paśmie `20 Hz–10 kHz` (zakres powyżej `10 kHz` jest zacieniowany z powodu mniejszej wiarygodności akustycznej).
-- **Korekcja EQ** pokazuje odpowiedź elektryczną filtrów przy `96 kHz` wraz z osobnym pre-gainem profilu i DSP. W mniejszym oknie wygodnie przełączysz się między oboma wykresami.
+- **Korekcja EQ** pokazuje odpowiedź elektryczną filtrów przy `96 kHz` wraz z osobnym pre-gainem profilu i DSP. W mniejszym oknie użyj przełącznika wykresów. Najedź na skrócone podsumowanie dopasowania lub komunikat stanu, żeby odczytać pełny tekst.
 - Klikaj pigułki legendy, aby ukrywać/pokazywać krzywe, najedź na pigułkę dla trybu **Solo**, lub najedź na wykres, by odczytać na żywo `Hz / dB / Δ dB`.
 
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
@@ -111,6 +113,7 @@ Przełącz się na **Katalog AutoEq**, aby wyszukiwać i filtrować tysiące pom
 Kliknij **Edytuj EQ…**, aby otworzyć osobny edytor. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie, pozwala sprawdzać każdą zmianę w czasie rzeczywistym bez zapisu do flash i bezpiecznie przywraca wcześniejsze ustawienia DAC-a po wyłączeniu lub anulowaniu.
 
 - Przeciągaj ponumerowane punkty `1–8` bezpośrednio na wykresie **Korekcja EQ** (częstotliwość / gain / kółko myszy dla Q), korzystaj z suwaków lub pól liczbowych i użyj **Ustaw automatycznie**, aby dobrać pre-gain bez ryzyka przesterowania.
+- Jeśli stroma półka `LSQ` lub `HSQ` przekracza zakres współczynników DAC-a, zmniejsz Q lub gain. Po zakończeniu odsłuch przywraca pierwotne współczynniki i pre-gain.
 - Przełącz na zakładkę **Charakterystyka**, aby ocenić odpowiedź akustyczną, włącz **Porównaj z profilem wyjściowym**, a dolnym paskiem zapisz profil na dysku (**Zapisz profil**), wyeksportuj (**Eksportuj profil…** do `.txt` / `.json`) lub wgraj do pamięci DAC-a (**Wgraj do DAC-a**).
 
 ![Edytor EQ](docs/screenshots/04-eq-editor.png)

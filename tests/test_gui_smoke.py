@@ -9,7 +9,9 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest
 from PySide6.QtCore import QPoint, QRect, QStandardPaths, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -227,8 +229,12 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         app.processEvents()
 
 
-def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
+@pytest.mark.parametrize("font", [None, "DejaVu Sans"])
+def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -> None:
     app = QApplication.instance() or QApplication([])
+    original_font = app.font()
+    if font:
+        app.setFont(QFont(font, 9))
     (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
     window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
     try:
@@ -252,6 +258,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
             window.profiles.setCurrentItem(harman_item)
             QTest.qWait(40)
             reference = [plot_geometry(plot) for plot in (window.preview_plot, window.correction_plot)]
+            assert window.preview_plot.width() <= window.preview_scroll.viewport().width()
             assert window.fit_detail_button.isEnabled()
             assert not window.apply_button.isEnabled()
             assert not window.connection.wordWrap()
@@ -287,6 +294,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
     finally:
         window.quit_from_tray()
         app.processEvents()
+        app.setFont(original_font)
 
 
 def test_device_form_uses_shared_alignment_and_responsive_actions(tmp_path: Path) -> None:

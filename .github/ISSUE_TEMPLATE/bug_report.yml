@@ -17,6 +17,7 @@ body:
         - AutoEq / EQ Optimizer
         - PipeWire / UAC2 Sample Rate
         - Flatpak / udev Packaging
+        - Translations (i18n)
         - Other
     validations:
       required: true
@@ -33,7 +34,7 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. Connect MOONDROP Position
-        2. Open AutoEq tab and select...
+        2. Open Tuning, choose AutoEq catalog, and select...
         3. Click 'Apply to DAC'
     validations:
       required: true
@@ -48,5 +49,5 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostic output (--diagnose or GUI "Copy diagnostic info")
-      description: Paste output from `python3 skrypty/position_gui.py --diagnose` or the app's Report menu.
+      description: Paste output from `python3 skrypty/position_gui.py --diagnose` or use Copy diagnostic info in the Guide tab.
       render: text
