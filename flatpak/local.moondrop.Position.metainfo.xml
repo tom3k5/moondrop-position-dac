@@ -17,6 +17,13 @@
   <url type="homepage">https://innovibe.pl/moondrop-position-dac/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.3.8" date="2026-11-22">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.8</url>
+      <description>
+        <p>Moved the version indicator to the bottom right of the Guide tab, kept tuning plot geometry constant across tabs while retaining dynamic Y-axis scales, streamlined the AutoEq sidebar and unified action button dimensions, removed the redundant post-fit Recompute button, and added one-click Restore previous after flashing the DAC.</p>
+        <p xml:lang="pl">Przeniesiono wersję wyłącznie na dół po prawej stronie zakładki Przewodnik, ustabilizowano położenie i wysokość wykresów przy dynamicznej skali Y, uproszczono pasek Katalogu AutoEq i ujednolicono rozmiary przycisków akcji, usunięto zbędny przycisk Przelicz profil po obliczeniu oraz dodano jednoklikowe Przywróć poprzedni po wgraniu profilu do DAC-a.</p>
+      </description>
+    </release>
     <release version="0.3.7" date="2026-11-22">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.7</url>
       <description>

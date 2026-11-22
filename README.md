@@ -85,24 +85,24 @@ The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal su
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
 | Local Library vs DAC Flash | Limited | **Full local library, Drag & Drop, JSON & Equalizer APO (`.txt`) import/export** |
 | PipeWire UAC2 Monitor & Sample Rate | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
-| Readback Verification & Backup | Basic | **Pre/post-flash verification & 1-click DAC backup** |
+| Readback Verification & Backup | Basic | **Pre/post-flash verification, 1-click Restore previous & DAC backup** |
 | Themes, Language & Built-in Guide | Web only | **InnoVibe Dark & Light themes, EN / PL, built-in Guide tab** |
 
 ---
 
 ## Screenshots
 
-MOONDROP:Gravity Position v0.3.7 running in demo mode with the **InnoVibe Dark** theme.
+MOONDROP:Gravity Position v0.3.8 running in demo mode with the **InnoVibe Dark** theme.
 
 ### 1. Tuning & Frequency Response Preview
-Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Already active on DAC** once matched).
+Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Restore previous** after flashing so you can revert in one click, or shows **Already active on DAC** for an unchanged active state).
 
 - **Headphone response** compares the **Factory (B&K 5128)** baseline, **Target**, **Predicted result**, and **Current in DSP**; click **Details…** next to RMS to inspect the mean target offset and peak deviation in the `20 Hz–10 kHz` band (frequencies above `10 kHz` are shaded due to lower acoustic confidence).
-- **EQ correction** displays the electrical filter curve at `96 kHz` with profile and DSP pre-gain listed separately. On compact windows, use the view switcher. Hover over a shortened fit summary or status message to read the full text.
+- **EQ correction** displays the electrical filter curve at `96 kHz` with **Current in DSP** and **Profile EQ** legend pills alongside separate profile and DSP pre-gain on the right. Plot heights stay locked across tabs while Y-axis scales adapt dynamically; compact windows use a view switcher. Hover over a shortened fit summary or status message to read the full text.
 - When the DAC confirms a rounded pre-gain, the action bar beside **Apply to DAC** shows the confirmed value and the profile value.
 - Click legend pills to hide/show curves, hover a pill to **solo** it, or hover the plot for a live `Hz / dB / Δ dB` readout.
 
-![Tuning with both plots and the confirmed DAC pre-gain beside Apply to DAC](docs/screenshots/01-tuning-profiles.png)
+![Tuning with both plots and pre-gain beside the EQ correction legend](docs/screenshots/01-tuning-profiles.png)
 
 <details>
 <summary>Compact Tuning view</summary>
@@ -112,10 +112,10 @@ Browse **My profiles** on the left and inspect the prediction on the right witho
 </details>
 
 ### 2. Built-in AutoEq Catalog (6,800+ Models)
-Switch to **AutoEq catalog** to filter thousands of IEM and over-ear measurements by source and headphone type, then search by model. You can also drop your own `.csv` / `.txt` curve onto the window.
+Switch to **AutoEq catalog** to filter thousands of IEM and over-ear measurements by **Source**, **Headphone type**, and **Fit range**, then search by model (`Get catalog` and the result count sit on the shared bottom bar). You can also drop your own `.csv` / `.txt` curve onto the window.
 
-- Pick a **Fit range** (`20 Hz–20 kHz` or up to `6 / 4 / 2 kHz` to keep upper bands free for manual treble tweaks) and click **Compute profile**.
-- Each computed profile records its fit range (including when saved to disk) and prompts you to recompute if you change the range before saving or applying.
+- Pick a **Fit range** (`20 Hz–20 kHz` or up to `6 / 4 / 2 kHz` to keep upper bands free for manual treble tweaks) and click **Compute profile** — the action bar cleanly reveals **Save profile**, **Edit EQ…**, and **Apply to DAC** once fitted.
+- Each computed profile records its fit range (including when saved to disk); if you change the range afterwards, **Recompute profile** replaces the right action button so you never apply or save a stale fit.
 
 ![AutoEq Catalog](docs/screenshots/02-autoeq-catalog.png)
 
@@ -145,7 +145,7 @@ Check your active DAC profile, slot (`0` Factory / `7` Custom), pre-gain, and ou
 </details>
 
 ### 5. Built-in Guide, Shortcuts & Diagnostics
-Everything you need inside the app: quick walkthroughs for tuning and live preview, drag-and-drop import tips, keyboard shortcuts (`Ctrl+F` search, `Ctrl+O` import, `Ctrl+Q` quit), 1-click diagnostic copy for bug reports, and direct support links.
+Everything you need inside the app: quick walkthroughs for tuning and live preview, drag-and-drop import tips, keyboard shortcuts (`Ctrl+F` search, `Ctrl+O` import, `Ctrl+Q` quit), 1-click diagnostic copy for bug reports, the current version and license indicator in the bottom-right corner, and direct support links.
 
 ![Guide Tab](docs/screenshots/05-guide-tab.png)
 

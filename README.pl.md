@@ -85,24 +85,24 @@ Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka p
 | Wzmocnienie wyjścia (`-18…0 dB`) i mikrofonu | Tak | **Tak, z opcjonalnym zapisem w profilu** |
 | Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka na dysku, Drag & Drop, import/eksport JSON i Equalizer APO (`.txt`)** |
 | Monitor strumienia UAC2 i próbkowania PipeWire | Nie | **Tak (`44,1–384 kHz` + odczyt głębi bitowej ALSA)** |
-| Weryfikacja zapisu i kopia zapasowa | Podstawowa | **Ścisła weryfikacja przed/po zapisie flash + kopia EQ jednym kliknięciem** |
+| Weryfikacja zapisu i kopia zapasowa | Podstawowa | **Ścisła weryfikacja przed/po zapisie flash, Przywróć poprzedni i kopia EQ jednym kliknięciem** |
 | Motywy, język i wbudowany Przewodnik | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, zakładka Przewodnik** |
 
 ---
 
 ## Zrzuty ekranu
 
-MOONDROP:Gravity Position v0.3.7 w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
+MOONDROP:Gravity Position v0.3.8 w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
 
 ### 1. Strojenie i podgląd charakterystyki
-Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (przycisk zmienia się na **Już aktywny w DAC-u**, gdy stan sprzętu jest zgodny z wyborem).
+Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (po zapisie przycisk zamienia się w **Przywróć poprzedni**, pozwalając jednym kliknięciem wrócić do poprzedniego stanu, albo pokazuje **Już aktywny w DAC-u**, gdy stan nie był zmieniany).
 
 - **Charakterystyka słuchawek** porównuje krzywą **Fabryczną (B&K 5128)**, **Cel**, **Przewidywany wynik** oraz **Obecnie w DSP**; przycisk **Szczegóły…** obok RMS otwiera okno ze średnim przesunięciem celu i największą odchyłką w paśmie `20 Hz–10 kHz` (zakres powyżej `10 kHz` jest zacieniowany z powodu mniejszej wiarygodności akustycznej).
-- **Korekcja EQ** pokazuje odpowiedź elektryczną filtrów przy `96 kHz` wraz z osobnym pre-gainem profilu i DSP. W mniejszym oknie użyj przełącznika wykresów. Najedź na skrócone podsumowanie dopasowania lub komunikat stanu, żeby odczytać pełny tekst.
+- **Korekcja EQ** pokazuje odpowiedź elektryczną filtrów przy `96 kHz` wraz z legendą **Obecnie w DSP** / **Korekcja profilu** i osobnym pre-gainem profilu i DSP po prawej stronie. Wysokość wykresów pozostaje stała między zakładkami przy dynamicznej skali osi Y; w mniejszym oknie pojawia się przełącznik wykresów. Najedź na skrócone podsumowanie dopasowania lub komunikat stanu, żeby odczytać pełny tekst.
 - Gdy DAC potwierdzi zaokrąglony pre-gain, pasek akcji obok **Wgraj do DAC-a** pokazuje wartość potwierdzoną przez urządzenie i wartość z profilu.
 - Klikaj pigułki legendy, aby ukrywać/pokazywać krzywe, najedź na pigułkę dla trybu **Solo**, lub najedź na wykres, by odczytać na żywo `Hz / dB / Δ dB`.
 
-![Strojenie z dwoma wykresami i potwierdzonym pre-gainem obok przycisku Wgraj do DAC-a](docs/screenshots/pl/01-tuning-profiles.png)
+![Strojenie z dwoma wykresami oraz pre-gainem obok legendy korekcji EQ](docs/screenshots/pl/01-tuning-profiles.png)
 
 <details>
 <summary>Strojenie w małym oknie</summary>
@@ -112,10 +112,10 @@ Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt
 </details>
 
 ### 2. Wbudowany katalog AutoEq (ponad 6800 modeli)
-W **Katalogu AutoEq** wybierz źródło pomiarów i typ słuchawek, a następnie wyszukaj model. Możesz też przeciągnąć na okno własną krzywą `.csv` / `.txt`.
+W **Katalogu AutoEq** filtruj tysiące pomiarów według **Źródła**, **Typu słuchawek** i **Zakresu obliczeń**, a następnie wyszukaj model (**Pobierz katalog** i licznik **Wyniki: …** znajdują się na wspólnym dolnym pasku). Możesz też przeciągnąć na okno własną krzywą `.csv` / `.txt`.
 
-- Wybierz **Zakres obliczeń** (`20 Hz–20 kHz` lub do `6 / 4 / 2 kHz`, aby zostawić wyższe pasma do ręcznego strojenia) i kliknij **Oblicz profil**.
-- Wyliczony profil zapamiętuje użyty zakres (również po zapisaniu na dysku) i podpowiada przeliczenie przed zapisem lub wgraniem, jeśli zmienisz zakres.
+- Wybierz zakres (`20 Hz–20 kHz` lub do `6 / 4 / 2 kHz`, aby zostawić wyższe pasma do ręcznego strojenia) i kliknij **Oblicz profil** — po obliczeniu pasek pokazuje wyłącznie gotowe akcje (**Zapisz profil**, **Edytuj EQ…**, **Wgraj do DAC-a**).
+- Wyliczony profil zapamiętuje użyty zakres (również po zapisaniu na dysku); jeśli zmienisz go później, w miejscu prawego przycisku pojawia się **Przelicz profil**, zanim zapiszesz lub wgrasz wynik.
 
 ![Katalog AutoEq](docs/screenshots/pl/02-autoeq-catalog.png)
 
@@ -145,7 +145,7 @@ Sprawdź od razu aktywny profil na DAC-u, slot (`0` fabryczny / `7` własny), pr
 </details>
 
 ### 5. Wbudowany Przewodnik, skróty i diagnostyka
-Wszystko pod ręką wewnątrz aplikacji: krótkie instrukcje wgrywania i odsłuchu, wyjaśnienie wykresów, obsługa Drag & Drop, skróty klawiszowe (`Ctrl+F` szukanie, `Ctrl+O` import, `Ctrl+Q` wyjście), kopiowanie diagnostyki jednym kliknięciem do zgłoszeń oraz odnośniki do wsparcia.
+Wszystko pod ręką wewnątrz aplikacji: krótkie instrukcje wgrywania i odsłuchu, wyjaśnienie wykresów, obsługa Drag & Drop, skróty klawiszowe (`Ctrl+F` szukanie, `Ctrl+O` import, `Ctrl+Q` wyjście), kopiowanie diagnostyki jednym kliknięciem do zgłoszeń, informacja o wersji i licencji w prawym dolnym rogu oraz odnośniki do wsparcia.
 
 ![Zakładka Przewodnik](docs/screenshots/pl/05-guide-tab.png)
 
