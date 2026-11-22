@@ -279,7 +279,7 @@ SEGMENT_BUTTON_STYLE = (
     " color: palette(highlighted-text); }"
     "QPushButton:focus { border-color: palette(text); }"
 )
-STATUS_PILL_STYLE = "border: 1px solid palette(mid); border-radius: 12px; padding: 4px 12px; background: palette(base);"
+STATUS_PILL_STYLE = "border-radius: 10px; padding: 4px 10px; background: palette(alternate-base);"
 
 
 def build_innovibe_palette(dark: bool) -> QPalette:
@@ -1706,7 +1706,7 @@ class _FlowLayout(QLayout):
         line_height = 0
         for item in self._items:
             widget = item.widget()
-            if widget is not None and widget.isHidden():
+            if widget is not None and widget.isHidden() and not widget.sizePolicy().retainSizeWhenHidden():
                 continue
             hint = item.sizeHint()
             item_w = min(hint.width(), max(1, effective.width()))
@@ -1807,16 +1807,22 @@ class PlotKey(QWidget):
         plot: ResponsePlot,
         labels: tuple[str, ...],
         linked_plots: list[ResponsePlot] | None = None,
+        reserved_roles: tuple[int, ...] = (),
     ):
         super().__init__()
         self.plot = plot
         self.labels = labels
+        self.details: dict[int, str] = {}
         self.linked_plots = linked_plots or []
         self.chips: list[_LegendChip] = []
         self.flow = _FlowLayout(self, spacing=6)
         self.flow.setContentsMargins(0, 2, 0, 2)
         for role in range(len(labels)):
             chip = _LegendChip(plot, role, on_toggle=self._toggle_chip_roles)
+            if role in reserved_roles:
+                policy = chip.sizePolicy()
+                policy.setRetainSizeWhenHidden(True)
+                chip.setSizePolicy(policy)
             self.chips.append(chip)
             self.flow.addWidget(chip)
         plot.curves_changed.connect(self.refresh)
@@ -1830,20 +1836,24 @@ class PlotKey(QWidget):
             for linked in self.linked_plots:
                 linked.set_roles_hidden(sync_roles, hidden)
 
-    def set_labels(self, labels: tuple[str, ...]) -> None:
+    def set_labels(self, labels: tuple[str, ...], details: dict[int, str] | None = None) -> None:
         self.labels = labels
+        self.details = details or {}
         self.refresh()
 
     def refresh(self) -> None:
         groups = {roles[0]: roles for roles, _ in self.plot.series()}
         for role, chip in enumerate(self.chips):
             roles = groups.get(role, [])
+            if roles or chip.sizePolicy().retainSizeWhenHidden():
+                text = " = ".join(self.labels[index] for index in roles or [role] if self.labels[index])
+                chip.set_text(text)
             chip.setVisible(bool(roles))
             if roles:
                 chip.active_roles = list(roles)
-                text = " = ".join(self.labels[index] for index in roles if self.labels[index])
-                chip.set_text(text)
-                chip.setToolTip(tr("plot.key.chip_tooltip", label=text))
+                detail = self.details.get(role, "")
+                chip.setAccessibleDescription(detail)
+                chip.setToolTip(tr("plot.key.chip_tooltip", label=detail or text))
                 chip.set_dimmed(self.plot.is_role_hidden(roles))
         self.flow.invalidate()
         self.updateGeometry()
@@ -2891,6 +2901,29 @@ class FeedbackLabel(QLabel):
         self.setVisible(False)
 
 
+class PreviewTitle(QLabel):
+    def set_title(self, title: str, *, wrap: bool) -> None:
+        self.full_title = title
+        self.setWordWrap(wrap)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred if wrap else QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
+        self.setAccessibleName(title)
+        self.update_text()
+
+    def update_text(self) -> None:
+        title = self.full_title
+        if not self.wordWrap():
+            title = self.fontMetrics().elidedText(title, Qt.TextElideMode.ElideRight, self.contentsRect().width())
+        self.setText(title)
+        self.setToolTip(self.full_title if title != self.full_title else "")
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "full_title") and not self.wordWrap():
+            self.update_text()
+
+
 class ProfilesWindow(QWidget):
     def __init__(self, demo: bool, library_directory: Path | None = None):
         super().__init__()
@@ -2945,15 +2978,16 @@ class ProfilesWindow(QWidget):
         heading.setFont(font)
         self.connection = QLabel(tr("status.demo") if demo else tr("status.searching"))
         self.connection.setTextFormat(Qt.TextFormat.PlainText)
-        self.connection.setWordWrap(True)
-        self.connection.setMinimumWidth(170)
-        self.connection.setMaximumWidth(330)
         self.connection.setStyleSheet(STATUS_PILL_STYLE)
         header = QHBoxLayout()
         header.addWidget(heading)
         header.addStretch()
-        header.addWidget(self.connection)
+        header.addWidget(self.connection, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addLayout(header)
+        self.connection_problem = FeedbackLabel()
+        self.connection_problem.setTextFormat(Qt.TextFormat.PlainText)
+        self.connection_problem.setWordWrap(True)
+        layout.addWidget(self.connection_problem)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         layout.addWidget(self.tabs, 1)
@@ -3213,7 +3247,7 @@ class ProfilesWindow(QWidget):
         card.setContentsMargins(12, 10, 12, 10)
         card.setSpacing(8)
 
-        self.preview_title = QLabel()
+        self.preview_title = PreviewTitle()
         self.preview_title.setTextFormat(Qt.TextFormat.PlainText)
         self.preview_title.setWordWrap(True)
         title_font = self.preview_title.font()
@@ -3244,24 +3278,6 @@ class ProfilesWindow(QWidget):
         self.fit_provenance.setWordWrap(True)
         preview.addWidget(self.fit_provenance)
 
-        summary_row = QHBoxLayout()
-        summary_row.setSpacing(8)
-        self.fit_summary = FeedbackLabel()
-        self.fit_summary.setTextFormat(Qt.TextFormat.PlainText)
-        self.fit_summary.setWordWrap(True)
-        summary_row.addWidget(self.fit_summary, 1)
-        self.fit_detail_button = QToolButton()
-        self.fit_detail_button.setText(tr("plot.fit_disclosure"))
-        self.fit_detail_button.setCheckable(True)
-        self.fit_detail_button.toggled.connect(self.toggle_fit_details)
-        summary_row.addWidget(self.fit_detail_button)
-        preview.addLayout(summary_row)
-        self.fit_details = FeedbackLabel()
-        self.fit_details.setTextFormat(Qt.TextFormat.PlainText)
-        self.fit_details.setWordWrap(True)
-        preview.addWidget(self.fit_details)
-        self.fit_details_text = ""
-
         self.plot_switcher = QWidget()
         view_row = QHBoxLayout(self.plot_switcher)
         view_row.setContentsMargins(0, 0, 0, 0)
@@ -3291,11 +3307,26 @@ class ProfilesWindow(QWidget):
             self.preview_plot,
             tuple(
                 tr(key)
-                for key in ("plot.key.selected", "plot.key.current_dsp", "plot.key.measured", "plot.key.target_default")
+                for key in ("plot.key.selected", "plot.key.current_dsp", "plot.key.measured", "plot.key.target_short")
             ),
             linked_plots=[self.correction_plot],
+            reserved_roles=(3,),
         )
         response_layout.addWidget(self.preview_key)
+        summary_row = QHBoxLayout()
+        summary_row.setSpacing(8)
+        self.fit_summary = QLabel()
+        self.fit_summary.setTextFormat(Qt.TextFormat.PlainText)
+        summary_row.addWidget(self.fit_summary)
+        self.fit_detail_button = QToolButton()
+        self.fit_detail_button.setText(tr("plot.fit_more"))
+        self.fit_detail_button.setAccessibleName(tr("plot.fit_disclosure"))
+        self.fit_detail_button.clicked.connect(self.show_fit_details)
+        summary_row.addWidget(self.fit_detail_button)
+        summary_row.addStretch()
+        response_layout.addLayout(summary_row)
+        self.fit_details_text = ""
+
         self.plot_legend = QLabel()
         self.plot_legend.setTextFormat(Qt.TextFormat.PlainText)
         self.plot_legend.setWordWrap(True)
@@ -3350,7 +3381,7 @@ class ProfilesWindow(QWidget):
             self.edit_button,
             self.apply_button,
         ):
-            button.setMinimumHeight(32)
+            button.setMinimumHeight(34)
             self.preview_actions.addWidget(button)
         card.addWidget(action_bar)
 
@@ -3394,16 +3425,25 @@ class ProfilesWindow(QWidget):
         self.guide_author_btn.setIcon(innovibe_icon)
         self.guide_author_btn.setToolTip(tr("footer.author_tooltip"))
         self.guide_author_btn.clicked.connect(lambda: self.open_external_url(tr("footer.author_url")))
+        self.guide_support_box = QGroupBox(tr("help.support_group"))
+        self.guide_support_box.setObjectName("guideSupport")
+        self.guide_support_box.setStyleSheet(
+            "QGroupBox#guideSupport { border-left: 3px solid palette(highlight); background: palette(alternate-base); }"
+        )
+        support_layout = QVBoxLayout(self.guide_support_box)
+        self.guide_support_text = QLabel(tr("help.support_body"))
+        self.guide_support_text.setWordWrap(True)
+        support_layout.addWidget(self.guide_support_text)
         self.guide_coffee_btn = QPushButton(tr("help.coffee_link"))
+        self.guide_coffee_btn.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.guide_coffee_btn.setToolTip(tr("footer.coffee_tooltip"))
         self.guide_coffee_btn.clicked.connect(lambda: self.open_external_url(tr("footer.coffee_url")))
-        links_layout.addWidget(self.guide_hub_btn)
-        links_layout.addWidget(self.guide_author_btn)
-        links_layout.addWidget(self.guide_coffee_btn)
+        support_layout.addWidget(self.guide_coffee_btn, 0, Qt.AlignmentFlag.AlignLeft)
 
         guide_layout.addWidget(self.why_box)
         guide_layout.addWidget(self.guide_tips_box)
         guide_layout.addWidget(self.links_box)
+        guide_layout.addWidget(self.guide_support_box)
         guide_layout.addStretch()
         self.tabs.addTab(scroll_content(guide_page), tr("tab.guide"))
         self.search_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
@@ -3432,6 +3472,8 @@ class ProfilesWindow(QWidget):
         self.copy_diag_action = self.report_menu.addAction(tr("footer.copy_diag"), self.copy_diagnostic_info)
         self.report_button.setMenu(self.report_menu)
         links_layout.addWidget(self.report_button)
+        links_layout.addWidget(self.guide_author_btn)
+        links_layout.addWidget(self.guide_hub_btn)
         self.apply_tooltips()
         self.update_accent_texts()
 
@@ -3486,8 +3528,19 @@ class ProfilesWindow(QWidget):
         self.response_section.setVisible(not compact or self.plot_view_group.checkedId() == 0)
         self.correction_section.setVisible(not compact or self.plot_view_group.checkedId() == 1)
 
-    def toggle_fit_details(self, opened: bool) -> None:
-        self.fit_details.setText(self.fit_details_text if opened else "")
+    def show_fit_details(self) -> None:
+        if not self.fit_details_text:
+            return
+        box = QMessageBox(self)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        box.setWindowTitle(tr("plot.fit_disclosure"))
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setText(self.fit_summary.text())
+        box.setInformativeText(self.fit_details_text)
+        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        box.setStandardButtons(QMessageBox.StandardButton.Close)
+        box.button(QMessageBox.StandardButton.Close).setText(tr("plot.fit_close"))
+        box.open()
 
     def filter_profiles(self, query: str) -> None:
         words = query.casefold().split()
@@ -3642,6 +3695,8 @@ class ProfilesWindow(QWidget):
         self.why_box.setTitle(tr("help.why_group"))
         self.guide_tips_box.setTitle(tr("help.tips_group"))
         self.links_box.setTitle(tr("help.links_group"))
+        self.guide_support_box.setTitle(tr("help.support_group"))
+        self.guide_support_text.setText(tr("help.support_body"))
         self.guide_hub_btn.setText(tr("help.open_hub"))
         self.guide_author_btn.setText(tr("help.author_link"))
         self.guide_coffee_btn.setText(tr("help.coffee_link"))
@@ -3696,7 +3751,8 @@ class ProfilesWindow(QWidget):
         self.correction_plot.setAccessibleName(tr("plot.eq_title"))
         self.plot_view_group.button(0).setText(tr("plot.view_response"))
         self.plot_view_group.button(1).setText(tr("plot.view_eq"))
-        self.fit_detail_button.setText(tr("plot.fit_disclosure"))
+        self.fit_detail_button.setText(tr("plot.fit_more"))
+        self.fit_detail_button.setAccessibleName(tr("plot.fit_disclosure"))
         self.correction_key.set_labels((tr("plot.key.profile_eq"), tr("plot.key.current_dsp")))
         self.add_button.setText(tr("actions.add_profile"))
         self.new_profile_action.setText(tr("actions.new_empty"))
@@ -3868,17 +3924,21 @@ class ProfilesWindow(QWidget):
         self.edit_button.setVisible(profile is not None)
         self.save_fit_button.setVisible(using_catalog and profile is not None)
         if shown is not None:
-            self.preview_title.setText(tr("tuning.selected_profile", name=shown.name))
-            context = tr("plot.profile_bands", count=len(shown.bands)) if shown.slot == dac.CUSTOM_SLOT else ""
+            self.preview_title.set_title(tr("tuning.selected_profile", name=shown.name), wrap=using_catalog)
+            context = (
+                tr("plot.profile_bands", count=len(shown.bands))
+                if shown.slot == dac.CUSTOM_SLOT
+                else tr("tuning.factory_slot")
+            )
             if shown.source:
                 context = " · ".join(filter(None, (context, shown.source)))
             self.profile_info.setText(context)
         elif using_catalog:
             entry = panel.current_entry()
-            self.preview_title.setText(entry.name if entry else tr("autoeq.select_target"))
+            self.preview_title.set_title(entry.name if entry else tr("autoeq.select_target"), wrap=True)
             self.profile_info.setText(entry.source if entry else "")
         else:
-            self.preview_title.setText(tr("tuning.no_profiles"))
+            self.preview_title.set_title(tr("tuning.no_profiles"), wrap=False)
             self.profile_info.clear()
         self.profile_info.setVisible(bool(self.profile_info.text()))
         provenance = ""
@@ -3916,26 +3976,30 @@ class ProfilesWindow(QWidget):
             if selected and selected.target_name
             else (preview_entry.name if preview_entry is not None else tr("plot.key.target_default"))
         )
+        target_detail = tr("plot.key.target", name=target_label) if target_points else ""
         self.preview_key.set_labels(
             (
                 tr("plot.key.selected"),
                 tr("plot.key.current_dsp"),
                 tr("plot.key.measured"),
-                tr("plot.key.target", name=target_label),
-            )
+                tr("plot.key.target_short"),
+            ),
+            {3: target_detail},
         )
         self.preview_plot.set_target_points(target_points)
-        summary = ""
+        summary = tr("plot.fit_not_available")
+        if selected is not None and not raw_target:
+            summary = tr("plot.no_target")
         self.fit_details_text = ""
         if fit and predicted:
             low = f"{fit.low_hz:g} Hz" if fit.low_hz < 1000 else f"{fit.low_hz / 1000:g} kHz"
             high = f"{fit.high_hz:g} Hz" if fit.high_hz < 1000 else f"{fit.high_hz / 1000:g} kHz"
             summary = tr("plot.fit_summary", rms=fit.rms_db, low=low, high=high)
-            self.fit_details_text = tr("plot.fit_details", offset=fit.offset_db, peak=fit.peak_db, freq=fit.peak_hz)
+            fit_details = tr("plot.fit_details", offset=fit.offset_db, peak=fit.peak_db, freq=fit.peak_hz)
+            self.fit_details_text = f"{target_detail}\n\n{fit_details}"
         self.fit_summary.setToolTip(self.fit_details_text)
         self.fit_summary.setText(summary)
-        self.fit_detail_button.setVisible(bool(summary))
-        self.toggle_fit_details(self.fit_detail_button.isChecked())
+        self.fit_detail_button.setEnabled(bool(self.fit_details_text))
 
         electrical = self.factory_profile if selected and selected.slot == 0 else selected
         self.correction_plot.set_primary_points(response_points(electrical, EQ_PLOT_FREQUENCIES) if electrical else [])
@@ -3945,19 +4009,19 @@ class ProfilesWindow(QWidget):
         preamp_parts = []
         if selected is not None and selected.preamp is not None:
             preamp_parts.append(tr("plot.preamp_profile", value=selected.preamp))
+        elif selected is not None:
+            preamp_parts.append(tr("plot.preamp_unspecified"))
         if self.readback_profile is not None:
             preamp_parts.append(tr("plot.preamp_dsp", value=self.readback_profile.preamp))
         self.preamp_summary.setText(" · ".join(preamp_parts))
 
         notes = []
-        if selected and selected.slot == dac.CUSTOM_SLOT and not selected.target_curve:
-            notes.append(tr("plot.no_target"))
         if self.factory_profile is None and selected is not None and selected.slot != 0:
             notes.append(tr("plot.neutral_factory"))
         if measured:
             notes.append(tr("plot.measurement_note") + " · " + tr("plot.treble_note"))
         self.plot_legend.setText("\n".join(notes))
-        plot_description = [*self.preview_key.labels[: 4 if target_points else 3], summary, *notes]
+        plot_description = [*self.preview_key.labels[:3], target_detail, summary, *notes]
         self.preview_plot.setAccessibleDescription("\n".join(filter(None, plot_description)))
 
     def render_state(self, error: str = "") -> None:
@@ -3981,8 +4045,9 @@ class ProfilesWindow(QWidget):
             label = tr("tuning.active_item", name=name) if item is active else name
             if item.text() != label:
                 item.setText(label)
+        self.connection_problem.setText(error if state is None else "")
         if state is None:
-            self.connection.setText(error.split("\n\n", 1)[0] if error else tr("tuning.dac_offline"))
+            self.connection.setText(tr("status.connection_error" if error else "tuning.dac_offline"))
             if self.tray:
                 self.tray.setToolTip(f"MOONDROP:Gravity Position · {self.connection.text()}")
             for label in (
@@ -4015,13 +4080,12 @@ class ProfilesWindow(QWidget):
         self.apply_button.setEnabled(
             not self.command_active and self.state is not None and profile is not None and not active
         )
-        self.apply_button.setVisible(profile is not None and not active)
+        self.apply_button.setText(tr("tuning.already_active" if active else "actions.apply_dac"))
+        self.apply_button.setVisible(profile is not None)
         self.preview_actions.invalidate()
         message = self.apply_error
         if self.applying_profile is not None:
             message = tr("tuning.applying")
-        elif not message and active:
-            message = tr("tuning.already_active")
         elif not message and profile is not None and self.state is None:
             message = tr("tuning.connect_to_apply")
         self.apply_status.setText(message)

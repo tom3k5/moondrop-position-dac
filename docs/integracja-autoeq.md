@@ -73,8 +73,10 @@ i nie wpływa na ocenę kształtu krzywej. Krzywa DSP korzysta ze współczynnik
 Q2.30 odczytanych z urządzenia.
 
 W kompaktowym oknie wykresy przełącza się przyciskami **Charakterystyka**
-i **Korekcja EQ**. **Szczegóły dopasowania** można otworzyć myszą lub
-klawiaturą. Pasek obliczeń, zapisu i wgrania pozostaje pod podglądem.
+i **Korekcja EQ**. Przycisk **Szczegóły…** obok RMS pod charakterystyką
+otwiera osobne okno myszą lub klawiaturą. Przełączanie wbudowanych profili
+zachowuje położenie wykresów. Pasek obliczeń, zapisu i wgrania pozostaje
+pod podglądem.
 
 GUI interpoluje w skali logarytmicznej i liczy RMS w części wspólnej danych
 od 20 Hz do 10 kHz. Każda próbka siatki logarytmicznej ma tę samą wagę.

@@ -9,9 +9,9 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QStandardPaths
+from PySide6.QtCore import QPoint, QStandardPaths
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 import position_gui as gui
 
@@ -118,6 +118,17 @@ def test_guide_tooltips_and_support_links(tmp_path: Path, monkeypatch) -> None:
         assert window.tabs.count() == 3
         assert "InnoVibe" in window.guide_author_btn.text()
         assert window.guide_coffee_btn.toolTip()
+        assert window.guide_coffee_btn.parentWidget() is window.guide_support_box
+        links = window.links_box.layout()
+        assert [links.itemAt(index).widget() for index in range(links.count())] == [
+            window.report_button,
+            window.guide_author_btn,
+            window.guide_hub_btn,
+        ]
+        opened = []
+        monkeypatch.setattr(window, "open_external_url", opened.append)
+        window.guide_coffee_btn.click()
+        assert opened == [gui.tr("footer.coffee_url")]
         assert window.report_button.toolTip()
         assert "Mode: demo" in window.diagnostic_summary()
         window.state = gui.DeviceState(path="/dev/hidraw0", firmware="0.5", slot=7, preamp=-2.5, bands=[])
@@ -166,7 +177,10 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         assert "1.06 dB" in window.fit_summary.text()
         assert "20 Hz–10 kHz" in window.fit_summary.text()
         window.fit_detail_button.click()
-        assert window.fit_details.text() == window.fit_summary.toolTip()
+        dialog = window.findChild(QMessageBox)
+        assert dialog.informativeText() == window.fit_summary.toolTip()
+        assert dialog.text() == window.fit_summary.text()
+        dialog.close()
         assert "-4.66 dB" in window.preamp_summary.text()
         assert window.preview_plot.points != window.preview_plot.factory_points
         assert window.correction_plot.points == gui.response_points(sample, gui.EQ_PLOT_FREQUENCIES)
@@ -208,6 +222,48 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         window.preview_key.chips[1]._trigger_toggle()
         assert not window.preview_plot.is_role_hidden([1])
         assert not window.correction_plot.is_role_hidden([1])
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+def test_builtin_profiles_keep_plot_geometry(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        harman_item = window.profiles.currentItem()
+        sample = window.selected_profile()
+        drive = window.open_device()
+        drive.set_slot(gui.dac.CUSTOM_SLOT)
+        drive.set_preamp(-4.50)
+        for index, band in enumerate(sample.bands):
+            drive.write_band(index, band["freq"], band["gain"], band["q"], band["type"], gui.dac.CUSTOM_SLOT)
+        window.timer.stop()
+        window.refresh_done(gui.read_state(drive), "")
+        window.show()
+
+        def plot_geometry(plot):
+            return plot.mapTo(window, QPoint()), plot.size()
+
+        window.setMinimumWidth(608)
+        for width, height in ((1140, 820), (840, 620), (608, 592)):
+            window.resize(width, height)
+            window.profiles.setCurrentItem(harman_item)
+            QTest.qWait(40)
+            reference = [plot_geometry(plot) for plot in (window.preview_plot, window.correction_plot)]
+            assert window.fit_detail_button.isEnabled()
+            assert not window.apply_button.isEnabled()
+            assert not window.connection.wordWrap()
+
+            for item in (window.flat_item, window.factory_item):
+                window.profiles.setCurrentItem(item)
+                QTest.qWait(40)
+                assert plot_geometry(window.preview_plot) == reference[0]
+                if window.correction_plot.isVisible():
+                    assert plot_geometry(window.correction_plot) == reference[1]
+                assert not window.fit_detail_button.isEnabled()
+                assert window.apply_button.isEnabled()
     finally:
         window.quit_from_tray()
         app.processEvents()

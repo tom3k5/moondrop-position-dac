@@ -44,9 +44,9 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 ## Zrzuty ekranu
 
 ### Strojenie i podgląd charakterystyki
-**Wybrany profil** i **Aktywny w DAC-u** są widoczne osobno. Akcje pozostają pod podglądem podczas przewijania. Przy zgodnym stanie zamiast przycisku wgrania pojawia się „Już aktywny w DAC-u”. Główne okno startuje w rozmiarze do 1140 × 820 pikseli logicznych dopasowanym do obszaru pulpitu. W małym oknie wykresy przełącza się między **Charakterystyką** a **Korekcją EQ**.
+**Wybrany profil** i **Aktywny w DAC-u** są widoczne osobno. Wykresy i akcje zachowują położenie przy przełączaniu wbudowanych profili. Gdy stan sprzętu jest zgodny z wyborem, przycisk wgrania pokazuje „Już aktywny w DAC-u”. Główne okno startuje w rozmiarze do 1140 × 820 pikseli logicznych dopasowanym do obszaru pulpitu. W małym oknie wykresy przełącza się między **Charakterystyką** a **Korekcją EQ**.
 
-Charakterystyka pokazuje krzywą fabryczną, cel i przewidywany wynik. Korekcja EQ pokazuje odpowiedź elektryczną filtrów przy 96 kHz. Pre-gain profilu i DSP jest podany osobno, a krzywa **Obecnie w DSP** pochodzi z odczytu współczynników biquad. W **Szczegółach dopasowania** można odczytać średnie przesunięcie celu i największą odchyłkę w paśmie 20 Hz–10 kHz. Cieniowanie powyżej 10 kHz oznacza mniejszą wiarygodność oceny akustycznej.
+Charakterystyka pokazuje krzywą fabryczną, cel i przewidywany wynik. Korekcja EQ pokazuje odpowiedź elektryczną filtrów przy 96 kHz. Pre-gain profilu i DSP jest podany osobno, a krzywa **Obecnie w DSP** pochodzi z odczytu współczynników biquad. Przycisk **Szczegóły…** obok RMS pod charakterystyką otwiera okno ze średnim przesunięciem celu i największą odchyłką w paśmie 20 Hz–10 kHz. Cieniowanie powyżej 10 kHz oznacza mniejszą wiarygodność oceny akustycznej.
 
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
 
@@ -122,7 +122,7 @@ Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)
 ## Wsparcie, zgłoszenia i autor
 
 - **Autor:** [InnoVibe](https://www.innovibe.pl)
-- **Postaw mi kawę:** Skorzystaj z przycisku w zakładce **Przewodnik** lub [wesprzyj rozwój na InnoVibe](https://innovibe.pl/ko-fi/).
+- **Postaw mi kawę:** Otwórz **Wsparcie projektu** w zakładce **Przewodnik**. Kwotę i metodę płatności wybierzesz na [stronie wsparcia InnoVibe](https://innovibe.pl/ko-fi/).
 - **Znalazłeś błąd lub masz pomysł?** Użyj przycisku **Zgłoś błąd / Pomysł** w aplikacji (z kopią diagnostyki jednym kliknięciem) albo otwórz zgłoszenie na [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose). Strukturyzowane formularze są automatycznie oznaczane etykietą obszaru.
 
 ---

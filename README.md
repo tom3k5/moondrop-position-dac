@@ -44,9 +44,9 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ## Screenshots
 
 ### Tuning & Frequency Response Preview
-Tuning shows the **selected profile** and the **active profile on the DAC** separately. The preview actions stay visible at the bottom. **Apply to DAC** is replaced by the active status when the hardware matches the selection. The main window starts at up to 1140 × 820 logical pixels and fits the available desktop area. Compact windows let you switch between **Frequency response** and **EQ correction**.
+Tuning shows the **selected profile** and the **active profile on the DAC** separately. The charts and action positions stay steady when switching built-in profiles. The apply control shows **Already active on DAC** when the hardware matches the selection. The main window starts at up to 1140 × 820 logical pixels and fits the available desktop area. Compact windows let you switch between **Frequency response** and **EQ correction**.
 
-**Factory**, **Target**, and **Predicted result** show the acoustic response. **EQ correction** shows the electrical response of the filters at 96 kHz, with profile and DSP pre-gain listed separately. **Current in DSP** uses the biquad coefficients read back from the device. **Fit details** reports the mean target level offset and the largest deviation in the shared 20 Hz–10 kHz band. Shading above 10 kHz marks lower confidence in the acoustic comparison.
+**Factory**, **Target**, and **Predicted result** show the acoustic response. **EQ correction** shows the electrical response of the filters at 96 kHz, with profile and DSP pre-gain listed separately. **Current in DSP** uses the biquad coefficients read back from the device. **Details…** beside RMS under the response chart opens a dialog with the mean target offset and the largest deviation in the shared 20 Hz–10 kHz band. Shading above 10 kHz marks lower confidence in the acoustic comparison.
 
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
 
@@ -122,7 +122,7 @@ The Flatpak manifest ([`local.moondrop.Position.json`](local.moondrop.Position.j
 ## Support, Feedback & Author
 
 - **Author:** [InnoVibe](https://www.innovibe.pl/en)
-- **Buy me a coffee:** Use the support link in the app’s **Guide** tab or [support development on InnoVibe](https://innovibe.pl/en/ko-fi/).
+- **Buy me a coffee:** Open **Support the project** in the app’s **Guide** tab. Choose an amount and payment method on the [InnoVibe support page](https://innovibe.pl/en/ko-fi/).
 - **Found a bug or have an idea?** Use the in-app **Report bug / Feature** button (which includes a 1-click diagnostic copy) or open an issue directly on [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose). Structured issue forms are automatically labeled by area.
 
 ---
