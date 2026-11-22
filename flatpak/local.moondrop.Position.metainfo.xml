@@ -17,8 +17,14 @@
   <url type="homepage">https://innovibe.pl/moondrop-position-dac/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.3.6" date="2026-11-22">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.6</url>
+      <description>
+        <p>Profile switching and DAC feedback keep the tuning plots steady. PipeWire sample-rate labels fit in English and Polish. Steep shelf filters retain damping, and live preview restores the original DSP coefficients.</p>
+        <p xml:lang="pl">Przełączanie profili i komunikaty DAC-a zachowują położenie wykresów. Etykiety próbkowania PipeWire mieszczą się po polsku i angielsku. Strome półki zachowują tłumienie, a odsłuch przywraca pierwotne współczynniki DSP.</p>
+      </description>
+    </release>
     <release version="0.3.5" date="2026-11-22">
-      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.5</url>
       <description>
         <p>Redesigned the Tuning view for compact windows, separated acoustic response and DSP correction, and added source and headphone type filters to the AutoEq catalog.</p>
         <p xml:lang="pl">Przebudowano widok Strojenie dla małych okien, rozdzielono odpowiedź akustyczną i korekcję DSP oraz dodano filtry źródła i typu słuchawek w katalogu AutoEq.</p>
