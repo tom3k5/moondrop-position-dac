@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
+import tomllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -132,6 +135,9 @@ def test_guide_tooltips_and_support_links(tmp_path: Path, monkeypatch) -> None:
         window.guide_coffee_btn.click()
         assert opened == [gui.tr("footer.coffee_url")]
         assert window.report_button.toolTip()
+        assert gui.APP_VERSION in window.guide_version_label.text()
+        assert window.guide_version_label.toolTip()
+        assert f"App: MOONDROP:Gravity Position {gui.APP_VERSION}" in window.diagnostic_summary()
         assert "Mode: demo" in window.diagnostic_summary()
         window.state = gui.DeviceState(path="/dev/hidraw0", firmware="0.5", slot=7, preamp=-2.5, bands=[])
         diag = window.diagnostic_summary()
@@ -347,6 +353,152 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
         app.setFont(original_font)
 
 
+def test_app_version_matches_release_metadata_and_translates(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    pyproject_version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    metainfo_tree = ET.parse(root / "flatpak/local.moondrop.Position.metainfo.xml")
+    metainfo_version = metainfo_tree.find("./releases/release").attrib["version"]
+    assert gui.APP_VERSION == pyproject_version == metainfo_version
+
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"en","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        assert not hasattr(window, "version_badge")
+        assert window.guide_version_label.text() == f"Version {gui.APP_VERSION} · MIT License"
+        window.show()
+        window.tabs.setCurrentIndex(2)
+        QTest.qWait(40)
+        assert (
+            window.guide_version_label.geometry().bottom() == window.guide_version_label.parentWidget().rect().bottom()
+        )
+        assert window.guide_version_label.geometry().right() == window.guide_version_label.parentWidget().rect().right()
+        window.language_combo.setCurrentIndex(window.language_combo.findData("pl"))
+        QTest.qWait(30)
+        assert window.guide_version_label.text() == f"Wersja {gui.APP_VERSION} · Licencja MIT"
+        assert re.search(rf"\b{re.escape(gui.APP_VERSION)}\b", window.diagnostic_summary())
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.resize(1140, 820)
+        window.show()
+        QTest.qWait(50)
+
+        def plot_geometry(plot: gui.ResponsePlot):
+            return plot.mapTo(window, QPoint()), plot.size()
+
+        baseline = (plot_geometry(window.preview_plot), plot_geometry(window.correction_plot))
+        assert window.correction_key.chips[1].x() < window.correction_key.chips[0].x()
+        assert window.preamp_summary.x() >= window.correction_key.geometry().right()
+        edit_x = window.edit_button.mapTo(window, QPoint()).x()
+        apply_x = window.apply_button.mapTo(window, QPoint()).x()
+        apply_size = window.apply_button.size()
+        add_button_height = window.add_button.height()
+        add_button_y = window.add_button.mapTo(window, QPoint()).y()
+
+        # Selecting a group header hides all preview action buttons and empties profile_info.
+        window.profiles.setCurrentRow(0)
+        QTest.qWait(50)
+        assert (plot_geometry(window.preview_plot), plot_geometry(window.correction_plot)) == baseline
+
+        window.source_group.button(1).click()
+        panel = window.autoeq_panel
+        QTest.qWait(40)
+        assert panel.source_filter.y() < panel.mode.y() < panel.fit_controls.y() < panel.search.y() < panel.targets.y()
+        assert panel.catalog_button.height() == add_button_height
+        assert panel.catalog_button.mapTo(window, QPoint()).y() == add_button_y
+        assert panel.status.x() > panel.catalog_button.geometry().right()
+        fit_option = QStyleOptionComboBox()
+        panel.fit_range.initStyleOption(fit_option)
+        fit_rect = panel.fit_range.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox, fit_option, QStyle.SubControl.SC_ComboBoxEditField, panel.fit_range
+        )
+        assert fit_rect.width() >= panel.fit_range.fontMetrics().horizontalAdvance(panel.fit_range.currentText())
+        extreme_entry = gui.catalog.Entry(
+            "1MORE Fit Open Earbuds S50 Very Long Name That Would Wrap Without Eliding",
+            "HypetheSonics · in-ear/GRAS RA0045 · extra long measurement description",
+            "model",
+            "test/extreme.csv",
+            False,
+        )
+        panel.entries = [extreme_entry]
+        panel.update_results()
+        panel.preview_timer.stop()
+        panel.preview_entry = extreme_entry
+        panel.preview_curve = [(20.0, -40.0), (1000.0, 0.0), (10000.0, 12.0), (20000.0, -65.0)]
+        window.update_selection()
+        QTest.qWait(50)
+        assert (plot_geometry(window.preview_plot), plot_geometry(window.correction_plot)) == baseline
+        assert window.preview_plot.plot_bounds[1] < 30
+        assert panel.generate.isVisible()
+        assert panel.generate.size() == apply_size
+        compute_geo = (panel.generate.mapTo(window, QPoint()), panel.generate.size())
+        assert compute_geo[0].x() == apply_x
+        assert apply_size.height() == window.edit_button.height()
+
+        # Running a fresh fit replaces "Oblicz profil" with "Anuluj obliczenia" in the exact same box.
+        panel.fit_active = True
+        panel.update_actions()
+        QTest.qWait(40)
+        assert panel.cancel.isVisible()
+        assert (panel.cancel.mapTo(window, QPoint()), panel.cancel.size()) == compute_geo
+        panel.fit_active = False
+
+        sample = gui.load_profile(gui.BUILTIN_PROFILE, "Harman In-Ear 2019")
+        panel.result_entry = panel.preview_entry
+        panel.result_range = panel.fit_range.currentData()
+        panel.result = gui.replace(sample, name=panel.preview_entry.name, source="AutoEq · HypetheSonics")
+        panel.update_actions()
+        window.update_selection()
+        QTest.qWait(50)
+        assert (plot_geometry(window.preview_plot), plot_geometry(window.correction_plot)) == baseline
+        assert not panel.generate.isVisible()
+        assert not panel.cancel.isVisible()
+        assert window.save_fit_button.isVisible()
+        assert window.edit_button.isVisible()
+        assert window.apply_button.isVisible()
+        assert window.edit_button.mapTo(window, QPoint()).x() == edit_x
+        assert window.apply_button.size() == compute_geo[1]
+        assert (window.apply_button.mapTo(window, QPoint()), window.apply_button.size()) == compute_geo
+        save_geo = (window.save_fit_button.mapTo(window, QPoint()), window.save_fit_button.size())
+
+        # Saving changes "Zapisz profil" -> "Zapisano" without shifting adjacent buttons.
+        window.save_fit_button.setText(gui.tr("actions.saved"))
+        window.save_fit_button.setEnabled(False)
+        QTest.qWait(40)
+        assert (window.save_fit_button.mapTo(window, QPoint()), window.save_fit_button.size()) == save_geo
+        assert window.edit_button.mapTo(window, QPoint()).x() == edit_x
+        assert (window.apply_button.mapTo(window, QPoint()), window.apply_button.size()) == compute_geo
+
+        # Changing range invalidates ready_result() and restores primary "Przelicz profil" in the exact right slot.
+        panel.fit_range.setCurrentIndex(2)
+        QTest.qWait(50)
+        assert (plot_geometry(window.preview_plot), plot_geometry(window.correction_plot)) == baseline
+        assert panel.generate.isVisible()
+        assert panel.generate.text() == "Przelicz profil"
+        assert (panel.generate.mapTo(window, QPoint()), panel.generate.size()) == compute_geo
+        assert not window.save_fit_button.isVisible()
+        assert not window.edit_button.isVisible()
+        assert not window.apply_button.isVisible()
+
+        panel.fit_active = True
+        panel.update_actions()
+        QTest.qWait(40)
+        assert panel.cancel.isVisible()
+        assert (panel.cancel.mapTo(window, QPoint()), panel.cancel.size()) == compute_geo
+        panel.fit_active = False
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
 def test_device_form_uses_shared_alignment_and_responsive_actions(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
     (tmp_path / "settings.json").write_text('{"language":"en","theme":"dark"}')
@@ -457,9 +609,10 @@ def test_compact_tuning_keeps_actions_visible_and_blocks_stale_autoeq(tmp_path: 
         window.setMinimumWidth(608)
         window.resize(608, 592)
         QTest.qWait(40)
-        actions = (panel.generate, window.save_fit_button, window.edit_button, window.apply_button)
+        actions = (window.save_fit_button, window.edit_button, window.apply_button)
         action_bar = window.apply_button.parentWidget().rect()
         rows: dict[int, int] = {}
+        assert not panel.generate.isVisible()
         for action in actions:
             rect = action.geometry()
             assert action.isVisible() and action_bar.contains(rect)
@@ -472,10 +625,95 @@ def test_compact_tuning_keeps_actions_visible_and_blocks_stale_autoeq(tmp_path: 
 
         panel.fit_range.setCurrentIndex(0)
         assert window.candidate_profile() is None
-        assert not window.apply_button.isEnabled()
-        assert not window.save_fit_button.isEnabled()
+        assert not window.apply_button.isVisible()
+        assert not window.edit_button.isVisible()
+        assert not window.save_fit_button.isVisible()
         assert "do 2 khz" in window.fit_provenance.text().casefold()
+        assert panel.generate.isVisible()
         assert panel.generate.text() == "Przelicz profil"
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+def test_apply_and_restore_previous_profile(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+
+    def wait_for(predicate) -> None:
+        for _ in range(200):
+            QTest.qWait(25)
+            app.processEvents()
+            if predicate():
+                return
+        raise AssertionError("Timed out waiting for async demo operation")
+
+    try:
+        window.resize(1024, 757)
+        window.show()
+        wait_for(lambda: window.state is not None)
+        assert window.state.slot == 0
+
+        harman_row = next(
+            row
+            for row in range(window.profiles.count())
+            if (p := window.profiles.item(row).data(gui.PROFILE_ROLE)) is not None and p.name == "Harman In-Ear 2019"
+        )
+        flat_row = next(
+            row
+            for row in range(window.profiles.count())
+            if (p := window.profiles.item(row).data(gui.PROFILE_ROLE)) is not None
+            and p.slot == gui.dac.CUSTOM_SLOT
+            and p.preamp == 0
+        )
+
+        window.profiles.setCurrentRow(harman_row)
+        QTest.qWait(40)
+        assert window.apply_button.text() == "Wgraj do DAC-a"
+        assert window.apply_button.isEnabled()
+        initial_apply_geo = (window.apply_button.mapTo(window, QPoint()), window.apply_button.size())
+        initial_edit_geo = (window.edit_button.mapTo(window, QPoint()), window.edit_button.size())
+
+        # Flash Harman over Factory EQ -> button becomes "Przywróć poprzedni" in the exact same box.
+        window.apply_button.click()
+        wait_for(lambda: not window.command_active and window.state.slot == gui.dac.CUSTOM_SLOT)
+        assert window.state.slot == gui.dac.CUSTOM_SLOT
+        assert window.apply_button.text() == "Przywróć poprzedni"
+        assert window.apply_button.isEnabled()
+        assert (window.apply_button.mapTo(window, QPoint()), window.apply_button.size()) == initial_apply_geo
+        assert (window.edit_button.mapTo(window, QPoint()), window.edit_button.size()) == initial_edit_geo
+
+        # Selecting a different profile still offers "Wgraj do DAC-a"; returning restores "Przywróć poprzedni".
+        window.profiles.setCurrentRow(flat_row)
+        QTest.qWait(30)
+        assert window.apply_button.text() == "Wgraj do DAC-a"
+        window.profiles.setCurrentRow(harman_row)
+        QTest.qWait(30)
+        assert window.apply_button.text() == "Przywróć poprzedni"
+
+        # Clicking "Przywróć poprzedni" restores Factory EQ (slot 0) and reverts button to "Wgraj do DAC-a".
+        window.apply_button.click()
+        wait_for(lambda: not window.command_active and window.state.slot == 0)
+        assert window.state.slot == 0
+        assert window.apply_button.text() == "Wgraj do DAC-a"
+        assert window.apply_button.isEnabled()
+
+        # Also verify restoring from Custom -> Custom preserves exact Custom slot bands & preamp.
+        window.profiles.setCurrentRow(flat_row)
+        QTest.qWait(30)
+        window.apply_button.click()
+        wait_for(lambda: not window.command_active and window.state.slot == gui.dac.CUSTOM_SLOT)
+        window.profiles.setCurrentRow(harman_row)
+        QTest.qWait(30)
+        window.apply_button.click()
+        wait_for(lambda: not window.command_active and window.state.preamp != 0)
+        assert window.apply_button.text() == "Przywróć poprzedni"
+        window.apply_button.click()
+        wait_for(lambda: not window.command_active and window.state.preamp == 0)
+        assert window.state.slot == gui.dac.CUSTOM_SLOT
+        assert window.state.preamp == 0
+        assert window.apply_button.text() == "Wgraj do DAC-a"
     finally:
         window.quit_from_tray()
         app.processEvents()
