@@ -127,6 +127,12 @@ Sekwencja zapisu całego banku (kolejność z handlera Moondrop):
 4. Przy trwałym wgraniu zweryfikuj slot, pasma i potwierdzoną wartość
    pre-gainu. Wyślij `[0x01, 0x01]` (SAVE_EQ) i powtórz odczyt.
 
+Po wgraniu profilu GUI odświeża krzywą DSP na podstawie pięciu
+współczynników Q2.30 każdego pasma zwróconych przez `0x09`. Przy wyliczaniu
+krzywej uwzględnia częstotliwość 96 kHz i pokazuje odczytany pre-gain osobno.
+Weryfikacja przed zapisem do flash i po nim nadal sprawdza odczytane
+parametry pasm, aktywny slot i potwierdzoną wartość pre-gainu.
+
 Odstępy: ~25 ms między pasmami, ~50 ms między operacjami, ~150 ms po zmianie
 slotu, ~200 ms po zapisie do flash. Urządzenie gubi ramki wysyłane szybciej.
 

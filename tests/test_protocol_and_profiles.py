@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import struct
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ import autoeq_catalog as catalog
 import i18n
 import moondrop_position as dac
 import position_gui as gui
+from measurements import fit_to_target
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,6 +40,34 @@ def test_biquad_coefficients_length_and_neutral_pk() -> None:
     # Neutralny filtr PK (0 dB) ma b0=1.0 w formacie Q2.30 (1 << 30).
     b0 = int.from_bytes(coeffs[:4], byteorder="little", signed=True)
     assert b0 == 1 << 30
+
+
+def test_band_readback_can_include_q30_coefficients(monkeypatch) -> None:
+    device = dac.MoondropPosition.__new__(dac.MoondropPosition)
+    payload = bytearray(63)
+    coefficients = dac.biquad_coefficients(2, 1000.3, 4.12, 1.11)
+    payload[7:27] = coefficients
+    struct.pack_into("<HhhB", payload, 27, 1000, round(1.11 * 256), round(4.12 * 256), 2)
+    monkeypatch.setattr(device, "request", lambda *_args, **_kwargs: payload)
+    band = device.read_band(0)
+    assert band["freq"] == 1000
+    assert "coefficients" not in band
+    assert device.read_band(0, include_coefficients=True) == {**band, "coefficients": coefficients}
+
+
+def test_harman_fit_uses_one_level_offset_and_excludes_upper_treble() -> None:
+    profile = gui.load_profile(gui.BUILTIN_PROFILE)
+    measured = gui.measured_position()
+    eq = gui.response_points(profile, [hz for hz, _ in measured])
+    predicted = [(hz, measured_db + eq_db) for (hz, measured_db), (_, eq_db) in zip(measured, eq, strict=True)]
+    fit = fit_to_target(predicted, profile.target_curve)
+    assert (fit.low_hz, fit.high_hz) == (20, 10000)
+    assert fit.rms_db == pytest.approx(0.72, abs=0.01)
+    assert fit.peak_hz == pytest.approx(9300, abs=150)
+    raised = [(hz, db + (30 if hz > 11000 else 5)) for hz, db in predicted]
+    raised_fit = fit_to_target(raised, profile.target_curve)
+    assert raised_fit.rms_db == pytest.approx(fit.rms_db)
+    assert raised_fit.offset_db == pytest.approx(fit.offset_db + 5)
 
 
 def test_validate_profile_accepts_example_and_rejects_invalid() -> None:
@@ -77,6 +107,11 @@ def test_demo_device_apply_and_live_eq_restore() -> None:
     state = gui.apply_profile(open_demo, "demo", profile)
     assert state.slot == dac.CUSTOM_SLOT
     assert len(state.bands) == dac.BAND_COUNT
+    actual = gui.profile_from_readback(state)
+    assert actual.bands[0]["freq"] == round(profile.bands[0]["freq"])
+    assert actual.coefficients[0] == gui.coefficients_for_band(profile.bands[0])
+    assert actual.coefficients[0] != gui.coefficients_for_band(actual.bands[0])
+    assert gui.response_points(actual, [30, 1000, 9300]) == gui.response_points(profile, [30, 1000, 9300])
 
     snapshot = gui.begin_live_eq(open_demo, "demo")
     edited = gui.custom_profile(

@@ -44,7 +44,10 @@ Whether you're fragging in Counter-Strike / Steam Proton or fine-tuning your IEM
 ## Screenshots
 
 ### Tuning & Frequency Response Preview
-Symmetric Master-Detail cards with `Edit EQ…` and `Apply to DAC` directly in the preview header:
+**Factory**, **Target**, and **Predicted result** show the acoustic response. **EQ correction** shows the combined electrical response of the filters at 96 kHz. Profile and DSP pre-gain values appear below the correction chart. **Current in DSP** uses the biquad coefficients read back from the device, including after **Apply to DAC**.
+
+Fit RMS uses logarithmic frequency steps over the shared 20 Hz–10 kHz band and aligns the target with one mean level offset. Hover over the RMS for the offset and the largest deviation in that band. The shaded area above 10 kHz marks lower confidence in the acoustic comparison.
+
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
 
 ### Built-in AutoEq Catalog

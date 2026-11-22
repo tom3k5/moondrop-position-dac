@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import itertools
 import json
 import math
 import platform
@@ -16,7 +15,6 @@ import subprocess
 import sys
 import time
 import webbrowser
-from bisect import bisect_left
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -101,7 +99,7 @@ import autoeq_catalog as catalog
 import i18n
 import moondrop_position as dac
 from i18n import tr
-from measurements import read_squig_txt
+from measurements import FIT_HIGH_HZ, curve_level, fit_to_target, read_squig_txt
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "dane"
 BUILTIN_PROFILE = DATA_DIR / "profile/moondrop-position-harman.json"
@@ -392,6 +390,7 @@ UAC2_PLAYBACK_MODES = (
 UAC2_SAMPLE_RATES = (44100, 48000, 96000, 192000, 384000)
 DEFAULT_EQ_FREQUENCIES = (20, 54, 144, 386, 1036, 2779, 7455, 20000)
 DEFAULT_EQ_Q = 182 / 256  # 0.7109375 (~0.711)
+EQ_PLOT_FREQUENCIES = tuple(20 * 10 ** (index / 320) for index in range(961))
 # Pasma slotu 0 (Default) odczytane z MOONDROP Position (firmware 0.5).
 POSITION_FACTORY_BANDS = (
     {"band": 1, "freq": 2800, "gain": -3.3984375, "q": 1.0, "type": "HSQ"},
@@ -607,6 +606,7 @@ class Profile:
     source: str | None = None
     target_name: str | None = None
     target_curve: tuple[tuple[float, float], ...] = ()
+    coefficients: tuple[bytes, ...] = ()
 
     def matches_eq(self, state: DeviceState) -> bool:
         return state.slot == self.slot and (
@@ -634,15 +634,19 @@ class DeviceState:
     bands: list[dict | None]
     global_gain_db: int | None = None
     mic_gain_raw: int | None = None
+    coefficients: tuple[bytes, ...] = ()
 
 
-def load_profile(path: Path, name: str | None = None) -> Profile:
+def load_profile(path: Path, name: str | None = None, *, pad_bands: bool = False) -> Profile:
     try:
         bands, meta = dac.load_eq_file(str(path))
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
     slot = meta.get("slot", dac.CUSTOM_SLOT)
     preamp = meta.get("preamp")
+    if pad_bands:
+        neutral = default_custom_bands()
+        bands.extend(neutral[len(bands) :])
     stored_name = meta.get("name")
     if not isinstance(stored_name, str) or not stored_name.strip():
         stored_name = path.stem
@@ -652,8 +656,10 @@ def load_profile(path: Path, name: str | None = None) -> Profile:
     source = meta.get("source")
     target_name = meta.get("target_name")
     target = valid_curve(meta.get("target_curve", ()))
+    fit_meta = meta.get("meta")
     if not target and (
         path.resolve() == BUILTIN_PROFILE.resolve()
+        or (isinstance(fit_meta, dict) and fit_meta.get("target") == HARMAN_TARGET.name)
         or (
             profile.name == "Position → Harman In-Ear 2019"
             and isinstance(source, str)
@@ -723,8 +729,12 @@ def read_state(dev) -> DeviceState:
     firmware = dev.version()
     preamp = dev.preamp()
     bands = []
+    coefficients = []
     for index in range(dac.BAND_COUNT):
-        bands.append(dev.read_band(index))
+        band = dev.read_band(index, include_coefficients=True)
+        if band is not None:
+            coefficients.append(band.pop("coefficients"))
+        bands.append(band)
         time.sleep(dac.DELAY_BAND_MS / 1000)
     try:
         global_gain_db = dev.global_gain()
@@ -736,7 +746,7 @@ def read_state(dev) -> DeviceState:
             mic_gain_raw = dev.mic_gain_raw()
     if dev.slot() != slot:
         raise dac.HidError("Aktywny slot zmienił się podczas odczytu.")
-    return DeviceState(dev.path, firmware, slot, preamp, bands, global_gain_db, mic_gain_raw)
+    return DeviceState(dev.path, firmware, slot, preamp, bands, global_gain_db, mic_gain_raw, tuple(coefficients))
 
 
 def poll_device(open_device) -> DeviceState | None:
@@ -1034,6 +1044,7 @@ class DemoDevice:
     def __init__(self):
         self.active_slot = 0
         self.custom_bands = default_custom_bands()
+        self.custom_coefficients = [coefficients_for_band(band) for band in self.custom_bands]
         self.custom_preamp = 0.0
         self.default_preamp = 0.0
         self.output_gain = 0
@@ -1075,13 +1086,20 @@ class DemoDevice:
     def set_mic_gain_raw(self, value):
         self.microphone_gain = {requested: observed for observed, requested in MIC_GAIN_REQUESTS.items()}[value]
 
-    def read_band(self, index):
-        return None if self.active_slot == 0 else self.custom_bands[index]
+    def read_band(self, index, *, include_coefficients=False):
+        if self.active_slot == 0:
+            band = POSITION_FACTORY_BANDS[index]
+            coefficients = coefficients_for_band(band)
+        else:
+            band = self.custom_bands[index]
+            coefficients = self.custom_coefficients[index]
+        return {**band, "coefficients": coefficients} if include_coefficients else dict(band)
 
     def read_eq(self, bands):
-        return self.custom_bands[:bands] if self.active_slot == dac.CUSTOM_SLOT else []
+        return [self.read_band(index) for index in range(bands)]
 
     def write_band(self, index, freq, gain, q, ftype, _slot):
+        self.custom_coefficients[index] = dac.biquad_coefficients(dac.TYPE_TO_CODE[ftype], freq, gain, q)
         self.custom_bands[index] = dac.quantized_band(
             {
                 "band": index + 1,
@@ -1150,22 +1168,19 @@ def read_target_curve(path: Path) -> tuple[tuple[float, float], ...]:
     return curve
 
 
+def coefficients_for_band(band: dict) -> bytes:
+    return dac.biquad_coefficients(dac.TYPE_TO_CODE[band["type"]], band["freq"], band["gain"], band["q"])
+
+
 def response_points(profile: Profile, frequencies) -> list[tuple[float, float]]:
-    if profile.preamp is None:
-        return []
-    bands = [dac.quantized_band(band) for band in profile.bands]
-    coefficients = [
-        struct.unpack(
-            "<5i", dac.biquad_coefficients(dac.TYPE_TO_CODE[band["type"]], band["freq"], band["gain"], band["q"])
-        )
-        for band in bands
-    ]
+    bank = profile.coefficients or [coefficients_for_band(band) for band in profile.bands]
+    coefficients = [struct.unpack("<5i", payload) for payload in bank]
     points = []
     for frequency in frequencies:
         angle = -2 * math.pi * frequency / dac.COEFF_FS
         z = complex(math.cos(angle), math.sin(angle))
         z2 = z * z
-        level = round(profile.preamp * 256) / 256
+        level = 0.0
         for b0, b1, b2, neg_a1, neg_a2 in coefficients:
             numerator = abs(b0 + b1 * z + b2 * z2)
             denominator = abs(dac.COEFF_SCALE - neg_a1 * z - neg_a2 * z2)
@@ -1175,13 +1190,13 @@ def response_points(profile: Profile, frequencies) -> list[tuple[float, float]]:
 
 
 def profile_from_readback(state: DeviceState) -> Profile | None:
-    if state.path == "demo" and state.slot == 0:
-        return Profile("Odczyt z DAC-a", 0, [], state.preamp)
-    if len(state.bands) != dac.BAND_COUNT or any(
-        band is None or band["type"] not in dac.TYPE_TO_CODE for band in state.bands
+    if (
+        len(state.coefficients) != dac.BAND_COUNT
+        or len(state.bands) != dac.BAND_COUNT
+        or any(band is None or band["type"] not in dac.TYPE_TO_CODE for band in state.bands)
     ):
         return None
-    return Profile("Odczyt z DAC-a", state.slot, list(state.bands), state.preamp)
+    return Profile("Odczyt z DAC-a", state.slot, list(state.bands), state.preamp, coefficients=state.coefficients)
 
 
 def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str | None:
@@ -1204,15 +1219,13 @@ def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str 
 
 
 class ResponsePlot(QWidget):
-    SERIES_LABELS = ("Wybrany profil", "Aktualny EQ DAC-a", "Pomiar odniesienia", "Cel AutoEq przy 1 kHz")
     curves_changed = Signal()
     band_changed = Signal(int, float, float)
     band_q_changed = Signal(int, float)
 
-    def __init__(self, *, correction: bool = False, include_preamp: bool = True, interactive: bool = False):
+    def __init__(self, *, correction: bool = False, interactive: bool = False):
         super().__init__()
         self.correction = correction
-        self.include_preamp = include_preamp
         self.interactive = interactive
         self.points = []
         self.reference_points = []
@@ -1245,10 +1258,9 @@ class ResponsePlot(QWidget):
     def acoustic_points(self, profile: Profile | None) -> list[tuple[float, float]]:
         if profile is None:
             return []
-        if profile.slot == 0 and profile.preamp is None:
+        if profile.slot == 0:
             return self.factory_points
-        source = profile if self.include_preamp or profile.preamp is None else replace(profile, preamp=0.0)
-        correction = response_points(source, self.frequencies)
+        correction = response_points(profile, self.frequencies)
         return [
             (hz, measured + adjustment - factory)
             for (hz, measured), (_, adjustment), factory in zip(
@@ -1314,29 +1326,12 @@ class ResponsePlot(QWidget):
                 else [0.0] * len(self.frequencies)
             )
 
-    @staticmethod
-    def same_response(first: list[tuple[float, float]], second: list[tuple[float, float]]) -> bool:
-        tolerance = 1e-6
-        if len(first) == len(second) and all(
-            hz == other_hz and abs(db - other_db) < tolerance
-            for (hz, db), (other_hz, other_db) in zip(first, second, strict=False)
-        ):
-            return True
-        baseline = first[0][1]
-        return all(abs(db - baseline) < tolerance for _, db in first + second)
-
     def series(self):
-        groups = []
-        for role, points in enumerate((self.points, self.reference_points, self.factory_points, self.target_points)):
-            if not points:
-                continue
-            for roles, existing in groups:
-                if self.same_response(existing, points):
-                    roles.append(role)
-                    break
-            else:
-                groups.append(([role], points))
-        return groups
+        return [
+            ([role], points)
+            for role, points in enumerate((self.points, self.reference_points, self.factory_points, self.target_points))
+            if points
+        ]
 
     def series_pen(self, role: int) -> QPen:
         dark_bg = self.palette().base().color().lightness() < 128
@@ -1384,6 +1379,12 @@ class ResponsePlot(QWidget):
 
         def y(db: float) -> float:
             return plot.top() + plot.height() * (high - db) / (high - low)
+
+        if not self.correction:
+            cutoff = x(FIT_HIGH_HZ)
+            treble = palette.color(QPalette.ColorRole.Text)
+            treble.setAlpha(20)
+            painter.fillRect(QRectF(cutoff, plot.top(), plot.right() - cutoff, plot.height()), treble)
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         grid_color = palette.color(QPalette.ColorRole.Text)
@@ -1449,7 +1450,7 @@ class ResponsePlot(QWidget):
             painter.setFont(handle_font)
             for idx, band in enumerate(self.active_bands):
                 hz = max(20.0, min(20000.0, float(band.get("freq", 1000.0))))
-                curve_db = self._interpolate_db(hz)
+                curve_db = curve_level(self.points, hz)
                 hx = x(hz)
                 hy = y(curve_db)
                 self.band_handles.append((idx, hx, hy))
@@ -1469,25 +1470,6 @@ class ResponsePlot(QWidget):
                 )
                 painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, str(idx + 1))
 
-    @staticmethod
-    def _interpolate_series(points: list[tuple[float, float]], target_hz: float) -> float:
-        if not points:
-            return 0.0
-        if target_hz <= points[0][0]:
-            return points[0][1]
-        if target_hz >= points[-1][0]:
-            return points[-1][1]
-        log_target = math.log(target_hz)
-        for (f0, d0), (f1, d1) in itertools.pairwise(points):
-            if f0 <= target_hz <= f1:
-                lf0, lf1 = math.log(f0), math.log(f1)
-                t = (log_target - lf0) / (lf1 - lf0) if lf1 > lf0 else 0.0
-                return d0 + t * (d1 - d0)
-        return points[-1][1]
-
-    def _interpolate_db(self, target_hz: float) -> float:
-        return self._interpolate_series(self.points, target_hz)
-
     def _draw_hover_readout(self, painter: QPainter, plot, groups, hx: float, text: QColor) -> None:
         if self.hover_hz is None:
             return
@@ -1495,16 +1477,17 @@ class ResponsePlot(QWidget):
         freq_text = f"{hz_val / 1000:.2f} kHz" if hz_val >= 1000 else f"{round(hz_val)} Hz"
         values: dict[int, float] = {}
         parts = [freq_text]
-        short_names = ("Nowy", "DSP") if self.correction else ("Nowy", "DSP", "Fabryka", "Cel")
+        short_names = tuple(
+            tr(key) for key in ("plot.hover.selected", "plot.hover.dsp", "plot.hover.factory", "plot.hover.target")
+        )
         for roles, points in groups:
-            if self.is_role_hidden(roles):
+            if self.is_role_hidden(roles) or not points[0][0] <= hz_val <= points[-1][0]:
                 continue
-            val = self._interpolate_series(points, hz_val)
+            val = curve_level(points, hz_val)
             for role in roles:
                 values[role] = val
-            label = short_names[roles[0]] if roles[0] < len(short_names) else ""
-            if label:
-                parts.append(f"{label}: {val:+.1f}" if self.correction else f"{label}: {val:.1f}")
+            label = short_names[roles[0]]
+            parts.append(f"{label}: {val:+.1f}" if self.correction else f"{label}: {val:.1f}")
         ref_val = values.get(1)
         cmp_val = values.get(0) if 0 in values else values.get(3)
         if ref_val is not None and cmp_val is not None and abs(cmp_val - ref_val) >= 0.05:
@@ -1948,8 +1931,10 @@ class EqualizerDialog(QDialog):
         plot_header.addWidget(self.compare)
         layout.addLayout(plot_header)
         layout.addWidget(self.plot, 1)
-        layout.addWidget(PlotKey(self.plot, ("Edytowany profil", "Profil wyjściowy", tr("plot.key.measured"))))
-        measurement_note = QLabel(tr("plot.measurement_note"))
+        layout.addWidget(
+            PlotKey(self.plot, tuple(tr(key) for key in ("plot.key.draft", "plot.key.initial", "plot.key.measured")))
+        )
+        measurement_note = QLabel(tr("plot.measurement_note") + " · " + tr("plot.treble_note"))
         measurement_note.setWordWrap(True)
         if factory is None:
             measurement_note.setText(measurement_note.text() + " · podgląd zakłada neutralne EQ fabryczne")
@@ -2154,8 +2139,7 @@ class EqualizerDialog(QDialog):
 
     def apply_auto_headroom(self) -> None:
         profile = self.draft()
-        eq_only = replace(profile, preamp=0.0)
-        peak_boost = max(0.0, max(db for _, db in response_points(eq_only, self.plot.frequencies)))
+        peak_boost = max(0.0, max(db for _, db in response_points(profile, EQ_PLOT_FREQUENCIES)))
         self.preamp.setValue(max(-128.0, round(-peak_boost, 2)))
 
     def on_plot_band_changed(self, index: int, freq: float, gain: float) -> None:
@@ -2173,8 +2157,7 @@ class EqualizerDialog(QDialog):
         profile = self.draft()
         if self.live.isChecked() and self.live_previous is not None and profile.preamp == self.live_previous.preamp:
             profile = replace(profile, preamp=self.live_preamp)
-        eq_only = replace(profile, preamp=0.0)
-        peak_boost = max(db for _, db in response_points(eq_only, self.plot.frequencies))
+        peak_boost = max(db for _, db in response_points(profile, EQ_PLOT_FREQUENCIES))
         net_peak = peak_boost + (profile.preamp or 0.0)
         if net_peak > 0.05:
             self.headroom_label.setText(tr("editor.headroom_clip", peak=net_peak))
@@ -2353,7 +2336,6 @@ class AutoEqPanel(QWidget):
         self.entries = [catalog.Entry("Harman In-Ear 2019", "Krzywa referencyjna", "target", str(HARMAN_TARGET), True)]
         self.result = None
         self.result_entry = None
-        self.result_details = ""
         self.preview_entry = None
         self.preview_curve: list[tuple[float, float]] = []
         self.preview_request_id = 0
@@ -2557,7 +2539,6 @@ class AutoEqPanel(QWidget):
         entry = self.current_entry()
         if entry is None or entry != self.result_entry:
             self.result = None
-            self.result_details = ""
         if entry is None:
             self.preview_timer.stop()
             self.preview_entry = None
@@ -2678,7 +2659,6 @@ class AutoEqPanel(QWidget):
             return
         self.result = None
         self.result_entry = entry
-        self.result_details = ""
         self.status.setText("Odczytuję pomiar docelowy…")
         self.start_job(lambda: catalog.resolve_curve(entry, self.cache_directory / "curves"), self.start_fit)
 
@@ -2772,37 +2752,18 @@ class AutoEqPanel(QWidget):
         else:
             try:
                 name = f"Position → {self.result_entry.name}"
-                loaded = load_profile(self.output, name)
-                padded_bands = list(loaded.bands)
-                for idx in range(len(padded_bands), dac.BAND_COUNT):
-                    padded_bands.append({"band": idx + 1, "type": "PK", "freq": 1000, "q": 1.0, "gain": 0.0})
+                loaded = load_profile(self.output, name, pad_bands=True)
                 self.result = replace(
                     loaded,
-                    bands=padded_bands[: dac.BAND_COUNT],
                     source=f"AutoEq · {self.result_entry.source}",
                     target_name=self.result_entry.name,
                     target_curve=self.target_curve,
                 )
-                meta = json.loads(self.output.read_text()).get("meta", {})
             except (OSError, ValueError, dac.HidError) as exc:
                 self.status.setText(f"Nie udało się wczytać wyniku AutoEq. {exc}")
             else:
-                baseline = meta.get("pre_eq_error_rms_db")
-                error = meta.get("predicted_error_rms_db")
-                if baseline is not None and error is not None:
-                    self.result_details = f"Błąd RMS: {baseline:.2f} → {error:.2f} dB"
-                if self.fit_factory is None:
-                    self.result_details += "\nDopasowanie zakłada neutralne EQ fabryczne."
                 self.status.setText("Profil gotowy do wgrania lub zapisania na później.")
         self.finish_fit()
-
-    @staticmethod
-    def level_at_1khz(curve: list[tuple[float, float]]) -> float:
-        index = bisect_left(curve, (1000, float("-inf")))
-        low_hz, low_db = curve[index - 1]
-        high_hz, high_db = curve[index]
-        weight = math.log(1000 / low_hz) / math.log(high_hz / low_hz)
-        return low_db + weight * (high_db - low_db)
 
     def finish_fit(self) -> None:
         self.fit_timer.stop()
@@ -3181,7 +3142,7 @@ class ProfilesWindow(QWidget):
         self.fr_title_label = QLabel(tr("plot.fr_title"))
         self.fr_title_label.setStyleSheet("font-weight: 600;")
         preview.addWidget(self.fr_title_label)
-        self.preview_plot = ResponsePlot(include_preamp=False)
+        self.preview_plot = ResponsePlot()
         preview.addWidget(self.preview_plot, 2)
         self.correction_plot = ResponsePlot(correction=True)
         self.preview_key = PlotKey(
@@ -3196,21 +3157,28 @@ class ProfilesWindow(QWidget):
             fixed_rows=2,
         )
         preview.addWidget(self.preview_key)
+        self.fit_summary = FeedbackLabel()
+        self.fit_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.fit_summary.setWordWrap(True)
+        preview.addWidget(self.fit_summary)
         preview.addSpacing(4)
         section_divider = QWidget()
         section_divider.setFixedHeight(1)
         section_divider.setStyleSheet("background: palette(mid);")
         preview.addWidget(section_divider)
         preview.addSpacing(4)
-        self.correction_title = QLabel("Korekcja EQ · dB")
+        self.correction_title = QLabel(tr("plot.eq_title"))
         self.correction_title.setStyleSheet("font-weight: 600;")
         preview.addWidget(self.correction_title)
         preview.addWidget(self.correction_plot, 1)
+        self.preamp_summary = FeedbackLabel()
+        self.preamp_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.preamp_summary.setWordWrap(True)
+        preview.addWidget(self.preamp_summary)
         self.plot_legend = QLabel()
         self.plot_legend.setTextFormat(Qt.TextFormat.PlainText)
         self.plot_legend.setWordWrap(True)
         self.plot_legend.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.plot_legend.setFixedHeight(self.plot_legend.fontMetrics().lineSpacing() * 2 + 4)
         preview.addWidget(self.plot_legend)
         preview_scroll = QScrollArea()
         preview_scroll.setObjectName("previewCard")
@@ -3550,6 +3518,7 @@ class ProfilesWindow(QWidget):
         self.profile_search.setPlaceholderText(tr("search.profiles_placeholder"))
         self.profile_search.setAccessibleName(tr("search.profiles_a11y"))
         self.fr_title_label.setText(tr("plot.fr_title"))
+        self.correction_title.setText(tr("plot.eq_title"))
         self.add_button.setText(tr("actions.add_profile"))
         self.new_profile_action.setText(tr("actions.new_empty"))
         self.import_profile_action.setText(tr("actions.import_profile"))
@@ -3721,7 +3690,7 @@ class ProfilesWindow(QWidget):
         else:
             self.preview_title.setText(profile.name if profile else "Brak profili pasujących do wyszukiwania")
         if profile is not None and profile.slot == dac.CUSTOM_SLOT:
-            context = f"{len(profile.bands)} pasm · pre-gain {profile.preamp:+.2f} dB"
+            context = tr("plot.profile_bands", count=len(profile.bands))
             if profile.source:
                 context += f" · {profile.source}"
             self.profile_info.setText(context)
@@ -3733,28 +3702,21 @@ class ProfilesWindow(QWidget):
     def update_comparison(self) -> None:
         selected = self.candidate_profile()
         waiting_for_fit = self.catalog_selected() and selected is None
-        details = self.autoeq_panel.result_details if self.catalog_selected() else ""
         preview_entry = self.autoeq_panel.preview_entry if waiting_for_fit else None
         preview_curve = self.autoeq_panel.preview_curve if waiting_for_fit else []
-        sources = (
-            selected,
-            self.readback_profile,
-            self.factory_profile,
-            self.state,
-            details,
-            preview_entry,
-            len(preview_curve),
-        )
+        sources = (selected, self.readback_profile, self.factory_profile, waiting_for_fit, preview_entry, preview_curve)
         if sources == self.preview_sources:
             return
         self.preview_sources = sources
+
+        self.preview_plot.set_factory(self.factory_profile)
+        self.preview_plot.set_profile(selected)
+        self.preview_plot.set_reference(self.readback_profile)
         measured = self.preview_plot.factory_points
-        raw_target = selected.target_curve if (selected and selected.target_curve) else preview_curve
-        target_points = []
-        if raw_target and measured:
-            level_at_1khz = self.autoeq_panel.level_at_1khz
-            shift = level_at_1khz(measured) - level_at_1khz(raw_target)
-            target_points = [(hz, db + shift) for hz, db in raw_target]
+        predicted = self.preview_plot.points
+        raw_target = selected.target_curve if selected and selected.target_curve else preview_curve
+        fit = fit_to_target(predicted or measured, raw_target)
+        target_points = [(hz, db + fit.offset_db) for hz, db in raw_target] if fit else []
         target_label = (
             selected.target_name
             if selected and selected.target_name
@@ -3762,66 +3724,45 @@ class ProfilesWindow(QWidget):
         )
         self.preview_key.set_labels(
             (
-                selected.name if selected else tr("plot.key.selected"),
+                tr("plot.key.selected"),
                 tr("plot.key.current_dsp"),
                 tr("plot.key.measured"),
                 tr("plot.key.target", name=target_label),
             )
         )
-        self.preview_plot.set_factory(self.factory_profile)
-        self.preview_plot.set_profile(selected)
-        self.preview_plot.set_reference(self.readback_profile)
         self.preview_plot.set_target_points(target_points)
+        summary = ""
+        if fit and predicted:
+            low = f"{fit.low_hz:g} Hz" if fit.low_hz < 1000 else f"{fit.low_hz / 1000:g} kHz"
+            high = f"{fit.high_hz:g} Hz" if fit.high_hz < 1000 else f"{fit.high_hz / 1000:g} kHz"
+            summary = tr("plot.fit_summary", rms=fit.rms_db, low=low, high=high)
+            self.fit_summary.setToolTip(
+                tr("plot.fit_details", offset=fit.offset_db, peak=fit.peak_db, freq=fit.peak_hz)
+            )
+        self.fit_summary.setText(summary)
 
-        from_device = (
-            (not waiting_for_fit)
-            and self.readback_profile is not None
-            and (selected is None or (self.state is not None and selected.matches_eq(self.state)))
+        electrical = self.factory_profile if selected and selected.slot == 0 else selected
+        self.correction_plot.set_primary_points(response_points(electrical, EQ_PLOT_FREQUENCIES) if electrical else [])
+        self.correction_plot.set_reference_points(
+            response_points(self.readback_profile, EQ_PLOT_FREQUENCIES) if self.readback_profile else []
         )
-        correction = None if waiting_for_fit else (self.readback_profile if from_device else selected)
-        frequencies = self.preview_plot.frequencies
-
-        def _correction_curve(profile: Profile | None, device_readback: bool) -> list[tuple[float, float]]:
-            if profile is None:
-                return []
-            if profile.slot == 0 and not device_readback:
-                return [(hz, 0.0) for hz in frequencies]
-            pts = response_points(profile, frequencies)
-            if self.factory_profile is not None:
-                factory = response_points(self.factory_profile, frequencies)
-                pts = [(hz, db - baseline) for (hz, db), (_, baseline) in zip(pts, factory, strict=False)]
-            return pts
-
-        correction_points = _correction_curve(correction, from_device)
-        dsp_correction_points = (
-            _correction_curve(self.readback_profile, True)
-            if (not waiting_for_fit and not from_device and self.readback_profile is not None)
-            else []
-        )
-        self.correction_title.setText(
-            tr("plot.eq_waiting")
-            if waiting_for_fit
-            else tr("plot.eq_dac")
-            if from_device
-            else tr("plot.eq_compare")
-            if dsp_correction_points
-            else tr("plot.eq_preview")
-        )
-        self.correction_plot.set_primary_points(correction_points)
-        self.correction_plot.set_reference_points(dsp_correction_points)
+        preamp_parts = []
+        if selected is not None and selected.preamp is not None:
+            preamp_parts.append(tr("plot.preamp_profile", value=selected.preamp))
+        if self.readback_profile is not None:
+            preamp_parts.append(tr("plot.preamp_dsp", value=self.readback_profile.preamp))
+        self.preamp_summary.setText(" · ".join(preamp_parts))
 
         notes = []
-        if details:
-            notes.extend(details.splitlines())
         if selected and selected.slot == dac.CUSTOM_SLOT and not selected.target_curve:
-            notes.append("Ten profil nie zawiera krzywej docelowej.")
-        if self.factory_profile is None and correction is not None and correction.slot != 0:
-            notes.append("Podgląd korekcji zakłada neutralne EQ slotu fabrycznego.")
+            notes.append(tr("plot.no_target"))
+        if self.factory_profile is None and selected is not None and selected.slot != 0:
+            notes.append(tr("plot.neutral_factory"))
         if measured:
-            notes.append(tr("plot.measurement_note"))
+            notes.append(tr("plot.measurement_note") + " · " + tr("plot.treble_note"))
         self.plot_legend.setText("\n".join(notes))
-        plot_description = list(self.preview_key.labels[1 : 4 if target_points else 3])
-        self.preview_plot.setAccessibleDescription("\n".join(plot_description + notes))
+        plot_description = [*self.preview_key.labels[: 4 if target_points else 3], summary, *notes]
+        self.preview_plot.setAccessibleDescription("\n".join(filter(None, plot_description)))
 
     def render_state(self, error: str = "") -> None:
         state = self.state

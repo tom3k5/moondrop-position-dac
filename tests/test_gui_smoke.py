@@ -147,6 +147,11 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
 
         assert window.autoeq_panel.fit_range.count() == 4
         assert window.acceptDrops() is True
+        assert "1.06 dB" in window.fit_summary.text()
+        assert "20 Hz–10 kHz" in window.fit_summary.text()
+        assert "-4.66 dB" in window.preamp_summary.text()
+        assert window.preview_plot.points != window.preview_plot.factory_points
+        assert window.correction_plot.points == gui.response_points(sample, gui.EQ_PLOT_FREQUENCIES)
 
         editor = gui.EqualizerDialog(window, sample, sample, window.factory_profile, device_path=None)
         editor.preamp.setValue(0.0)

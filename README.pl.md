@@ -44,7 +44,10 @@ Niezależnie od tego, czy grasz w strzelanki na Steam/Proton, czy stroisz swoje 
 ## Zrzuty ekranu
 
 ### Strojenie i podgląd charakterystyki
-Symetryczne karty listy i podglądu z przyciskami `Edytuj EQ…` oraz `Wgraj do DAC-a` w nagłówku karty:
+Górny wykres pokazuje **krzywą fabryczną**, **cel** i **przewidywany wynik**. **Korekcja EQ** pokazuje sumaryczną odpowiedź elektryczną filtrów przy 96 kHz. Pod nią są wartości pre-gainu profilu i DSP. Krzywa **Obecnie w DSP** korzysta z odczytanych współczynników biquad, także po użyciu **Wgraj do DAC-a**.
+
+RMS dopasowania korzysta z siatki logarytmicznej we wspólnym paśmie 20 Hz–10 kHz. Poziom celu wyrównuje jedno średnie przesunięcie. Po najechaniu na wynik widać wartość przesunięcia i największą odchyłkę w tym paśmie. Cieniowanie powyżej 10 kHz oznacza mniejszą wiarygodność oceny akustycznej.
+
 ![Strojenie i profile](docs/screenshots/01-tuning-profiles.png)
 
 ### Wbudowany katalog AutoEq

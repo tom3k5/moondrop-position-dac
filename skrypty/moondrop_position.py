@@ -254,7 +254,7 @@ class MoondropPosition:
         p = self.request(CMD_ACTIVE_SLOT, bytes([OP_READ, CMD_ACTIVE_SLOT, 0x00]))
         return p[3]
 
-    def read_band(self, index: int) -> dict | None:
+    def read_band(self, index: int, *, include_coefficients: bool = False) -> dict | None:
         p = self.request(CMD_EQ_UPDATE, bytes([OP_READ, CMD_EQ_UPDATE, 0x18, 0x00, index, 0x00]), index=index)
         freq = struct.unpack_from("<H", p, 27)[0]
         q = struct.unpack_from("<h", p, 29)[0] / 256.0
@@ -263,7 +263,10 @@ class MoondropPosition:
         valid = 10 < freq < 24000 and not math.isnan(gain) and not math.isnan(q)
         if not valid:
             return None
-        return {"band": index + 1, "freq": freq, "gain": gain, "q": q, "type": ftype}
+        band = {"band": index + 1, "freq": freq, "gain": gain, "q": q, "type": ftype}
+        if include_coefficients:
+            band["coefficients"] = bytes(p[7:27])
+        return band
 
     def read_eq(self, bands: int) -> list[dict]:
         out = []
@@ -595,6 +598,7 @@ def load_eq_file(path: str) -> tuple[list[dict], dict]:
                 "mic_gain_raw",
                 "target_name",
                 "target_curve",
+                "meta",
             )
             if k in data
         }

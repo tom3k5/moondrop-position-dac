@@ -55,6 +55,29 @@ Wynik testu (`Moondrop Position (B&K 5128).csv` vs `Harman in-ear 2019.csv`, `fs
 
 Użycie `1× LSQ + 1× HSQ + 6× PK` zmniejsza błąd RMS blisko 5-krotnie (`0,47 dB` zamiast `2,20 dB`) oraz 4-krotnie ogranicza maksymalne odchylenie od krzywej docelowej (`3,12 dB` zamiast `12,48 dB`).
 
+### Dopasowanie widoczne w zakładce Strojenie
+
+Górny wykres pokazuje dane fabryczne B&K 5128, cel i przewidywaną odpowiedź
+akustyczną. Dla Custom aplikacja dodaje odpowiedź wybranych filtrów i odejmuje
+odpowiedź filtrów fabrycznego slotu 0. Korzysta z odczytu slotu 0 lub z wartości
+referencyjnych odczytanych wcześniej z firmware 0.5. Dolny wykres pokazuje
+sumę odpowiedzi elektrycznych filtrów przy 96 kHz. Pre-gain jest podany osobno
+i nie wpływa na ocenę kształtu krzywej. Krzywa DSP korzysta ze współczynników
+Q2.30 odczytanych z urządzenia.
+
+GUI interpoluje w skali logarytmicznej i liczy RMS w części wspólnej danych
+od 20 Hz do 10 kHz. Każda próbka siatki logarytmicznej ma tę samą wagę.
+Średnia różnica między przewidywaną odpowiedzią a celem wyznacza jedno
+przesunięcie poziomu celu. Zacieniowane pasmo powyżej 10 kHz ma niższą
+wiarygodność z uwagi na wpływ pozycji słuchawek i warunków pomiaru.
+
+Dla zapisanego profilu Harman `8× PK` bezpośrednie nałożenie filtrów na
+krzywą B&K 5128 daje około `0,72 dB RMS`. Model GUI z zastąpieniem filtrów
+slotu 0 daje około `1,06 dB RMS`, a największa odchyłka w jego paśmie oceny
+wypada przy `9,3 kHz`. Metryka generatora korzysta z wygładzonej krzywej błędu
+i szerszego pasma. Odtworzenie jej z zapisanych filtrów daje `2,20 dB RMS`
+i największą odchyłkę `+12,48 dB` przy `19,96 kHz`.
+
 ## 3. Architektura rekomendowana
 
 ```
