@@ -89,6 +89,7 @@ Replug your MOONDROP:Gravity Position and verify detection:
 ```bash
 python3 skrypty/position_gui.py --diagnose
 ```
+The diagnostic JSON includes the active slot, pre-gain, band parameters, and the raw Q2.30 coefficients as hexadecimal strings.
 
 ### 3. Install via Flatpak (Recommended)
 Download the latest `position-dac.flatpak` bundle from [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (includes PySide6 and the full AutoEq optimizer out of the box):

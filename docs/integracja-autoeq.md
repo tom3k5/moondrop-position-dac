@@ -224,8 +224,14 @@ Na EndeavourOS/KDE Wayland potwierdzono odczyt sprzętowy firmware 0.5,
 aktywnego slotu, ośmiu pasm przez `hidraw` oraz przyjmowanie i dokładny
 odczyt współczynników Q2.30 dla filtrów półkowych `LSQ` (1) i `HSQ` (3).
 W Qt offscreen sprawdzono edycję z odsłuchem, przywrócenie stanu, zapis
-i usuwanie profili w symulatorze. Na sprzęcie pozostaje potwierdzić
-słyszalność zmian i trwałość wgranego profilu po ponownym podłączeniu.
+i usuwanie profili w symulatorze.
+
+Na firmware 0.5 odczytano wcześniej wgrany profil Harman `8× PK` w slocie
+Custom przed fizycznym odłączeniem DAC-a i po ponownym podłączeniu.
+Parametry ośmiu pasm i wszystkie współczynniki Q2.30 były zgodne z profilem.
+Pre-gain w obu odczytach wyniósł `−4,50 dB` przy wartości `−4,66 dB` w profilu.
+GUI pokazało obie wartości i pominęło ponowny zapis flash. Próba potwierdza
+trwałość zapisanego stanu. Słyszalność zmian pozostaje do sprawdzenia.
 
 Bieżące testy uruchamiamy ze źródeł. Tryb demonstracyjny uruchamia
 `python3 skrypty/position_gui.py --demo`, a odczyt fizycznego DAC-a

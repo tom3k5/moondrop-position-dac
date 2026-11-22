@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -11,6 +13,17 @@ from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication
 
 import position_gui as gui
+
+
+def test_diagnose_serializes_dsp_coefficients(monkeypatch, capsys) -> None:
+    demo = gui.DemoDevice()
+    monkeypatch.setattr(gui, "open_position", lambda: demo)
+    monkeypatch.setattr(sys, "argv", ["position_gui.py", "--diagnose"])
+    assert gui.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["slot"] == 0
+    assert len(report["coefficients"]) == gui.dac.BAND_COUNT
+    assert bytes.fromhex(report["coefficients"][0]) == gui.coefficients_for_band(gui.POSITION_FACTORY_BANDS[0])
 
 
 def test_demo_window_launches_and_opens_editor(tmp_path: Path, monkeypatch) -> None:

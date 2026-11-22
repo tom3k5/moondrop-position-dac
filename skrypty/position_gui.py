@@ -4351,7 +4351,8 @@ def main() -> int:
                 elif args.diagnose_controls:
                     report = diagnose_controls(dev)
                 else:
-                    report = vars(read_state(dev))
+                    state = read_state(dev)
+                    report = vars(state) | {"coefficients": [band.hex() for band in state.coefficients]}
         except dac.HidError as exc:
             print(exc, file=sys.stderr)
             return 1

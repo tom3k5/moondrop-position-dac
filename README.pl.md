@@ -89,6 +89,7 @@ Podłącz ponownie MOONDROP:Gravity Position i sprawdź połączenie:
 ```bash
 python3 skrypty/position_gui.py --diagnose
 ```
+Raport JSON zawiera aktywny slot, pre-gain, parametry pasm i surowe współczynniki Q2.30 zapisane szesnastkowo.
 
 ### 3. Instalacja z paczki Flatpak (Zalecane)
 Pobierz najnowszy plik `position-dac.flatpak` z zakładki [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (zawiera PySide6 oraz pełny optymalizator AutoEq):
