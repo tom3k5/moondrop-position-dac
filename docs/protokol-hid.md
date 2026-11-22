@@ -142,8 +142,9 @@ slotu, ~200 ms po zapisie do flash. Urządzenie gubi ramki wysyłane szybciej.
 
 Odsłuch korzysta z tych samych poleceń zapisu i zatrzaskiwania pasm
 oraz z odczytu kontrolnego. Pomija SAVE_EQ. Aplikacja przed odsłuchem
-odczytuje aktywny slot, jego pre-gain i osiem pasm Custom. Po zakończeniu
-przywraca pasma Custom, poprzedni slot i potwierdza pre-gain z kopii.
+odczytuje aktywny slot, jego pre-gain i osiem pasm Custom wraz z bajtami
+Q2.30. Po zakończeniu przywraca pasma z tymi samymi bajtami, Custom pre-gain
+i poprzedni slot z jego pre-gainem. Odczyt kontrolny porównuje kopię ze stanem DAC-a.
 
 Format transportowy 8.8 koduje pre-gain z krokiem 1/256 dB. W próbie na
 firmware 0.5 żądanie −2,6484375 dB (profil −2,65 dB) dało odczyt
@@ -164,8 +165,10 @@ w0 = 2π·f / 96000
 PK:  A = 10^(gain/40); α = sin(w0)/(2Q)
      b = [1+αA, -2cos w0, 1-αA]
      a = [1+α/A, -2cos w0, 1-α/A]
-LS/HS: A = 10^(gain/40); α = sin(w0)/2 · √((A+1/A)(1/Q-1)+2); S = 2√A·α
-     (wzory jak w RBJ cookbook)
+LSQ/HSQ: A = 10^(gain/40); D = (A+1/A)(1/Q-1)+2
+     dla Q > 1: D = max(D, 1/Q²)
+     α = sin(w0)/2 · √D; β = 2√A·α
+     (β w liczniku i mianowniku wzorów półkowych RBJ)
 LP/HP: α = sin(w0)/(2Q)
      b = [(1∓cos w0)/2, 1∓cos w0, (1∓cos w0)/2] / (1+α)  (znak zależnie od typu)
      a = [1, -2cos w0/(1+α), (1-α)/(1+α)]
@@ -174,6 +177,14 @@ LP/HP: α = sin(w0)/(2Q)
 Zapis: `[b0, b1, b2, −a1, −a2] / a0`, każdy ×2³⁰, `int32 LE`.
 Przy 0 dB współczynniki nie są trywialne (b0=1, b1=−a1, b2=−a2), ale filtr
 jest przezroczysty.
+
+Parametr półki w bazowym wzorze RBJ oznacza nachylenie. Przy dużym Q
+i dużym `|gain|` starszy kod zerował tłumienie, gdy `D ≤ 0`, co dawało
+bieguny na okręgu jednostkowym. Dolna granica `1/Q²` zachowuje dodatnie
+tłumienie i pozostawia dotychczasowe współczynniki m.in. dla Q = 0,7.
+Jeśli po tej korekcie współczynnik nie mieści się w Q2.30, zapis stromej
+półki jest odrzucany przed pierwszą zmianą stanu. Przykład to HSQ
+1 kHz, +12 dB, Q = 10. Wysokie Q sprawdzono obliczeniowo i w symulatorze.
 
 Uwaga: niektóre implementacje (devicePEQ) mają dodatkowe poprawki
 `freqCompensation`/`qCompensation` dla wybranych scheme'ów; dla Position

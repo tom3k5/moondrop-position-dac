@@ -56,6 +56,7 @@ def check_data_configs() -> bool:
         ROOT / "local.moondrop.Position.json",
         ROOT / "dane" / "przyklad-eq.json",
         *sorted((ROOT / "dane" / "profile").glob("*.json")),
+        *sorted((ROOT / "dane" / "i18n").glob("*.json")),
     ]
     xml_files = [
         ROOT / "flatpak" / "local.moondrop.Position.metainfo.xml",
@@ -69,7 +70,7 @@ def check_data_configs() -> bool:
         try:
             json.loads(path.read_text(encoding="utf-8"))
             checked += 1
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             print(f"[BŁĄD] JSON {path.relative_to(ROOT)}: {exc}")
             ok = False
     for path in xml_files:

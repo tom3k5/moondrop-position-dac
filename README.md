@@ -64,6 +64,8 @@ flatpak build-bundle flatpak-repo position-dac.flatpak local.moondrop.Position
 
 The manifest ([`local.moondrop.Position.json`](local.moondrop.Position.json)) requests `--device=all` (USB `hidraw` DSP access), `--share=network` (user-initiated AutoEq catalog downloads), `--talk-name=org.kde.StatusNotifierWatcher` (system tray icon), and `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (desktop window).
 
+The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal supplies a raw USB handle for a libusb-style transport. If you use local profiles and cached curves, run `flatpak run --unshare=network local.moondrop.Position` for an offline session.
+
 ---
 
 ## Why Use the Native Linux App?
@@ -94,7 +96,7 @@ The manifest ([`local.moondrop.Position.json`](local.moondrop.Position.json)) re
 Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Already active on DAC** once matched).
 
 - **Headphone response** compares the **Factory (B&K 5128)** baseline, **Target**, **Predicted result**, and **Current in DSP**; click **Details…** next to RMS to inspect the mean target offset and peak deviation in the `20 Hz–10 kHz` band (frequencies above `10 kHz` are shaded due to lower acoustic confidence).
-- **EQ correction** displays the electrical filter curve at `96 kHz` with profile and DSP pre-gain listed separately. On compact windows, switch cleanly between both views.
+- **EQ correction** displays the electrical filter curve at `96 kHz` with profile and DSP pre-gain listed separately. On compact windows, use the view switcher. Hover over a shortened fit summary or status message to read the full text.
 - Click legend pills to hide/show curves, hover a pill to **solo** it, or hover the plot for a live `Hz / dB / Δ dB` readout.
 
 ![Tuning and Profiles](docs/screenshots/01-tuning-profiles.png)
@@ -111,6 +113,7 @@ Switch to **AutoEq catalog** to search and filter thousands of IEM and over-ear 
 Click **Edit EQ…** to open the dedicated editor. With a DAC connected, **Live preview** turns on automatically, lets you audition every tweak in real time without flashing memory, and safely restores your previous DAC settings if you turn it off or cancel.
 
 - Drag numbered handles `1–8` directly on the **EQ correction** plot (Freq / Gain / scroll wheel Q), fine-tune with sliders or numeric fields, and click **Set automatically** to set pre-gain from available headroom.
+- If a steep `LSQ` or `HSQ` exceeds the DAC's coefficient range, reduce Q or gain. Live preview restores the original coefficients and pre-gain when it ends.
 - Switch to **Frequency response** to check the predicted acoustic curve, enable **Compare with initial profile**, and use the bottom bar to **Export profile…** (`.txt` / `.json`), **Save profile**, or **Apply to DAC**.
 
 ![EQ Editor](docs/screenshots/04-eq-editor.png)

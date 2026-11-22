@@ -42,6 +42,54 @@ def test_biquad_coefficients_length_and_neutral_pk() -> None:
     assert b0 == 1 << 30
 
 
+@pytest.mark.parametrize(("kind", "gain"), [("LSQ", 12), ("LSQ", -12), ("HSQ", -12)])
+def test_steep_shelves_have_damped_poles_and_requested_gain(kind: str, gain: int) -> None:
+    band = {"band": 1, "type": kind, "freq": 1000, "gain": gain, "q": 10}
+    code = dac.TYPE_TO_CODE[kind]
+    coefficients = dac.biquad_coefficients(code, 1000, gain, 10, for_write=True)
+    assert coefficients != dac.biquad_coefficients(code, 1000, gain, 5.1, for_write=True)
+    _, _, _, negative_a1, negative_a2 = struct.unpack("<5i", coefficients)
+    # Kryterium Jury dla mianownika drugiego rzędu po kwantyzacji Q2.30.
+    assert abs(negative_a2) < dac.COEFF_SCALE
+    assert dac.COEFF_SCALE - negative_a2 > abs(negative_a1)
+    points = gui.response_points(gui.Profile("Shelf", 7, [band], 0), [20, 1000, 47000])
+    low, high = (gain, 0) if kind == "LSQ" else (0, gain)
+    assert [level for _, level in points] == pytest.approx([low, gain / 2, high], abs=0.02)
+
+
+def test_unrepresentable_steep_shelf_leaves_device_state_intact() -> None:
+    dev = gui.DemoDevice()
+    bands = gui.default_custom_bands()
+    bands[-1].update(type="HSQ", freq=1000, gain=12, q=10)
+    original = dev.custom_coefficients[:]
+    with pytest.raises(dac.HidError, match=r"Q2\.30"):
+        dac.write_profile(dev, bands, -3)
+    assert dev.slot() == 0
+    assert dev.custom_coefficients == original
+
+
+def test_apply_replaces_an_old_steep_shelf_and_skips_a_matching_one(monkeypatch) -> None:
+    dev = gui.DemoDevice()
+    dev.set_slot(dac.CUSTOM_SLOT)
+    bands = gui.default_custom_bands()
+    bands[0].update(type="LSQ", freq=1000, gain=12, q=10)
+    profile = gui.custom_profile("Steep shelf", dac.CUSTOM_SLOT, bands, 0.0)
+    dev.custom_bands = [dac.quantized_band(band) for band in bands]
+    # Stary zapis miał bieguny bez tłumienia, ale te same parametry pasma.
+    coefficients = gui.coefficients_for_band(bands[0])
+    dev.custom_coefficients[0] = coefficients[:-4] + struct.pack("<i", -(1 << 30))
+    saves = []
+    monkeypatch.setattr(dev, "save", lambda: saves.append(True))
+    monkeypatch.setattr(dac.time, "sleep", lambda _: None)
+
+    assert not profile.matches(gui.read_state(dev))
+    state = gui.apply_profile(lambda _path: dev, "demo", profile)
+    assert state.coefficients[0] == coefficients
+    assert profile.matches(state)
+    gui.apply_profile(lambda _path: dev, "demo", profile)
+    assert saves == [True]
+
+
 def test_band_readback_can_include_q30_coefficients(monkeypatch) -> None:
     device = dac.MoondropPosition.__new__(dac.MoondropPosition)
     payload = bytearray(63)
@@ -127,6 +175,7 @@ def test_demo_device_apply_and_live_eq_restore() -> None:
     restored = gui.read_state(dev)
     assert restored.slot == dac.CUSTOM_SLOT
     assert dac.preamp_matches(restored.preamp, profile.preamp or 0.0, allow_half_db=True)
+    assert restored.coefficients == state.coefficients
 
 
 def test_parse_alsa_stream0_and_demo_playback_quality() -> None:

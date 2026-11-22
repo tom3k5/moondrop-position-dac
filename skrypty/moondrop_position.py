@@ -268,10 +268,10 @@ class MoondropPosition:
             band["coefficients"] = bytes(p[7:27])
         return band
 
-    def read_eq(self, bands: int) -> list[dict]:
+    def read_eq(self, bands: int, *, include_coefficients: bool = False) -> list[dict]:
         out = []
         for i in range(bands):
-            band = self.read_band(i)
+            band = self.read_band(i, include_coefficients=include_coefficients)
             if band is None:
                 break
             out.append(band)
@@ -293,7 +293,17 @@ class MoondropPosition:
         return struct.unpack_from("<h", reply, 3)[0]
 
     # -- zapis -------------------------------------------------------------
-    def write_band(self, index: int, freq: float, gain: float, q: float, ftype: str, slot: int) -> bytes:
+    def write_band(
+        self,
+        index: int,
+        freq: float,
+        gain: float,
+        q: float,
+        ftype: str,
+        slot: int,
+        *,
+        coefficients: bytes | None = None,
+    ) -> bytes:
         code = TYPE_TO_CODE.get(ftype.upper())
         if code is None:
             raise ValueError(f"Nieznany typ filtra: {ftype!r} (dozwolone: {', '.join(TYPE_TO_CODE)})")
@@ -302,7 +312,9 @@ class MoondropPosition:
         payload[1] = CMD_EQ_UPDATE
         payload[2] = 0x18
         payload[4] = index
-        payload[7:27] = biquad_coefficients(code, freq, gain, q)
+        payload[7:27] = (
+            biquad_coefficients(code, freq, gain, q, for_write=True) if coefficients is None else coefficients
+        )
         struct.pack_into("<H", payload, 27, round(freq))
         struct.pack_into("<h", payload, 29, clamp_i16(q * 256))
         struct.pack_into("<h", payload, 31, clamp_i16(gain * 256))
@@ -360,19 +372,23 @@ def preamp_payload(db: float, *, legacy: bool = True) -> bytes:
     return bytes([OP_WRITE, CMD_PRE_GAIN, length]) + struct.pack("<h", clamp_i16(db * 256))
 
 
-def biquad_coefficients(ftype: int, freq: float, gain: float, q: float) -> bytes:
+def biquad_coefficients(ftype: int, freq: float, gain: float, q: float, *, for_write: bool = False) -> bytes:
     """Zwraca 20 B: b0,b1,b2,-a1,-a2 jako int32 LE w Q2.30 (a0 znormalizowane)."""
     freq = max(20.0, min(20000.0, freq))
     q = max(0.1, min(10.0, q))
     w0 = 2.0 * math.pi * freq / COEFF_FS
     cos_w0, sin_w0 = math.cos(w0), math.sin(w0)
 
-    if ftype in (1, 3):  # pólka LS / HS
+    check_shelf_range = False
+    if ftype in (1, 3):  # LSQ / HSQ
         big_a = 10.0 ** (gain / 40.0)
-        # "Q" półki to w praktyce slope S; dla S > 1 wyrażenie pod pierwiastkiem
-        # robi się ujemne — przycinamy do 0 (filtry tego modelu i tak są PK/LP/HP).
+        # Wzór RBJ traktuje parametr półki jako nachylenie S. Przy dużym S
+        # ogranicz tłumienie od dołu do sin(w0)/(2Q), aby bieguny pozostały stabilne.
         inner = (big_a + 1.0 / big_a) * (1.0 / q - 1.0) + 2.0
-        alpha = sin_w0 / 2.0 * math.sqrt(max(0.0, inner))
+        if q > 1.0 and inner < 1.0 / q**2:
+            inner = 1.0 / q**2
+            check_shelf_range = for_write
+        alpha = sin_w0 / 2.0 * math.sqrt(inner)
         s = 2.0 * math.sqrt(big_a) * alpha
         if ftype == 1:
             b = [
@@ -417,6 +433,8 @@ def biquad_coefficients(ftype: int, freq: float, gain: float, q: float) -> bytes
         # Współczynnik spoza int32 zawija się (a nie nasyca) — tak samo robi
         # urządzenie i implementacja referencyjna; dotyczy szerokich półek.
         raw = round(value * COEFF_SCALE)
+        if check_shelf_range and not -(1 << 31) <= raw < 1 << 31:
+            raise HidError("Stroma półka przekracza zakres współczynników DAC-a (Q2.30). Zmniejsz Q lub gain.")
         wrapped = ((raw + (1 << 31)) % (1 << 32)) - (1 << 31)
         out += struct.pack("<i", wrapped)
     return bytes(out)
@@ -656,6 +674,16 @@ def quantized_band(band: dict) -> dict:
     }
 
 
+def expected_band_readback(band: dict) -> dict:
+    expected = quantized_band(band)
+    # Starszy zapis półki o dużym Q może mieć te same parametry i inne współczynniki.
+    if "coefficients" not in expected and band["type"] in ("LSQ", "HSQ") and band["q"] > 1:
+        expected["coefficients"] = biquad_coefficients(
+            TYPE_TO_CODE[band["type"]], band["freq"], band["gain"], band["q"]
+        )
+    return expected
+
+
 def _nearest_half_db(raw: int) -> float:
     # Połówki zaokrąglamy w stronę większego tłumienia.
     return ((raw + 63) // 128) / 2
@@ -674,8 +702,8 @@ def verify_profile(
     if slot is not None and actual_slot != slot:
         raise HidError(f"Slot: odczytano {actual_slot}, oczekiwano {slot}.")
     for index, band in enumerate(bands):
-        expected = quantized_band(band)
-        actual = dev.read_band(index)
+        expected = expected_band_readback(band)
+        actual = dev.read_band(index, include_coefficients="coefficients" in expected)
         if actual != expected:
             raise HidError(f"Pasmo {index + 1}: odczytano {actual}, oczekiwano {expected}.")
         time.sleep(DELAY_BAND_MS / 1000.0)
@@ -726,17 +754,26 @@ def write_profile(
     validate_profile(bands, slot, preamp)
     if slot != CUSTOM_SLOT:
         raise HidError("Zapis EQ jest dostępny tylko w slocie 7 (Custom).")
+    coefficients = [
+        band["coefficients"]
+        if "coefficients" in band
+        else biquad_coefficients(TYPE_TO_CODE[band["type"]], band["freq"], band["gain"], band["q"], for_write=True)
+        for band in bands
+    ]
     if dev.slot() != slot:
         activate_slot(dev, slot)
         previous_bands = None
     for index, band in enumerate(bands):
-        if (
-            previous_bands is not None
-            and index < len(previous_bands)
-            and quantized_band(band) == quantized_band(previous_bands[index])
-        ):
-            continue
-        dev.write_band(index, band["freq"], band["gain"], band["q"], band["type"], slot)
+        if previous_bands is not None and index < len(previous_bands):
+            expected = expected_band_readback(band)
+            previous = expected_band_readback(previous_bands[index])
+            if "coefficients" not in expected:
+                previous.pop("coefficients", None)
+            if expected == previous:
+                continue
+        dev.write_band(
+            index, band["freq"], band["gain"], band["q"], band["type"], slot, coefficients=coefficients[index]
+        )
         time.sleep(DELAY_BAND_MS / 1000.0)
         dev.latch_band(index)
         time.sleep(DELAY_BAND_MS / 1000.0)
@@ -778,7 +815,7 @@ def cmd_write_eq(args) -> int:
             payload[1] = CMD_EQ_UPDATE
             payload[2] = 0x18
             payload[4] = i
-            payload[7:27] = biquad_coefficients(code, band["freq"], band["gain"], band["q"])
+            payload[7:27] = biquad_coefficients(code, band["freq"], band["gain"], band["q"], for_write=True)
             struct.pack_into("<H", payload, 27, round(band["freq"]))
             struct.pack_into("<h", payload, 29, clamp_i16(band["q"] * 256))
             struct.pack_into("<h", payload, 31, clamp_i16(band["gain"] * 256))

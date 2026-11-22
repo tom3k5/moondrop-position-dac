@@ -4,13 +4,27 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>MOONDROP:Gravity Position</name>
+  <developer id="pl.innovibe">
+    <name>InnoVibe</name>
+  </developer>
   <summary>Apply equalizer profiles to a MOONDROP:Gravity Position DAC</summary>
   <summary xml:lang="pl">Stosuj profile korektora w DAC-u MOONDROP:Gravity Position</summary>
   <description>
-    <p>Read the active slot and pre-gain, select an EQ profile, and verify the settings reported by the connected MOONDROP:Gravity Position.</p>
-    <p xml:lang="pl">Odczytaj aktywny slot i pre-gain, wybierz profil EQ i sprawdź ustawienia zgłoszone przez podłączony MOONDROP:Gravity Position.</p>
+    <p>Edit and audition eight bands of hardware EQ, compare the predicted response with the current DSP, and save or apply local and AutoEq profiles for MOONDROP:Gravity Position.</p>
+    <p xml:lang="pl">Edytuj i odsłuchuj osiem pasm sprzętowego EQ, porównuj przewidywaną charakterystykę z odczytem DSP oraz zapisuj lub wgrywaj profile lokalne i AutoEq do MOONDROP:Gravity Position.</p>
   </description>
   <launchable type="desktop-id">local.moondrop.Position.desktop</launchable>
+  <url type="homepage">https://innovibe.pl/moondrop-position-dac/</url>
+  <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
+  <releases>
+    <release version="0.3.5" date="2026-11-22">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.5</url>
+      <description>
+        <p>Redesigned the Tuning view for compact windows, separated acoustic response and DSP correction, and added source and headphone type filters to the AutoEq catalog.</p>
+        <p xml:lang="pl">Przebudowano widok Strojenie dla małych okien, rozdzielono odpowiedź akustyczną i korekcję DSP oraz dodano filtry źródła i typu słuchawek w katalogu AutoEq.</p>
+      </description>
+    </release>
+  </releases>
   <supports><modalias>usb:v35D8p0123d*</modalias></supports>
   <content_rating type="oars-1.1"/>
 </component>

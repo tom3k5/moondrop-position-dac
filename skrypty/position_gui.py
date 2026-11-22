@@ -710,6 +710,11 @@ class Profile:
             or (
                 state.bands == [dac.quantized_band(band) for band in self.bands]
                 and dac.preamp_matches(state.preamp, self.preamp, allow_half_db=True)
+                and all(
+                    "coefficients" not in expected
+                    or state.coefficients[index : index + 1] == (expected["coefficients"],)
+                    for index, expected in enumerate(map(dac.expected_band_readback, self.bands))
+                )
             )
         )
 
@@ -1023,7 +1028,7 @@ def begin_live_eq(open_device, path: str) -> LiveEqSnapshot:
         try:
             if original_slot != dac.CUSTOM_SLOT:
                 dac.activate_slot(dev, dac.CUSTOM_SLOT)
-            bands = dev.read_eq(dac.BAND_COUNT)
+            bands = dev.read_eq(dac.BAND_COUNT, include_coefficients=True)
             if len(bands) != dac.BAND_COUNT:
                 raise dac.HidError("Brak kompletnego EQ w slocie Custom. Wgraj najpierw pełny profil.")
             custom = Profile("EQ przed odsłuchem", dac.CUSTOM_SLOT, bands, dev.preamp())
@@ -1196,11 +1201,15 @@ class DemoDevice:
             coefficients = self.custom_coefficients[index]
         return {**band, "coefficients": coefficients} if include_coefficients else dict(band)
 
-    def read_eq(self, bands):
-        return [self.read_band(index) for index in range(bands)]
+    def read_eq(self, bands, *, include_coefficients=False):
+        return [self.read_band(index, include_coefficients=include_coefficients) for index in range(bands)]
 
-    def write_band(self, index, freq, gain, q, ftype, _slot):
-        self.custom_coefficients[index] = dac.biquad_coefficients(dac.TYPE_TO_CODE[ftype], freq, gain, q)
+    def write_band(self, index, freq, gain, q, ftype, _slot, *, coefficients=None):
+        self.custom_coefficients[index] = (
+            dac.biquad_coefficients(dac.TYPE_TO_CODE[ftype], freq, gain, q, for_write=True)
+            if coefficients is None
+            else coefficients
+        )
         self.custom_bands[index] = dac.quantized_band(
             {
                 "band": index + 1,
@@ -3009,22 +3018,25 @@ class FeedbackLabel(QLabel):
         self.setVisible(False)
 
 
-class PreviewTitle(QLabel):
-    def set_title(self, title: str, *, wrap: bool) -> None:
+class ElidingLabel(FeedbackLabel):
+    def set_title(self, title: str, *, wrap: bool, detail: str = "") -> None:
         self.full_title = title
+        self.detail = detail
         self.setWordWrap(wrap)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred if wrap else QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
         )
         self.setAccessibleName(title)
         self.update_text()
+        self.setVisible(bool(title))
 
     def update_text(self) -> None:
         title = self.full_title
         if not self.wordWrap():
             title = self.fontMetrics().elidedText(title, Qt.TextElideMode.ElideRight, self.contentsRect().width())
-        self.setText(title)
-        self.setToolTip(self.full_title if title != self.full_title else "")
+        QLabel.setText(self, title)
+        parts = (self.full_title, self.detail) if title != self.full_title else (self.detail,)
+        self.setToolTip("\n\n".join(filter(None, parts)))
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -3361,7 +3373,7 @@ class ProfilesWindow(QWidget):
         card.setContentsMargins(12, 10, 12, 10)
         card.setSpacing(8)
 
-        self.preview_title = PreviewTitle()
+        self.preview_title = ElidingLabel()
         self.preview_title.setTextFormat(Qt.TextFormat.PlainText)
         self.preview_title.setWordWrap(True)
         title_font = self.preview_title.font()
@@ -3429,15 +3441,14 @@ class ProfilesWindow(QWidget):
         response_layout.addWidget(self.preview_key)
         summary_row = QHBoxLayout()
         summary_row.setSpacing(8)
-        self.fit_summary = QLabel()
+        self.fit_summary = ElidingLabel()
         self.fit_summary.setTextFormat(Qt.TextFormat.PlainText)
-        summary_row.addWidget(self.fit_summary)
+        summary_row.addWidget(self.fit_summary, 1)
         self.fit_detail_button = QToolButton()
         self.fit_detail_button.setText(tr("plot.fit_more"))
         self.fit_detail_button.setAccessibleName(tr("plot.fit_disclosure"))
         self.fit_detail_button.clicked.connect(self.show_fit_details)
         summary_row.addWidget(self.fit_detail_button)
-        summary_row.addStretch()
         response_layout.addLayout(summary_row)
         self.fit_details_text = ""
 
@@ -3468,13 +3479,14 @@ class ProfilesWindow(QWidget):
         preview.addWidget(self.preamp_summary)
 
         self.preview_scroll = scroll_content(preview_panel)
+        # Rezerwuj szerokość paska także wtedy, gdy bieżąca treść mieści się w widoku.
+        self.preview_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.preview_scroll.viewport().setAutoFillBackground(False)
         preview_panel.setAutoFillBackground(False)
         self.preview_scroll.viewport().installEventFilter(self)
         card.addWidget(self.preview_scroll, 1)
-        self.apply_status = FeedbackLabel()
+        self.apply_status = ElidingLabel()
         self.apply_status.setTextFormat(Qt.TextFormat.PlainText)
-        self.apply_status.setWordWrap(True)
         for status_label in (self.autoeq_panel.fit_status, self.apply_status):
             status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
@@ -4151,8 +4163,7 @@ class ProfilesWindow(QWidget):
             summary = tr("plot.fit_summary", rms=fit.rms_db, low=low, high=high)
             fit_details = tr("plot.fit_details", offset=fit.offset_db, peak=fit.peak_db, freq=fit.peak_hz)
             self.fit_details_text = f"{target_detail}\n\n{fit_details}"
-        self.fit_summary.setToolTip(self.fit_details_text)
-        self.fit_summary.setText(summary)
+        self.fit_summary.set_title(summary, wrap=False, detail=self.fit_details_text)
         self.fit_detail_button.setEnabled(bool(self.fit_details_text))
 
         electrical = self.factory_profile if selected and selected.slot == 0 else selected
@@ -4242,7 +4253,7 @@ class ProfilesWindow(QWidget):
             message = tr("tuning.applying")
         elif not message and profile is not None and self.state is None:
             message = tr("tuning.connect_to_apply")
-        self.apply_status.setText(message)
+        self.apply_status.set_title(message, wrap=False)
         custom_selected = profile is not None and profile.slot == dac.CUSTOM_SLOT
         saved = (
             self.catalog_selected()
