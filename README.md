@@ -38,6 +38,9 @@ python3 skrypty/position_gui.py --diagnose
 ```
 
 The JSON report outputs the active slot, pre-gain, band parameters, and raw hexadecimal Q2.30 biquad coefficients.
+If more than one Position is attached, use the HID CLI's `list` command and pass the intended DSP node as
+`--device /dev/hidrawN` to commands such as `info` or `eq_fit.py --apply`. For GUI control, leave one supported DAC
+connected.
 
 ### 3. Try Without Hardware (Demo Simulator) or Run from Source
 Explore the entire UI, charts, AutoEq catalog, and EQ editor with no DAC connected:

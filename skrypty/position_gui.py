@@ -102,6 +102,8 @@ from PySide6.QtWidgets import (
 import autoeq_catalog as catalog
 import i18n
 import moondrop_position as dac
+from dac_devices import AmbiguousDac, DeviceTarget
+from dac_transport import HidDeviceMissing, HidInterface, HidPermissionError
 from i18n import tr
 from measurements import FIT_HIGH_HZ, curve_level, fit_to_target, read_squig_txt
 
@@ -743,6 +745,11 @@ class DeviceState:
     global_gain_db: int | None = None
     mic_gain_raw: int | None = None
     coefficients: tuple[bytes, ...] = ()
+    interface: HidInterface | None = None
+
+    @property
+    def target(self) -> DeviceTarget:
+        return self.interface or self.path
 
 
 def load_profile(path: Path, name: str | None = None, *, pad_bands: bool = False) -> Profile:
@@ -813,24 +820,16 @@ def custom_profile(
     return Profile(name, slot, bands, preamp, global_gain_db, mic_gain_raw)
 
 
-def open_position(expected_path: str | None = None) -> dac.MoondropPosition | None:
-    devices = dac.candidate_devices()
-    if not devices:
-        if expected_path is not None:
-            raise dac.HidError("Position został odłączony.")
-        return None
-    if len(devices) != 1:
-        raise dac.HidError("Podłącz jeden MOONDROP:Gravity Position.")
-    path = devices[0]["node"]
-    if expected_path is not None and path != expected_path:
-        raise dac.HidError("Ścieżka urządzenia zmieniła się. Odczytaj stan ponownie.")
+def open_position(target: DeviceTarget | None = None) -> dac.MoondropPosition | None:
     try:
-        return dac.MoondropPosition(path)
-    except dac.HidPermissionError as exc:
+        return dac.connect_device(target)
+    except AmbiguousDac as exc:
+        raise dac.HidError("Podłącz jeden MOONDROP:Gravity Position.") from exc
+    except HidPermissionError as exc:
         raise dac.HidError("Brak dostępu do DAC-a. Sprawdź regułę udev na hoście.") from exc
-    except dac.HidDeviceMissing as exc:
+    except HidDeviceMissing as exc:
         raise dac.HidError(
-            f"System widzi DAC, ale {path} jest niedostępny. "
+            "System widzi DAC, ale węzeł HID jest niedostępny. "
             "Sprawdź dostęp do urządzenia w Flatpaku lub podłącz DAC ponownie."
         ) from exc
 
@@ -857,7 +856,17 @@ def read_state(dev) -> DeviceState:
             mic_gain_raw = dev.mic_gain_raw()
     if dev.slot() != slot:
         raise dac.HidError("Aktywny slot zmienił się podczas odczytu.")
-    return DeviceState(dev.path, firmware, slot, preamp, bands, global_gain_db, mic_gain_raw, tuple(coefficients))
+    return DeviceState(
+        dev.path,
+        firmware,
+        slot,
+        preamp,
+        bands,
+        global_gain_db,
+        mic_gain_raw,
+        tuple(coefficients),
+        getattr(dev, "interface", None),
+    )
 
 
 def poll_device(open_device) -> DeviceState | None:
@@ -962,8 +971,8 @@ def apply_global_gain(dev, target: int) -> None:
         raise dac.HidError(f"Global gain: oczekiwano {target} dB, odczytano {actual} dB.")
 
 
-def update_global_gain(open_device, path: str, target: int) -> DeviceState:
-    with open_device(path) as dev:
+def update_global_gain(open_device, device: DeviceTarget, target: int) -> DeviceState:
+    with open_device(device) as dev:
         apply_global_gain(dev, target)
         state = read_state(dev)
         if state.global_gain_db != target:
@@ -981,8 +990,8 @@ def apply_mic_gain(dev, target: int) -> None:
         raise dac.HidError(f"Mikrofon: oczekiwano kodu {target}, odczytano {observed}.")
 
 
-def update_mic_gain(open_device, path: str, target: int) -> DeviceState:
-    with open_device(path) as dev:
+def update_mic_gain(open_device, device: DeviceTarget, target: int) -> DeviceState:
+    with open_device(device) as dev:
         if dev.version() not in ("0.5", "demo"):
             raise dac.HidError("Brak potwierdzonego sterowania mikrofonem dla tego firmware.")
         apply_mic_gain(dev, target)
@@ -1053,13 +1062,15 @@ def _write_profile_on_device(dev, profile: Profile, state: DeviceState) -> Devic
     return updated
 
 
-def apply_profile(open_device, path: str, profile: Profile) -> DeviceState:
-    with open_device(path) as dev:
+def apply_profile(open_device, device: DeviceTarget, profile: Profile) -> DeviceState:
+    with open_device(device) as dev:
         return _write_profile_on_device(dev, profile, read_state(dev))
 
 
-def apply_profile_with_previous(open_device, path: str, profile: Profile) -> tuple[Profile | None, DeviceState]:
-    with open_device(path) as dev:
+def apply_profile_with_previous(
+    open_device, device: DeviceTarget, profile: Profile
+) -> tuple[Profile | None, DeviceState]:
+    with open_device(device) as dev:
         before = read_state(dev)
         previous = previous_profile_from_state(before)
         after = _write_profile_on_device(dev, profile, before)
@@ -1068,14 +1079,14 @@ def apply_profile_with_previous(open_device, path: str, profile: Profile) -> tup
 
 @dataclass
 class LiveEqSnapshot:
-    path: str
+    target: DeviceTarget
     slot: int
     preamp: float
     custom: Profile
 
 
-def begin_live_eq(open_device, path: str) -> LiveEqSnapshot:
-    with open_device(path) as dev:
+def begin_live_eq(open_device, device: DeviceTarget) -> LiveEqSnapshot:
+    with open_device(device) as dev:
         original_slot = dev.slot()
         original_preamp = dev.preamp()
         if original_slot not in (0, dac.CUSTOM_SLOT):
@@ -1093,13 +1104,13 @@ def begin_live_eq(open_device, path: str) -> LiveEqSnapshot:
                 dac.activate_slot(dev, original_slot)
                 dac.apply_preamp(dev, original_preamp)
             raise
-        return LiveEqSnapshot(path, original_slot, original_preamp, custom)
+        return LiveEqSnapshot(device, original_slot, original_preamp, custom)
 
 
 def listen_live_eq(
     open_device, snapshot: LiveEqSnapshot, profile: Profile, previous: Profile, previous_preamp: float
 ) -> float:
-    with open_device(snapshot.path) as dev:
+    with open_device(snapshot.target) as dev:
         if dev.slot() != dac.CUSTOM_SLOT:
             raise dac.HidError("Aktywny slot zmienił się podczas odsłuchu.")
         preamp_changed = profile.preamp != previous.preamp
@@ -1114,7 +1125,7 @@ def listen_live_eq(
 
 
 def end_live_eq(open_device, snapshot: LiveEqSnapshot, previous: Profile | None) -> None:
-    with open_device(snapshot.path) as dev:
+    with open_device(snapshot.target) as dev:
         try:
             dac.write_profile(
                 dev,
@@ -1129,8 +1140,8 @@ def end_live_eq(open_device, snapshot: LiveEqSnapshot, previous: Profile | None)
                 dac.apply_preamp(dev, snapshot.preamp)
 
 
-def restore_defaults(open_device, path: str) -> DeviceState:
-    with open_device(path) as dev:
+def restore_defaults(open_device, device: DeviceTarget) -> DeviceState:
+    with open_device(device) as dev:
         state = read_state(dev)
         if state.global_gain_db is None:
             raise dac.HidError("Przywracanie wymaga odczytu global gainu.")
@@ -1153,13 +1164,13 @@ def restore_defaults(open_device, path: str) -> DeviceState:
         return state
 
 
-def read_custom_backup(open_device, path: str) -> Profile:
-    with open_device(path) as dev:
+def read_custom_backup(open_device, device: DeviceTarget) -> Profile:
+    with open_device(device) as dev:
         state = read_state(dev)
         if state.slot != dac.CUSTOM_SLOT or any(band is None for band in state.bands):
             raise dac.HidError("Kopia wymaga aktywnego slotu Custom i ośmiu odczytanych pasm.")
         bands = [band for band in state.bands if band is not None]
-        name = "position-custom-demo" if path == "demo" else "position-custom"
+        name = "position-custom-demo" if state.path == "demo" else "position-custom"
         mic_gain_raw = state.mic_gain_raw if state.mic_gain_raw in MIC_GAIN_REQUESTS else None
         profile = custom_profile(name, state.slot, bands, state.preamp, state.global_gain_db, mic_gain_raw)
         dac.verify_profile(dev, profile.bands, profile.slot, profile.preamp)
@@ -2036,7 +2047,7 @@ class EqualizerDialog(QDialog):
         current: Profile | None,
         factory: Profile | None = None,
         *,
-        device_path: str | None = None,
+        device_path: DeviceTarget | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(tr("editor.title"))
@@ -4555,7 +4566,7 @@ class ProfilesWindow(QWidget):
         if (
             self.state is None
             or state is None
-            or (self.state.path, self.state.firmware) != (state.path, state.firmware)
+            or (self.state.target, self.state.firmware) != (state.target, state.firmware)
         ):
             self.factory_profile = Profile("Fabryczny EQ", 0, list(POSITION_FACTORY_BANDS), 0.0)
             self.last_applied_profile = None
@@ -4764,7 +4775,7 @@ class ProfilesWindow(QWidget):
                     state.mic_gain_raw if state.mic_gain_raw in MIC_GAIN_REQUESTS else None,
                 )
         editor = EqualizerDialog(
-            self, source, current, self.factory_profile, device_path=state.path if state is not None else None
+            self, source, current, self.factory_profile, device_path=state.target if state is not None else None
         )
         self.editor_active = True
         self.timer.stop()
@@ -4792,13 +4803,13 @@ class ProfilesWindow(QWidget):
     def apply_candidate(self, profile: Profile | None, *, restoring: bool = False) -> None:
         if self.state is None or self.command_active or self.editor_active or profile is None:
             return
-        path = self.state.path
+        device = self.state.target
         self.applying_profile = profile
         self.applying_restore = restoring
         self.apply_error = ""
         self.apply_notice = ""
         self.feedback.clear()
-        self.start(lambda: apply_profile_with_previous(self.open_device, path, profile), self.apply_done)
+        self.start(lambda: apply_profile_with_previous(self.open_device, device, profile), self.apply_done)
 
     def edit_global_gain(self) -> None:
         state = self.state
@@ -4819,7 +4830,7 @@ class ProfilesWindow(QWidget):
             self.timer.start()
         if accepted and target != state.global_gain_db:
             self.feedback.setText("Ustawiam global gain…")
-            self.start(lambda: update_global_gain(self.open_device, state.path, target), self.global_gain_done)
+            self.start(lambda: update_global_gain(self.open_device, state.target, target), self.global_gain_done)
 
     def global_gain_done(self, state, error: str) -> None:
         self.refresh_done(state, error)
@@ -4864,7 +4875,7 @@ class ProfilesWindow(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             target = values[slider.value()]
             self.feedback.setText("Ustawiam wzmocnienie mikrofonu…")
-            self.start(lambda: update_mic_gain(self.open_device, state.path, target), self.mic_gain_done)
+            self.start(lambda: update_mic_gain(self.open_device, state.target, target), self.mic_gain_done)
 
     def mic_gain_done(self, state, error: str) -> None:
         self.refresh_done(state, error)
@@ -4877,9 +4888,9 @@ class ProfilesWindow(QWidget):
     def backup_custom(self) -> None:
         if self.state is None or self.command_active or self.state.slot != dac.CUSTOM_SLOT:
             return
-        path = self.state.path
+        device = self.state.target
         self.feedback.setText(tr("device.backup_reading"))
-        self.start(lambda: read_custom_backup(self.open_device, path), self.backup_done)
+        self.start(lambda: read_custom_backup(self.open_device, device), self.backup_done)
 
     def backup_done(self, profile: Profile | None, error: str) -> None:
         self.refresh_buttons()
@@ -4923,7 +4934,7 @@ class ProfilesWindow(QWidget):
     def confirm_defaults(self) -> None:
         if self.editor_active or not self.defaults_button.isEnabled():
             return
-        path = self.state.path
+        device = self.state.target
         self.open_window()
         box = QMessageBox(self)
         box.setWindowTitle(tr("device.factory_reset"))
@@ -4936,7 +4947,7 @@ class ProfilesWindow(QWidget):
         box.exec()
         if box.clickedButton() is restore:
             self.feedback.setText(tr("device.resetting"))
-            self.start(lambda: restore_defaults(self.open_device, path), self.defaults_done)
+            self.start(lambda: restore_defaults(self.open_device, device), self.defaults_done)
 
     def defaults_done(self, state, error: str) -> None:
         self.refresh_done(state, error)
@@ -5041,7 +5052,8 @@ def main() -> int:
                     report = diagnose_controls(dev)
                 else:
                     state = read_state(dev)
-                    report = vars(state) | {"coefficients": [band.hex() for band in state.coefficients]}
+                    report = {key: value for key, value in vars(state).items() if key != "interface"}
+                    report["coefficients"] = [band.hex() for band in state.coefficients]
         except dac.HidError as exc:
             print(exc, file=sys.stderr)
             return 1

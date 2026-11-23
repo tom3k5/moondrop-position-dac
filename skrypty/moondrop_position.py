@@ -11,25 +11,23 @@ Ramka (64 B, report ID 0x4B, endpointy przerwań):
     OP = 0x01 zapis, 0x80 odczyt; odpowiedź wraca jako input report
     z tym samym CMD.
 
-UWAGA: skrypt nie był testowany na sprzęcie — w sesji, w której powstał,
-brak było dostępu do /dev/hidraw (wymaga reguły udev, patrz udev/).
-Odczyt (info, read-eq) jest bezpieczny. Zapis zmienia EQ w pamięci flash
-urządzenia; używaj --dry-run, aby najpierw zobaczyć ramki.
+Dostęp do /dev/hidraw wymaga reguły udev (patrz udev/). Zapis zmienia EQ
+w pamięci flash urządzenia. Opcja --dry-run pokazuje ramki bez zapisu.
 """
 
 from __future__ import annotations
 
 import argparse
-import contextlib
-import glob
 import json
 import math
 import os
 import re
-import select
 import struct
 import sys
 import time
+
+from dac_devices import DacModel, DacRegistry, DeviceTarget
+from dac_transport import HidDeviceMissing, HidError, HidPermissionError, HidrawTransport, HidReport
 
 REPORT_ID = 0x4B
 VENDOR_ID = 0x35D8
@@ -73,155 +71,37 @@ DELAY_FLASH_MS = 200
 DELAY_WRITE_EQ_MS = 150
 REPLY_TIMEOUT_MS = 600
 
-UDEV_HINT = """\
-Brak dostępu do urządzenia HID. /dev/hidraw* jest zwykle root:root 0600.
-Dodaj regułę udev (plik udev/70-moondrop-position.rules z tego projektu):
-
-  sudo cp udev/70-moondrop-position.rules /etc/udev/rules.d/
-  sudo udevadm control --reload-rules && sudo udevadm trigger
-  # odłącz i podłącz DAC ponownie
-
-Weryfikacja: ls -l /dev/hidraw*  (powinno być crw-rw----+ ... root)
-"""
-
-
-# --------------------------------------------------------------------------
-# Znajdowanie urządzenia (sysfs, bez otwierania /dev)
-# --------------------------------------------------------------------------
-
-
-def candidate_devices() -> list[dict]:
-    """Zwraca hidraw, których deskryptor deklaruje report 0x4B i VID:PID 35d8:0123."""
-    found = []
-    for sysdir in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
-        try:
-            with open(os.path.join(sysdir, "device", "uevent"), encoding="utf-8") as fh:
-                uevent = fh.read()
-        except OSError:
-            continue
-        hid_id = ""
-        name = ""
-        for line in uevent.splitlines():
-            if line.startswith("HID_ID="):
-                hid_id = line.split("=", 1)[1]
-            elif line.startswith("HID_NAME="):
-                name = line.split("=", 1)[1]
-        # HID_ID=0003:000035D8:00000123
-        try:
-            _bus, vid, pid = hid_id.split(":")
-            if int(vid, 16) != VENDOR_ID or int(pid, 16) != PRODUCT_ID:
-                continue
-        except ValueError:
-            continue
-        try:
-            with open(os.path.join(sysdir, "device", "report_descriptor"), "rb") as fh:
-                desc = fh.read()
-        except OSError:
-            desc = b""
-        # Report ID 0x4B -> w deskryptorze sekwencja 0x85 0x4B.
-        if b"\x85\x4b" not in desc:
-            continue
-        found.append(
-            {
-                "node": "/dev/" + os.path.basename(sysdir),
-                "sysfs": sysdir,
-                "name": name,
-                "vid": VENDOR_ID,
-                "pid": PRODUCT_ID,
-            }
-        )
-    return found
-
-
-def pick_device(explicit: str | None) -> str:
-    if explicit:
-        return explicit
-    devs = candidate_devices()
-    if not devs:
-        sys.exit("Nie znaleziono MOONDROP:Gravity Position (35d8:0123) z reportem HID 0x4B.")
-    return devs[0]["node"]
-
-
-# --------------------------------------------------------------------------
-# Transport
-# --------------------------------------------------------------------------
-
-
-class HidError(RuntimeError):
-    pass
-
-
-class HidPermissionError(HidError):
-    pass
-
-
-class HidDeviceMissing(HidError):
-    pass
-
 
 class MoondropPosition:
-    def __init__(self, path: str, timeout_ms: int = REPLY_TIMEOUT_MS):
-        self.path = path
+    def __init__(self, transport: HidrawTransport, timeout_ms: int = REPLY_TIMEOUT_MS):
+        self.transport = transport
+        self.interface = transport.interface
+        self.path = self.interface.node
         self.timeout_ms = timeout_ms
-        try:
-            self.fd = os.open(path, os.O_RDWR | os.O_NONBLOCK)
-        except PermissionError:
-            raise HidPermissionError(UDEV_HINT) from None
-        except FileNotFoundError:
-            raise HidDeviceMissing(
-                f"Nie ma {path}. Sprawdź `{os.path.basename(sys.argv[0])} list` — "
-                "węzeł może nie istnieć (moduł hidraw / sandbox) albo urządzenie "
-                "jest odłączone."
-            ) from None
-        except OSError as exc:
-            raise HidError(f"Nie mogę otworzyć {path}: {exc}") from None
-        self._drain()
-
-    # -- niskopoziomowe ----------------------------------------------------
-    def close(self) -> None:
-        with contextlib.suppress(OSError):
-            os.close(self.fd)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
-        self.close()
+        self.transport.close()
 
     def _write_frame(self, payload: bytes) -> None:
         if len(payload) > PAYLOAD_LEN:
             raise ValueError(f"payload {len(payload)} B > {PAYLOAD_LEN} B")
-        frame = bytes([REPORT_ID]) + payload + b"\x00" * (PAYLOAD_LEN - len(payload))
-        try:
-            if os.write(self.fd, frame) != len(frame):
-                raise HidError("Niepełny zapis raportu HID.")
-        except OSError as exc:
-            raise HidError(f"Zapis do HID nie powiódł się: {exc}") from None
+        self.transport.write(bytes([REPORT_ID]) + payload.ljust(PAYLOAD_LEN, b"\x00"))
 
     def _drain(self) -> None:
         """Wyrzuca zaległe odpowiedzi (kilka poleceń dzieli CMD 0x09)."""
-        while True:
-            try:
-                data = os.read(self.fd, PAYLOAD_LEN + 1)
-            except BlockingIOError:
+        for _ in range(64):
+            if self.transport.read(PAYLOAD_LEN + 1) is None:
                 return
-            except OSError:
-                return
-            if not data:
-                return
+        raise HidError("Kolejka raportów HID nie opróżniła się.")
 
     def _read_reply(self, cmd: int, index: int | None = None) -> bytes | None:
         deadline = time.monotonic() + self.timeout_ms / 1000.0
-        while time.monotonic() < deadline:
-            remaining = deadline - time.monotonic()
-            ready, _, _ = select.select([self.fd], [], [], remaining)
-            if not ready:
-                return None
-            try:
-                data = os.read(self.fd, PAYLOAD_LEN + 1)
-            except (BlockingIOError, OSError):
-                return None
-            if not data:
+        while (remaining := deadline - time.monotonic()) > 0:
+            data = self.transport.read(PAYLOAD_LEN + 1, remaining)
+            if data is None:
                 return None
             payload = data[1:] if data[0] == REPORT_ID else data
             if len(payload) < 2:
@@ -449,27 +329,51 @@ def fmt_band(b: dict) -> str:
     return f"{b['band']:>2}. {b['type']:<3}  f={b['freq']:>6} Hz  gain={b['gain']:>+7.2f} dB  Q={b['q']:>6.3f}"
 
 
+POSITION_MODEL = DacModel(
+    model_id="moondrop-position",
+    display_name="MOONDROP:Gravity Position",
+    usb_id=(VENDOR_ID, PRODUCT_ID),
+    reports=frozenset(HidReport(REPORT_ID, kind, PAYLOAD_LEN) for kind in ("input", "output")),
+    connect=MoondropPosition,
+)
+DEVICE_REGISTRY = DacRegistry((POSITION_MODEL,))
+
+
+def connect_device(target: DeviceTarget | None = None, timeout_ms: int = REPLY_TIMEOUT_MS) -> MoondropPosition | None:
+    selected = DEVICE_REGISTRY.select(target)
+    return DEVICE_REGISTRY.open(selected, timeout_ms) if selected is not None else None
+
+
+def require_device(target: DeviceTarget | None = None, timeout_ms: int = REPLY_TIMEOUT_MS) -> MoondropPosition:
+    device = connect_device(target, timeout_ms)
+    if device is None:
+        raise HidDeviceMissing("Nie znaleziono MOONDROP:Gravity Position (35d8:0123) z raportem HID 0x4B.")
+    return device
+
+
 def cmd_list(_args) -> int:
-    devs = candidate_devices()
-    if not devs:
-        print("Brak urządzenia 35d8:0123 z reportem 0x4B.")
+    devices = DEVICE_REGISTRY.detect()
+    if not devices:
+        print("Brak urządzenia 35d8:0123 z raportem 0x4B.")
         return 1
-    for dev in devs:
-        print(f"{dev['node']}  [{dev['name']}]  35d8:0123  (report 0x4B)")
-        print(f"  sysfs: {dev['sysfs']}")
+    for selected in devices:
+        interface = selected.interface
+        print(
+            f"{interface.node}  [{interface.name}]  {interface.vendor_id:04x}:{interface.product_id:04x}  (report 0x4B)"
+        )
+        print(f"  sysfs: {interface.sysfs}")
         try:
-            os.close(os.open(dev["node"], os.O_RDWR | os.O_NONBLOCK))
-            print("  dostęp: OK")
-        except PermissionError:
+            with DEVICE_REGISTRY.open(selected, REPLY_TIMEOUT_MS):
+                print("  dostęp: OK")
+        except HidPermissionError:
             print("  dostęp: BRAK (dodaj regułę udev — patrz --help / udev/)")
-        except OSError as exc:
+        except HidError as exc:
             print(f"  dostęp: błąd ({exc})")
     return 0
 
 
 def open_device(args) -> MoondropPosition:
-    path = pick_device(getattr(args, "device", None))
-    return MoondropPosition(path, timeout_ms=args.timeout)
+    return require_device(getattr(args, "device", None), args.timeout)
 
 
 def cmd_info(args) -> int:

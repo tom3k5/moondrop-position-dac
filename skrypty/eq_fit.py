@@ -308,9 +308,12 @@ def apply_profile(profile: dict, device_path: str | None) -> None:
     preamp = float(profile.get("preamp", 0.0))
     slot = int(profile.get("slot", DEVICE_SLOT_CUSTOM))
 
-    with mp.MoondropPosition(mp.pick_device(device_path)) as dev:
-        print(f"Urządzenie: {dev.path}  firmware={dev.version()}")
-        mp.write_profile(dev, bands, preamp, slot)
+    try:
+        with mp.require_device(device_path) as dev:
+            print(f"Urządzenie: {dev.path}  firmware={dev.version()}")
+            mp.write_profile(dev, bands, preamp, slot)
+    except mp.HidError as exc:
+        raise SystemExit(str(exc)) from exc
     print(f"Zapisano profil; odczyt potwierdził {len(bands)} pasm.")
 
 

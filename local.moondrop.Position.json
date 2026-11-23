@@ -114,6 +114,8 @@
         "install -Dm755 position-dac /app/bin/position-dac",
         "install -Dm644 position_gui.py /app/share/position-dac/skrypty/position_gui.py",
         "install -Dm644 moondrop_position.py /app/share/position-dac/skrypty/moondrop_position.py",
+        "install -Dm644 dac_devices.py /app/share/position-dac/skrypty/dac_devices.py",
+        "install -Dm644 dac_transport.py /app/share/position-dac/skrypty/dac_transport.py",
         "install -Dm644 autoeq_catalog.py /app/share/position-dac/skrypty/autoeq_catalog.py",
         "install -Dm644 i18n.py /app/share/position-dac/skrypty/i18n.py",
         "install -Dm644 measurements.py /app/share/position-dac/skrypty/measurements.py",
@@ -140,6 +142,14 @@
         {
           "type": "file",
           "path": "skrypty/moondrop_position.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/dac_devices.py"
+        },
+        {
+          "type": "file",
+          "path": "skrypty/dac_transport.py"
         },
         {
           "type": "file",
