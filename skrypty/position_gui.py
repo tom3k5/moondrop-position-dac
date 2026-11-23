@@ -18,6 +18,7 @@ import webbrowser
 from collections import Counter
 from dataclasses import dataclass, replace
 from functools import lru_cache
+from html import escape
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import quote, urlencode
@@ -303,7 +304,7 @@ QSplitter::handle {
 QSplitter::handle:hover, QSplitter::handle:pressed {
     background: palette(alternate-base);
 }
-QFrame#sourceCard, QFrame#previewCard {
+QFrame#sourceCard, QFrame#previewCard, QFrame#catalogList {
     border: 1px solid palette(mid);
     border-radius: 8px;
     background: palette(base);
@@ -2702,10 +2703,38 @@ class AutoEqPanel(QWidget):
         self.targets.setAccessibleName(tr("autoeq.target_list"))
         self.targets.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.targets.setTextElideMode(Qt.TextElideMode.ElideRight)
-        layout.addWidget(self.targets, 1)
+        self.catalog_list = QFrame()
+        self.catalog_list.setObjectName("catalogList")
+        list_layout = QVBoxLayout(self.catalog_list)
+        list_layout.setContentsMargins(4, 4, 4, 4)
+        list_layout.setSpacing(2)
+        list_layout.addWidget(self.targets, 1)
+        layout.addWidget(self.catalog_list, 1)
 
         self.status = self.text_label()
         self.status.setWordWrap(False)
+        self.catalog_progress = FeedbackLabel()
+        self.catalog_progress.setTextFormat(Qt.TextFormat.PlainText)
+        self.catalog_progress.setWordWrap(True)
+        self.catalog_progress.setContentsMargins(8, 3, 8, 3)
+        list_layout.addWidget(self.catalog_progress)
+        self.catalog_error_detail = ""
+        self.catalog_error = QLabel()
+        self.catalog_error.setTextFormat(Qt.TextFormat.RichText)
+        self.catalog_error.setTextInteractionFlags(
+            Qt.TextInteractionFlag.LinksAccessibleByMouse | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
+        )
+        self.catalog_error.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.catalog_error.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self.catalog_error.setStyleSheet(
+            "QLabel { border-left: 2px solid palette(link); padding: 3px 8px;"
+            " background: palette(alternate-base); }"
+            " QLabel:hover { background: palette(midlight); }"
+            " QLabel:focus { border-color: palette(text); }"
+        )
+        self.catalog_error.linkActivated.connect(self.report_catalog_error)
+        self.catalog_error.hide()
+        list_layout.addWidget(self.catalog_error)
         layout.addWidget(self.fit_provenance)
         self.fit_status = FeedbackLabel()
         self.fit_status.setTextFormat(Qt.TextFormat.PlainText)
@@ -2824,6 +2853,7 @@ class AutoEqPanel(QWidget):
         self.search.setPlaceholderText(tr("search.autoeq_placeholder"))
         self.search.setAccessibleName(tr("search.autoeq_a11y"))
         self.refresh_action.setText(tr("autoeq.download_catalog"))
+        self.set_catalog_error(self.catalog_error_detail)
         self.folder_action.setText(tr("autoeq.open_local"))
         self.file_action.setText(tr("autoeq.open_custom"))
         self.source_filter.setAccessibleName(tr("autoeq.source_a11y"))
@@ -2922,13 +2952,35 @@ class AutoEqPanel(QWidget):
         self.update_actions()
         self.preview_changed.emit()
 
+    def set_catalog_error(self, detail: str) -> None:
+        self.catalog_error_detail = detail
+        self.catalog_error.setText(f'<a href="report">{escape(tr("autoeq.error_status"))}</a>' if detail else "")
+        description = tr("autoeq.error_report_hint", error=detail) if detail else ""
+        self.catalog_error.setToolTip(f"<p>{escape(description)}</p>" if description else "")
+        self.catalog_error.setAccessibleName(tr("autoeq.error_status"))
+        self.catalog_error.setAccessibleDescription(description)
+        self.catalog_error.setVisible(bool(detail))
+
+    def report_catalog_error(self) -> None:
+        if self.catalog_error_detail:
+            self.window.open_github_issue(
+                "bug_report.yml",
+                area="AutoEq / EQ Optimizer",
+                summary=self.catalog_error_detail,
+                diagnostics=f"{self.window.diagnostic_summary()}\nAutoEq: {self.catalog_error_detail}",
+            )
+
     def download_catalog(self) -> None:
-        self.status.setText(tr("autoeq.loading_catalog"))
+        self.set_catalog_error("")
+        self.status.clear()
+        self.catalog_progress.setText(tr("autoeq.loading_catalog"))
         self.start_job(lambda: catalog.download_index(self.index_path), self.catalog_downloaded)
 
     def catalog_downloaded(self, entries, error: str) -> None:
+        self.catalog_progress.clear()
         if error:
-            self.status.setText(tr("autoeq.catalog_failed", error=error))
+            self.status.clear()
+            self.set_catalog_error(tr("autoeq.catalog_failed", error=error))
             return
         self.entries = [entry for entry in self.entries if entry.local] + entries
         self.update_results()
@@ -2936,7 +2988,9 @@ class AutoEqPanel(QWidget):
     def open_catalog(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Wybierz folder repozytorium AutoEq")
         if path:
-            self.status.setText(tr("autoeq.indexing_catalog"))
+            self.set_catalog_error("")
+            self.status.clear()
+            self.catalog_progress.setText(tr("autoeq.indexing_catalog"))
             self.start_job(lambda: self.index_local_catalog(Path(path)), self.catalog_opened)
 
     def index_local_catalog(self, root: Path) -> list[catalog.Entry]:
@@ -2945,8 +2999,10 @@ class AutoEqPanel(QWidget):
         return entries
 
     def catalog_opened(self, entries, error: str) -> None:
+        self.catalog_progress.clear()
         if error:
-            self.status.setText(error)
+            self.status.clear()
+            self.set_catalog_error(error)
             return
         self.entries = [
             entry
@@ -4123,13 +4179,14 @@ class ProfilesWindow(QWidget):
             self.feedback.setText(tr("footer.open_failed", url=url))
         return opened
 
-    def open_github_issue(self, template: str) -> None:
+    def open_github_issue(self, template: str, **fields: str) -> None:
         params = {
             "template": template,
             "os": platform.platform(),
         }
         if template == "bug_report.yml":
             params["diagnostics"] = self.diagnostic_summary()
+        params.update(fields)
         url = f"{GITHUB_REPO_URL}/issues/new?{urlencode(params, quote_via=quote)}"
         self.open_external_url(url)
 

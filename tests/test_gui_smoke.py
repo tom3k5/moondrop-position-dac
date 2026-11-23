@@ -470,7 +470,7 @@ def test_app_version_matches_release_metadata_and_translates(tmp_path: Path) -> 
         app.processEvents()
 
 
-def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path) -> None:
+def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypatch) -> None:
     app = QApplication.instance() or QApplication([])
     (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
     window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
@@ -499,10 +499,38 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path) -> None:
         window.source_group.button(1).click()
         panel = window.autoeq_panel
         QTest.qWait(40)
-        assert panel.source_filter.y() < panel.mode.y() < panel.fit_controls.y() < panel.search.y() < panel.targets.y()
+        assert panel.source_filter.y() < panel.mode.y() < panel.fit_controls.y() < panel.search.y()
+        assert panel.search.y() < panel.catalog_list.y()
         assert panel.catalog_button.height() == add_button_height
         assert panel.catalog_button.mapTo(window, QPoint()).y() == add_button_y
         assert panel.status.x() > panel.catalog_button.geometry().right()
+        with monkeypatch.context() as pending:
+            pending.setattr(panel, "start_job", lambda *_: None)
+            panel.download_catalog()
+            QTest.qWait(20)
+            assert panel.catalog_progress.isVisible() and panel.catalog_progress.wordWrap()
+            assert panel.catalog_progress.text() == gui.tr("autoeq.loading_catalog")
+            assert panel.catalog_progress.parentWidget() is panel.catalog_list
+            assert panel.catalog_list.contentsRect().contains(panel.catalog_progress.geometry())
+            assert not panel.status.text()
+        panel.catalog_downloaded(None, "GitHub API zwróciło błąd HTTP 403.")
+        QTest.qWait(20)
+        assert not panel.catalog_progress.isVisible()
+        assert panel.catalog_error.isVisible()
+        assert panel.catalog_error.parentWidget() is panel.catalog_list
+        assert panel.catalog_list.contentsRect().contains(panel.catalog_error.geometry())
+        assert panel.targets.geometry().bottom() < panel.catalog_error.geometry().top()
+        assert panel.catalog_error.accessibleName() == "Błąd"
+        assert "HTTP 403" in panel.catalog_error.toolTip()
+        opened = []
+        monkeypatch.setattr(window, "open_external_url", opened.append)
+        QTest.mouseClick(
+            panel.catalog_error, Qt.MouseButton.LeftButton, pos=QPoint(16, panel.catalog_error.height() // 2)
+        )
+        assert len(opened) == 1
+        assert opened[0].startswith(f"{gui.GITHUB_REPO_URL}/issues/new?")
+        assert "template=bug_report.yml" in opened[0] and "HTTP%20403" in opened[0]
+        panel.set_catalog_error("")
         fit_option = QStyleOptionComboBox()
         panel.fit_range.initStyleOption(fit_option)
         fit_rect = panel.fit_range.style().subControlRect(

@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -70,24 +68,6 @@ def describe_path(relative: str, *, local_path: Path | None = None, revision: st
 
 
 def read_github(endpoint: str, limit: int, *, raw: bool = False) -> bytes:
-    if shutil.which("gh") is not None:
-        command = ["gh", "api", "--hostname", "github.com"]
-        if raw:
-            command += ["-H", "Accept: application/vnd.github.raw+json"]
-        try:
-            result = subprocess.run(
-                [*command, endpoint], capture_output=True, timeout=18, env={**os.environ, "GH_PROMPT_DISABLED": "1"}
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise ValueError("GitHub CLI przekroczył limit czasu.") from exc
-        if result.returncode:
-            message = result.stderr.decode(errors="replace").strip()
-            raise ValueError(message or "GitHub CLI nie zwrócił danych.")
-        data = result.stdout
-        if len(data) > limit:
-            raise ResponseTooLarge("Odpowiedź katalogu AutoEq jest większa niż dopuszczalny rozmiar.")
-        return data
-
     url = f"https://api.github.com/{endpoint.lstrip('/')}"
     accept = "application/vnd.github.raw+json" if raw else "application/vnd.github+json"
     request = urllib.request.Request(
