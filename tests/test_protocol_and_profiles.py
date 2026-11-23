@@ -274,6 +274,35 @@ def test_autoeq_read_github_uses_public_https(monkeypatch) -> None:
     assert data == b'{"tree": []}'
 
 
+@pytest.mark.parametrize("failure", ["missing_target_tree", "empty_targets", "http_403"])
+def test_autoeq_failed_refresh_keeps_existing_index_and_curve(tmp_path, monkeypatch, failure) -> None:
+    index = tmp_path / "catalog.json"
+    original = catalog.Entry(
+        "Existing", "oratory1990", "model", "measurements/oratory1990/data/in-ear/Existing.csv", False
+    )
+    catalog.save_index(index, [original])
+    saved_index = index.read_bytes()
+    curve = tmp_path / "saved-measurement.csv"
+    saved_curve = b"frequency,raw\n100,0\n"
+    curve.write_bytes(saved_curve)
+    roots = [{"type": "tree", "path": "measurements", "sha": "models"}]
+    if failure != "missing_target_tree":
+        roots.append({"type": "tree", "path": "targets", "sha": "targets"})
+    monkeypatch.setattr(catalog, "tree_children", lambda _revision: roots)
+
+    def read_blobs(_revision, prefix):
+        if prefix == "measurements":
+            yield "measurements/new-source/data/in-ear/New.csv", "new-sha"
+        if prefix == "targets" and failure == "http_403":
+            raise ValueError("GitHub API zwróciło błąd HTTP 403.")
+
+    monkeypatch.setattr(catalog, "catalog_blobs", read_blobs)
+    with pytest.raises(ValueError, match=r"AutoEq|HTTP 403"):
+        catalog.download_index(index)
+    assert index.read_bytes() == saved_index
+    assert curve.read_bytes() == saved_curve
+
+
 def test_shelves_supported_in_custom_profile_and_eq_fit() -> None:
     import eq_fit
 
