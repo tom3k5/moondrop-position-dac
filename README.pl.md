@@ -1,4 +1,4 @@
-# MOONDROP:Gravity Position — Natywny kontroler DSP, AutoEq i Audio dla Linuxa
+# DSP Control
 
 🌐 **Język:** [English](README.md) | Polski
 
@@ -14,6 +14,9 @@ Niezależnie od tego, czy grasz na Steam/Proton, czy stroisz swoje słuchawki IE
 ---
 
 ## Szybki start
+
+**Wersja testowa ze źródeł:** Pokazany niżej interfejs DSP Control uruchomisz z tego repozytorium. Aktualny publiczny
+Flatpak to [v0.3.8](https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.8).
 
 ### 1. Instalacja z paczki Flatpak (Zalecane)
 Pobierz plik `position-dac.flatpak` z zakładki [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (zawiera PySide6 i pełny optymalizator AutoEq):
@@ -39,8 +42,8 @@ python3 skrypty/position_gui.py --diagnose
 
 Raport JSON wypisze aktywny slot, pre-gain, parametry pasm oraz surowe współczynniki biquad Q2.30 zapisane szesnastkowo.
 Jeśli podłączono więcej niż jeden Position, uruchom polecenie `list` w CLI HID. Użyj właściwego węzła DSP jako
-`--device /dev/hidrawN` w poleceniach takich jak `info` lub `eq_fit.py --apply`. Do pracy w GUI zostaw podłączony
-jeden obsługiwany DAC.
+`--device /dev/hidrawN` w poleceniach takich jak `info` lub `eq_fit.py --apply`. W wersji uruchamianej
+ze źródeł wybierz egzemplarz w zakładce **Urządzenie**. Jeden obsługiwany DAC jest wybierany automatycznie.
 
 ### 3. Wypróbuj bez sprzętu (symulator) lub uruchom ze źródeł
 Przetestuj cały interfejs, wykresy, katalog AutoEq i edytor EQ bez podłączania DAC-a:
@@ -78,7 +81,7 @@ Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka p
 - **Bezpieczna praca offline:** Przeglądanie, obliczenia AutoEq i zapis profili na dysku są całkowicie oddzielone od zapisu w pamięci DAC-a. Każde wgranie przechodzi weryfikację odczytem przed i po zapisie flash, a odsłuch na żywo automatycznie przywraca poprzedni stan DAC-a po anulowaniu.
 - **Zasobnik systemowy i kontrola PipeWire:** Przełączaj profile dwoma kliknięciami z traya, sprawdzaj aktywną głębię bitową ALSA i w razie potrzeby wymuszaj próbkowanie w PipeWire (`44,1–384 kHz`).
 
-| Funkcja | Oficjalny Web Hub | MOONDROP:Gravity Position na Linux |
+| Funkcja | Oficjalny Web Hub | DSP Control |
 |---|---|---|
 | 8-pasmowy EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tylko `PK / LP / HP` (półki wyłączone) | **Odblokowuje `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), natywny USB HID `0x4B`, offline** |
 | Interaktywny wykres EQ i zapas do przesteru | Tylko suwaki | **Przeciąganie punktów `1–8` (Hz/dB/kółko Q) + automatyczny pre-gain i kontrola clippingu** |
@@ -95,7 +98,7 @@ Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka p
 
 ## Zrzuty ekranu
 
-MOONDROP:Gravity Position v0.3.8 w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
+DSP Control w trybie demonstracyjnym z motywem **Ciemny (InnoVibe)**.
 
 ### 1. Strojenie i podgląd charakterystyki
 Po lewej przeglądasz **Moje profile**, a po prawej oglądasz przewidywany efekt bez zmieniania ustawień sprzętu — **Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (po zapisie przycisk zamienia się w **Przywróć poprzedni**, pozwalając jednym kliknięciem wrócić do poprzedniego stanu, albo pokazuje **Już aktywny w DAC-u**, gdy stan nie był zmieniany).
@@ -165,7 +168,7 @@ Wszystko pod ręką wewnątrz aplikacji: krótkie instrukcje wgrywania i odsłuc
 ## Wsparcie dla projektu
 
 > [!TIP]
-> **Podoba Ci się MOONDROP:Gravity Position na Linuxa?**
+> **Podoba Ci się DSP Control?**
 > Jeśli aplikacja pomaga Ci wycisnąć lepsze brzmienie ze swojego DAC-a na Linuxie, możesz wesprzeć jej dalszy rozwój — każda kawa pomaga w kolejnych aktualizacjach, testach sprzętowych i nowych funkcjach!
 
 - ☕ **Postaw mi kawę:** Odwiedź [**stronę wsparcia InnoVibe**](https://innovibe.pl/ko-fi/) (wybierz kwotę i wygodną metodę płatności) albo kliknij **Postaw mi kawę…** w sekcji **Wsparcie projektu** w zakładce **Przewodnik**.

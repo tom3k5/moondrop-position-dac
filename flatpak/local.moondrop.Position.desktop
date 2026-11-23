@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=MOONDROP:Gravity Position
-Comment=Manage EQ profiles on the MOONDROP:Gravity Position DAC
-Comment[pl]=Zarządzaj profilami EQ w DAC-u MOONDROP:Gravity Position
+Name=DSP Control
+Comment=Manage hardware DSP profiles on USB DACs
+Comment[pl]=Zarządzaj profilami sprzętowego DSP w DAC-ach USB
 Exec=position-dac
 Icon=local.moondrop.Position
 Terminal=false

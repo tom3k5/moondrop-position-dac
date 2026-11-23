@@ -1,4 +1,4 @@
-# MOONDROP:Gravity Position — Native Linux DSP, AutoEq & Gaming Audio Controller
+# DSP Control
 
 🌐 **Language:** English | [Polski](README.pl.md)
 
@@ -14,6 +14,9 @@ Whether you play competitive games on Steam/Proton or tune your IEMs to Harman, 
 ---
 
 ## Quick Start
+
+**Source preview:** The DSP Control interface shown below runs from this repository. The current public Flatpak is
+[v0.3.8](https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.8).
 
 ### 1. Install via Flatpak (Recommended)
 Download `position-dac.flatpak` from [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (bundles PySide6 and the full AutoEq optimizer):
@@ -39,8 +42,8 @@ python3 skrypty/position_gui.py --diagnose
 
 The JSON report outputs the active slot, pre-gain, band parameters, and raw hexadecimal Q2.30 biquad coefficients.
 If more than one Position is attached, use the HID CLI's `list` command and pass the intended DSP node as
-`--device /dev/hidrawN` to commands such as `info` or `eq_fit.py --apply`. For GUI control, leave one supported DAC
-connected.
+`--device /dev/hidrawN` to commands such as `info` or `eq_fit.py --apply`. In the source version,
+select the intended unit under **Device**. A single supported DAC is selected automatically.
 
 ### 3. Try Without Hardware (Demo Simulator) or Run from Source
 Explore the entire UI, charts, AutoEq catalog, and EQ editor with no DAC connected:
@@ -78,7 +81,7 @@ The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal su
 - **Safe Offline Workflow:** Browsing, AutoEq fitting, and saving profiles to disk are completely separate from flashing the DAC. Every write performs pre/post-flash readback verification, and live preview automatically restores your previous DAC state if you cancel.
 - **System Tray & PipeWire Control:** Minimize to the tray to switch profiles in two clicks, check your active ALSA bit depth, and optionally force the PipeWire sample rate (`44.1–384 kHz`).
 
-| Feature | Official Web Hub | MOONDROP:Gravity Position for Linux |
+| Feature | Official Web Hub | DSP Control |
 |---|---|---|
 | 8-band Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | `PK / LP / HP` only (shelves disabled) | **Unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), native USB HID `0x4B`, offline** |
 | Interactive EQ Curve & Headroom | Sliders only | **Drag handles `1–8` (Freq/Gain/Wheel Q) + Auto Headroom & Clip Check** |
@@ -95,7 +98,7 @@ The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal su
 
 ## Screenshots
 
-MOONDROP:Gravity Position v0.3.8 running in demo mode with the **InnoVibe Dark** theme.
+DSP Control running in demo mode with the **InnoVibe Dark** theme.
 
 ### 1. Tuning & Frequency Response Preview
 Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Restore previous** after flashing so you can revert in one click, or shows **Already active on DAC** for an unchanged active state).
@@ -165,7 +168,7 @@ Everything you need inside the app: quick walkthroughs for tuning and live previ
 ## Support the Project
 
 > [!TIP]
-> **Enjoying MOONDROP:Gravity Position on Linux?**
+> **Enjoying DSP Control?**
 > If this app helps you get better sound out of your DAC on Linux, consider supporting continued development — every coffee helps keep updates, hardware testing, and new features coming!
 
 - ☕ **Buy me a coffee:** Visit the [**InnoVibe support page**](https://innovibe.pl/en/ko-fi/) (choose your preferred amount and payment method) or click **Buy me a coffee…** under **Support the project** in the app's **Guide** tab.

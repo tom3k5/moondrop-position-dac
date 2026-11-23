@@ -137,7 +137,7 @@ def test_guide_tooltips_and_support_links(tmp_path: Path, monkeypatch) -> None:
         assert window.report_button.toolTip()
         assert gui.APP_VERSION in window.guide_version_label.text()
         assert window.guide_version_label.toolTip()
-        assert f"App: MOONDROP:Gravity Position {gui.APP_VERSION}" in window.diagnostic_summary()
+        assert f"App: {gui.tr('app.title')} {gui.APP_VERSION}" in window.diagnostic_summary()
         assert "Mode: demo" in window.diagnostic_summary()
         window.state = gui.DeviceState(path="/dev/hidraw0", firmware="0.5", slot=7, preamp=-2.5, bands=[])
         diag = window.diagnostic_summary()
@@ -186,6 +186,88 @@ def test_guide_fits_at_start_with_larger_font(tmp_path: Path, monkeypatch) -> No
         window.quit_from_tray()
         app.processEvents()
         app.setFont(original_font)
+
+
+def test_source_labels_fit_compact_and_wide_windows(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    original_font = app.font()
+    app.setFont(QFont("DejaVu Sans", 13))
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.resize(720, 592)
+        window.show()
+        window.source_panel.parentWidget().setSizes([245, 400])
+        QTest.qWait(60)
+        buttons = list(window.source_group.buttons())
+        assert [button.text() for button in buttons] == ["Profile", "AutoEq"]
+        assert [button.accessibleName() for button in buttons] == ["Moje profile", "Katalog AutoEq"]
+        assert buttons[1].toolTip().startswith("Katalog AutoEq")
+        assert buttons[0].geometry().right() < buttons[1].geometry().left()
+        for button in buttons:
+            assert button.width() >= button.fontMetrics().horizontalAdvance(button.text()) + 20
+            assert window.source_panel.rect().contains(button.geometry())
+        window.refresh_done(gui.read_state(window.open_device()), "")
+        QTest.qWait(60)
+        assert window.connection.text() == window.connection.accessibleName()
+        assert "MOONDROP:Gravity Position" in window.connection.text()
+
+        window.language_combo.setCurrentIndex(window.language_combo.findData("en"))
+        assert [button.text() for button in buttons] == ["Profiles", "AutoEq"]
+        window.resize(1140, 820)
+        window.source_panel.parentWidget().setSizes([365, 700])
+        QTest.qWait(60)
+        assert [button.text() for button in buttons] == ["My profiles", "AutoEq catalog"]
+        assert window.windowTitle() == "DSP Control"
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+        app.setFont(original_font)
+
+
+def test_device_picker_uses_selected_demo_model_and_clears_disconnected_state(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"en","theme":"dark"}')
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    first = gui.DemoDevice()
+    second = gui.DemoDevice()
+    second.path = "second-demo"
+    second.model_name = "USB DAC with an intentionally long name for compact layout verification"
+    available = [first, second]
+    window.list_devices = lambda: [gui.DeviceChoice(device.path, device.model_name) for device in available]
+    window.open_device = lambda target: next((device for device in available if device.path == target), None)
+
+    def wait_until(predicate):
+        for _ in range(100):
+            QTest.qWait(20)
+            if predicate():
+                return
+        pytest.fail("Device UI did not complete the refresh")
+
+    try:
+        window.resize(720, 592)
+        window.show()
+        window.tabs.setCurrentIndex(1)
+        wait_until(lambda: window.device_select.count() == 3)
+        assert window.state is None and window.device_select.isEnabled()
+        window.device_select.setCurrentIndex(2)
+        wait_until(lambda: window.state is not None)
+        assert window.state.path == second.path
+        assert second.model_name in window.connection.accessibleName()
+        assert second.model_name in window.device_select.itemData(2, Qt.ItemDataRole.ToolTipRole)
+        assert window.heading.geometry().right() < window.connection.geometry().left()
+        assert window.rect().contains(window.connection.geometry())
+
+        available.remove(second)
+        window.refresh()
+        wait_until(lambda: window.state is None and window.device_select.count() == 2)
+        assert not window.apply_button.isEnabled()
+        window.device_select.setCurrentIndex(1)
+        wait_until(lambda: window.state is not None)
+        assert window.state.path == first.path
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
 
 
 def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
