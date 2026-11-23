@@ -20,11 +20,11 @@
   <url type="homepage">https://innovibe.pl/moondrop-position-dac/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
-    <release version="0.4.0-beta.1" date="2026-11-23" type="development">
-      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.0-beta.1</url>
+    <release version="0.4.0" date="2026-11-23">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.0</url>
       <description>
-        <p>Source preview of DSP Control with a shared DAC registry, a device picker and compact profile controls.</p>
-        <p xml:lang="pl">Wersja testowa DSP Control ze źródeł ze wspólnym rejestrem DAC-ów, wyborem urządzenia i skróconymi etykietami w kompaktowym układzie.</p>
+        <p>DSP Control 0.4.0: bundled AutoEq model/source index and MIT targets for offline first launch, HTTPS catalog refresh and curve downloads without GitHub REST API rate limits, device-agnostic project layout and Flatpak ID (pl.innovibe.DspControl), shared DAC registry, and compact large-font layout fixes.</p>
+        <p xml:lang="pl">DSP Control 0.4.0: wbudowany indeks modeli i źródeł AutoEq oraz targety MIT działające offline od startu, odświeżanie katalogu i pobieranie krzywych przez HTTPS bez limitów REST API GitHuba, struktura projektu i identyfikator Flatpak (pl.innovibe.DspControl) niezależne od modelu DAC-a, wspólny rejestr urządzeń oraz poprawki układu kompaktowego przy większej czcionce.</p>
       </description>
     </release>
     <release version="0.3.8" date="2026-11-22">

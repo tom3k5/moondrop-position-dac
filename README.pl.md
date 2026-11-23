@@ -15,17 +15,14 @@ Niezależnie od tego, czy grasz na Steam/Proton, czy stroisz swoje słuchawki IE
 
 ## Szybki start
 
-**Wersja testowa ze źródeł:** Pokazany niżej interfejs DSP Control uruchomisz z tego repozytorium. Aktualny publiczny
-Flatpak to [v0.3.8](https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.8).
-
-Wersja ze źródeł zawiera wbudowany indeks modeli i źródeł AutoEq oraz główne targety MIT od pierwszego uruchomienia; odświeżanie indeksu i pobieranie wybranych pomiarów działa przez HTTPS bez logowania i bez limitów REST API GitHuba.
+DSP Control zawiera wbudowany indeks modeli i źródeł AutoEq oraz główne targety MIT od pierwszego uruchomienia; odświeżanie indeksu i pobieranie wybranych pomiarów działa przez HTTPS bez logowania i bez limitów REST API GitHuba.
 
 ### 1. Instalacja z paczki Flatpak (Zalecane)
-Pobierz plik `position-dac.flatpak` z zakładki [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (zawiera PySide6 i pełny optymalizator AutoEq):
+Pobierz plik `dsp-control.flatpak` z zakładki [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (zawiera PySide6 i pełny optymalizator AutoEq):
 
 ```bash
-flatpak install --user position-dac.flatpak
-flatpak run local.moondrop.Position
+flatpak install --user dsp-control.flatpak
+flatpak run pl.innovibe.DspControl
 ```
 
 ### 2. Dostęp USB HID na Linuxie (jednorazowa reguła `udev`)
