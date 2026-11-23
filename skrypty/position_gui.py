@@ -114,7 +114,7 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "dane"
 BUILTIN_PROFILE = DATA_DIR / "profile/moondrop-position-harman.json"
 HARMAN_TARGET = DATA_DIR / "targety/Harman in-ear 2019.csv"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
-APP_VERSION = "0.3.8"
+APP_VERSION = "0.4.0-beta.1"
 APP_STORAGE_NAME = "MOONDROP:Gravity Position"
 SOURCE_LABELS = (
     ("source.my_profiles", "source.my_profiles_short", "tooltip.source_my_profiles"),
@@ -2249,6 +2249,7 @@ class EqualizerDialog(QDialog):
         grid.setColumnStretch(3, 1)
         for number in range(1, dac.BAND_COUNT + 1):
             kind = QComboBox()
+            kind.setSizePolicy(kind.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Expanding)
             for label, code in (
                 (tr("editor.type_pk"), "PK"),
                 (tr("editor.type_lsq"), "LSQ"),
