@@ -18,7 +18,7 @@ Whether you play competitive games on Steam/Proton or tune your IEMs to Harman, 
 **Source preview:** The DSP Control interface shown below runs from this repository. The current public Flatpak is
 [v0.3.8](https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.8).
 
-The source version downloads the public AutoEq catalog over HTTPS without GitHub sign-in.
+The source version includes the AutoEq model/source index and core MIT targets from first launch; index refreshes and on-demand measurement downloads run over HTTPS with no GitHub sign-in or REST API rate limits.
 
 ### 1. Install via Flatpak (Recommended)
 Download `position-dac.flatpak` from [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (bundles PySide6 and the full AutoEq optimizer):

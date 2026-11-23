@@ -18,7 +18,7 @@ Niezależnie od tego, czy grasz na Steam/Proton, czy stroisz swoje słuchawki IE
 **Wersja testowa ze źródeł:** Pokazany niżej interfejs DSP Control uruchomisz z tego repozytorium. Aktualny publiczny
 Flatpak to [v0.3.8](https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.3.8).
 
-Wersja ze źródeł pobiera publiczny katalog AutoEq przez HTTPS bez logowania do GitHuba.
+Wersja ze źródeł zawiera wbudowany indeks modeli i źródeł AutoEq oraz główne targety MIT od pierwszego uruchomienia; odświeżanie indeksu i pobieranie wybranych pomiarów działa przez HTTPS bez logowania i bez limitów REST API GitHuba.
 
 ### 1. Instalacja z paczki Flatpak (Zalecane)
 Pobierz plik `position-dac.flatpak` z zakładki [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (zawiera PySide6 i pełny optymalizator AutoEq):

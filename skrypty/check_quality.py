@@ -54,6 +54,7 @@ def check_data_configs() -> bool:
     print("\n==> Walidacja JSON i XML")
     json_files = [
         ROOT / "local.moondrop.Position.json",
+        ROOT / "dane" / "autoeq-catalog.json",
         ROOT / "dane" / "przyklad-eq.json",
         *sorted((ROOT / "dane" / "profile").glob("*.json")),
         *sorted((ROOT / "dane" / "i18n").glob("*.json")),

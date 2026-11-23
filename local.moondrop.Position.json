@@ -123,8 +123,17 @@
         "install -Dm644 pl.json /app/share/position-dac/dane/i18n/pl.json",
         "install -Dm644 en.json /app/share/position-dac/dane/i18n/en.json",
         "install -Dm644 innovibe.svg /app/share/position-dac/dane/innovibe.svg",
+        "install -Dm644 autoeq-catalog.json /app/share/position-dac/dane/autoeq-catalog.json",
         "install -Dm644 moondrop-position-harman.json /app/share/position-dac/dane/profile/moondrop-position-harman.json",
+        "install -Dm644 'AutoEq in-ear.csv' '/app/share/position-dac/dane/targety/AutoEq in-ear.csv'",
+        "install -Dm644 'Diffuse field 5128 -1dB per octave.csv' '/app/share/position-dac/dane/targety/Diffuse field 5128 -1dB per octave.csv'",
+        "install -Dm644 'Diffuse field 5128.csv' '/app/share/position-dac/dane/targety/Diffuse field 5128.csv'",
+        "install -Dm644 'Diffuse field GRAS KEMAR.csv' '/app/share/position-dac/dane/targety/Diffuse field GRAS KEMAR.csv'",
         "install -Dm644 'Harman in-ear 2019.csv' '/app/share/position-dac/dane/targety/Harman in-ear 2019.csv'",
+        "install -Dm644 'Harman over-ear 2018.csv' '/app/share/position-dac/dane/targety/Harman over-ear 2018.csv'",
+        "install -Dm644 'JM-1 with Harman filters.csv' '/app/share/position-dac/dane/targety/JM-1 with Harman filters.csv'",
+        "install -Dm644 'JM-1 with Harman treble filter.csv' '/app/share/position-dac/dane/targety/JM-1 with Harman treble filter.csv'",
+        "install -Dm644 zero.csv /app/share/position-dac/dane/targety/zero.csv",
         "install -Dm644 'Moondrop Position (B&K 5128).csv' '/app/share/position-dac/dane/pomiary/Moondrop Position (B&K 5128).csv'",
         "install -Dm644 local.moondrop.Position.desktop /app/share/applications/local.moondrop.Position.desktop",
         "install -Dm644 local.moondrop.Position.metainfo.xml /app/share/metainfo/local.moondrop.Position.metainfo.xml",
@@ -181,11 +190,47 @@
         },
         {
           "type": "file",
+          "path": "dane/autoeq-catalog.json"
+        },
+        {
+          "type": "file",
           "path": "dane/profile/moondrop-position-harman.json"
         },
         {
           "type": "file",
+          "path": "dane/targety/AutoEq in-ear.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/Diffuse field 5128 -1dB per octave.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/Diffuse field 5128.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/Diffuse field GRAS KEMAR.csv"
+        },
+        {
+          "type": "file",
           "path": "dane/targety/Harman in-ear 2019.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/Harman over-ear 2018.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/JM-1 with Harman filters.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/JM-1 with Harman treble filter.csv"
+        },
+        {
+          "type": "file",
+          "path": "dane/targety/zero.csv"
         },
         {
           "type": "file",

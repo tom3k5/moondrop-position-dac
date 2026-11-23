@@ -18,7 +18,7 @@ zachowane; licencje jak wyżej).
 
 | Źródło | Licencja | Co wykorzystano |
 |---|---|---|
-| [jaakkopasanen/AutoEq](https://github.com/jaakkopasanen/AutoEq) | MIT (kod i targety) | biblioteka `autoeq` 4.1.2 (PyPI, Python 3.11 w `.venvs/autoeq`), API `FrequencyResponse` / `optimize_parametric_eq` / `PEQ_CONFIGS`; target `targets/Harman in-ear 2019.csv` |
+| [jaakkopasanen/AutoEq](https://github.com/jaakkopasanen/AutoEq) | MIT (kod i targety) | biblioteka `autoeq` 4.1.2 (PyPI, Python 3.11 w `.venvs/autoeq`), API `FrequencyResponse` / `optimize_parametric_eq` / `PEQ_CONFIGS`; targety MIT w `dane/targety/` oraz wbudowany indeks nazw modeli i źródeł w `dane/autoeq-catalog.json` |
 | [autoeq.app](https://autoeq.app) | — | webowy frontend + backend FastAPI (`webapp/main.py`, `POST /equalize`); eksport Equalizer APO — obsługiwany przez `moondrop_position.py import-eq` |
 | [squig.link](https://squig.link) / REW | format wejściowy użytkownika | `skrypty/measurements.py` obsługuje lokalnie wskazane przez użytkownika pliki REW / `squig.link` `.txt` (nie są dołączone do repozytorium) |
 | Specyfikacja MOONDROP Position | dane fabryczne producenta | `dane/pomiary/Moondrop Position (B&K 5128).csv` (opracowane na podstawie publicznej krzywej `POSITION (Original)`) |
@@ -53,7 +53,7 @@ urządzenie.
 | **PySide6** (Qt for Python) | `6.11.3` (Flatpak) / `6.12.0` (host) | `LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only` | Warstwa GUI (`QtWidgets`, `QtGui`, `QtCore`), zasobnik systemowy, wykresy `QPainter` |
 | **org.kde.Platform / org.kde.Sdk / io.qt.PySide.BaseApp** | `6.11` (Flathub) | LGPL / GPL / MIT / BSD (komponenty KDE & Qt) | Środowisko uruchomieniowe i bazowe Flatpaka |
 | **PipeWire** (`pw-metadata`) | narzędzie systemowe hosta | MIT | Odczyt i zmiana wymuszonej częstotliwości próbkowania (`clock.force-rate`) |
-| **GitHub CLI** (`gh`) | narzędzie opcjonalne na hoście | MIT | Pobieranie indeksu i krzywych AutoEq przez `gh api` (w Flatpaku fallback na `urllib.request`) |
+| **AutoEq HTTPS (`urllib.request` / `zlib`)** | biblioteka standardowa Pythona | PSF | Odświeżanie indeksu AutoEq przez Git Smart HTTP (`filter=blob:none`) i pobieranie krzywych z `raw.githubusercontent.com` bez limitów REST API GitHuba |
 
 ### Pipeline AutoEq wbudowany w Flatpak (`python3-autoeq`) i `.venvs/autoeq`
 

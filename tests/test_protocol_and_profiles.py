@@ -249,7 +249,74 @@ def test_i18n_languages_switch_and_extensibility(tmp_path: Path) -> None:
     assert custom_langs["de"] == "Deutsch"
 
 
-def test_autoeq_read_github_uses_public_https(monkeypatch) -> None:
+def _git_object(obj_type: int, payload: bytes) -> tuple[str, bytes]:
+    import hashlib
+
+    names = {catalog.OBJ_COMMIT: "commit", catalog.OBJ_TREE: "tree", catalog.OBJ_BLOB: "blob"}
+    sha = hashlib.sha1(f"{names[obj_type]} {len(payload)}\0".encode() + payload).hexdigest()
+    return sha, payload
+
+
+def _tree_payload(items: list[tuple[str, str, str]]) -> bytes:
+    return b"".join(f"{mode} {name}\0".encode() + bytes.fromhex(sha) for mode, name, sha in items)
+
+
+def _pack_v2(entries: list[tuple[int, bytes]]) -> bytes:
+    import hashlib
+    import struct
+    import zlib
+
+    body = bytearray(b"PACK")
+    body.extend(struct.pack(">II", 2, len(entries)))
+    for obj_type, data in entries:
+        size = len(data)
+        first = (obj_type << 4) | (size & 0x0F)
+        size >>= 4
+        if size:
+            first |= 0x80
+        body.append(first)
+        while size:
+            part = size & 0x7F
+            size >>= 7
+            if size:
+                part |= 0x80
+            body.append(part)
+        body.extend(zlib.compress(data))
+    body.extend(hashlib.sha1(body).digest())
+    return bytes(body)
+
+
+def test_autoeq_download_index_uses_git_smart_http_without_rest_api(tmp_path: Path, monkeypatch) -> None:
+    blob_sha = "11" * 20
+    target_sha = "22" * 20
+    in_ear_sha, in_ear_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("100644", "Test IEM.csv", blob_sha)]))
+    data_sha, data_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("40000", "in-ear", in_ear_sha)]))
+    src_sha, src_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("40000", "data", data_sha)]))
+    meas_sha, meas_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("40000", "oratory1990", src_sha)]))
+    targ_sha, targ_tree = _git_object(
+        catalog.OBJ_TREE, _tree_payload([("100644", "Harman in-ear 2019.csv", target_sha)])
+    )
+    root_sha, root_tree = _git_object(
+        catalog.OBJ_TREE, _tree_payload([("40000", "measurements", meas_sha), ("40000", "targets", targ_sha)])
+    )
+    commit_sha, commit_data = _git_object(catalog.OBJ_COMMIT, f"tree {root_sha}\nauthor a\n\ninit\n".encode())
+    pack = _pack_v2(
+        [
+            (catalog.OBJ_COMMIT, commit_data),
+            (catalog.OBJ_TREE, root_tree),
+            (catalog.OBJ_TREE, meas_tree),
+            (catalog.OBJ_TREE, src_tree),
+            (catalog.OBJ_TREE, data_tree),
+            (catalog.OBJ_TREE, in_ear_tree),
+            (catalog.OBJ_TREE, targ_tree),
+        ]
+    )
+    refs_payload = (
+        catalog._pkt_line(b"# service=git-upload-pack\n")
+        + b"0000"
+        + catalog._pkt_line(f"{commit_sha} refs/heads/master\x00filter\n".encode())
+    )
+
     class FakeResponse:
         def __init__(self, payload: bytes) -> None:
             self.payload = payload
@@ -263,18 +330,76 @@ def test_autoeq_read_github_uses_public_https(monkeypatch) -> None:
         def read(self, _n: int) -> bytes:
             return self.payload
 
-    def open_public_index(request, *, timeout):
-        assert request.full_url == "https://api.github.com/repos/jaakkopasanen/AutoEq/git/trees/master"
+    seen_urls: list[str] = []
+
+    def fake_urlopen(request, *, timeout):
+        seen_urls.append(request.full_url)
+        assert "api.github.com" not in request.full_url
         assert request.get_header("Authorization") is None
-        assert timeout == 18
-        return FakeResponse(b'{"tree": []}')
+        if request.full_url.endswith("/info/refs?service=git-upload-pack"):
+            return FakeResponse(refs_payload)
+        assert request.full_url.endswith("/git-upload-pack")
+        assert b"filter blob:none\n" in request.data
+        return FakeResponse(b"0008NAK\n" + pack)
 
-    monkeypatch.setattr(catalog.urllib.request, "urlopen", open_public_index)
-    data = catalog.read_github("repos/jaakkopasanen/AutoEq/git/trees/master", 1024)
-    assert data == b'{"tree": []}'
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", fake_urlopen)
+    index_path = tmp_path / "catalog.json"
+    entries = catalog.download_index(index_path)
+    assert len(seen_urls) == 2
+    assert {entry.kind for entry in entries} == {"model", "target"}
+    assert catalog.load_index(index_path) == entries
 
 
-@pytest.mark.parametrize("failure", ["missing_target_tree", "empty_targets", "http_403"])
+def test_autoeq_resolve_curve_uses_raw_https_and_bundled_targets_offline(tmp_path: Path, monkeypatch) -> None:
+    bundled = tmp_path / "targety"
+    bundled.mkdir()
+    bundled_target = bundled / "Harman in-ear 2019.csv"
+    bundled_target.write_text("frequency,raw\n20,0\n1000,0\n", encoding="utf-8")
+
+    def fail_network(*_args, **_kwargs):
+        raise AssertionError("Bundled target should resolve offline without network calls")
+
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", fail_network)
+    target_entry = catalog.Entry("Harman in-ear 2019", "AutoEq", "target", "targets/Harman in-ear 2019.csv", False)
+    assert catalog.resolve_curve(target_entry, tmp_path / "curves", bundled_targets=bundled) == bundled_target
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc) -> None:
+            pass
+
+        def read(self, _n: int) -> bytes:
+            return b"frequency,raw\n20,-1\n1000,0\n"
+
+    requested_urls: list[str] = []
+
+    def fake_raw_open(request, *, timeout):
+        requested_urls.append(request.full_url)
+        assert request.full_url.startswith("https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/")
+        assert "api.github.com" not in request.full_url
+        return FakeResponse()
+
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", fake_raw_open)
+    model_entry = catalog.Entry(
+        "MOONDROP Chu",
+        "oratory1990",
+        "model",
+        "measurements/oratory1990/data/in-ear/MOONDROP Chu.csv",
+        False,
+        "ab" * 20,
+    )
+    curves_dir = tmp_path / "curves"
+    cached = catalog.resolve_curve(model_entry, curves_dir, bundled_targets=bundled)
+    assert cached.is_file() and len(requested_urls) == 1
+
+    # Drugi odczyt offline korzysta z zapisanej pamięci podręcznej.
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", fail_network)
+    assert catalog.resolve_curve(model_entry, curves_dir, bundled_targets=bundled) == cached
+
+
+@pytest.mark.parametrize("failure", ["missing_target_tree", "empty_targets", "bad_checksum", "http_403"])
 def test_autoeq_failed_refresh_keeps_existing_index_and_curve(tmp_path, monkeypatch, failure) -> None:
     index = tmp_path / "catalog.json"
     original = catalog.Entry(
@@ -285,22 +410,67 @@ def test_autoeq_failed_refresh_keeps_existing_index_and_curve(tmp_path, monkeypa
     curve = tmp_path / "saved-measurement.csv"
     saved_curve = b"frequency,raw\n100,0\n"
     curve.write_bytes(saved_curve)
-    roots = [{"type": "tree", "path": "measurements", "sha": "models"}]
-    if failure != "missing_target_tree":
-        roots.append({"type": "tree", "path": "targets", "sha": "targets"})
-    monkeypatch.setattr(catalog, "tree_children", lambda _revision: roots)
 
-    def read_blobs(_revision, prefix):
-        if prefix == "measurements":
-            yield "measurements/new-source/data/in-ear/New.csv", "new-sha"
-        if prefix == "targets" and failure == "http_403":
-            raise ValueError("GitHub API zwróciło błąd HTTP 403.")
+    if failure == "http_403":
+        monkeypatch.setattr(
+            catalog,
+            "_fetch_master_oid",
+            lambda: (_ for _ in ()).throw(ValueError("Serwer AutoEq zwrócił błąd HTTP 403.")),
+        )
+    elif failure == "bad_checksum":
+        bad_pack = bytearray(_pack_v2([]))
+        bad_pack[-1] ^= 0xFF
+        monkeypatch.setattr(catalog, "_fetch_master_oid", lambda: "aa" * 20)
+        monkeypatch.setattr(catalog, "_fetch_tree_pack", lambda _oid: bytes(bad_pack))
+    else:
+        blob_sha = "11" * 20
+        in_ear_sha, in_ear_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("100644", "New.csv", blob_sha)]))
+        data_sha, data_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("40000", "in-ear", in_ear_sha)]))
+        src_sha, src_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("40000", "data", data_sha)]))
+        meas_sha, meas_tree = _git_object(catalog.OBJ_TREE, _tree_payload([("40000", "new-source", src_sha)]))
+        targ_sha, targ_tree = _git_object(catalog.OBJ_TREE, _tree_payload([]))
+        root_items = [("40000", "measurements", meas_sha)]
+        if failure != "missing_target_tree":
+            root_items.append(("40000", "targets", targ_sha))
+        root_sha, root_tree = _git_object(catalog.OBJ_TREE, _tree_payload(root_items))
+        commit_sha, commit_data = _git_object(catalog.OBJ_COMMIT, f"tree {root_sha}\nauthor a\n\ninit\n".encode())
+        objs = {
+            commit_sha: (catalog.OBJ_COMMIT, commit_data),
+            root_sha: (catalog.OBJ_TREE, root_tree),
+            meas_sha: (catalog.OBJ_TREE, meas_tree),
+            src_sha: (catalog.OBJ_TREE, src_tree),
+            data_sha: (catalog.OBJ_TREE, data_tree),
+            in_ear_sha: (catalog.OBJ_TREE, in_ear_tree),
+            targ_sha: (catalog.OBJ_TREE, targ_tree),
+        }
+        monkeypatch.setattr(catalog, "fetch_repo_tree", lambda: (objs, root_sha))
 
-    monkeypatch.setattr(catalog, "catalog_blobs", read_blobs)
-    with pytest.raises(ValueError, match=r"AutoEq|HTTP 403"):
+    with pytest.raises(ValueError, match=r"AutoEq|HTTP 403|Suma kontrolna"):
         catalog.download_index(index)
     assert index.read_bytes() == saved_index
     assert curve.read_bytes() == saved_curve
+
+
+def test_bundled_autoeq_index_and_targets_present_in_repo_and_manifest() -> None:
+    root = Path(__file__).resolve().parents[1]
+    bundled_index = root / "dane" / "autoeq-catalog.json"
+    assert bundled_index.is_file()
+    entries = catalog.load_index(bundled_index)
+    assert sum(1 for entry in entries if entry.kind == "model") > 6000
+    assert sum(1 for entry in entries if entry.kind == "target") >= 50
+
+    targets_dir = root / "dane" / "targety"
+    bundled_targets = sorted(targets_dir.glob("*.csv"))
+    assert len(bundled_targets) >= 9
+    for target_path in bundled_targets:
+        assert len(gui.read_target_curve(target_path)) > 50
+
+    manifest = json.loads((root / "local.moondrop.Position.json").read_text(encoding="utf-8"))
+    app_module = next(mod for mod in manifest["modules"] if mod["name"] == "position-dac")
+    source_paths = {item["path"] for item in app_module["sources"]}
+    assert "dane/autoeq-catalog.json" in source_paths
+    for target_path in bundled_targets:
+        assert f"dane/targety/{target_path.name}" in source_paths
 
 
 def test_shelves_supported_in_custom_profile_and_eq_fit() -> None:

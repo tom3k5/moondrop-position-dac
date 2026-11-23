@@ -114,6 +114,8 @@ from measurements import FIT_HIGH_HZ, curve_level, fit_to_target, read_squig_txt
 DATA_DIR = Path(__file__).resolve().parents[1] / "dane"
 BUILTIN_PROFILE = DATA_DIR / "profile/moondrop-position-harman.json"
 HARMAN_TARGET = DATA_DIR / "targety/Harman in-ear 2019.csv"
+BUNDLED_CATALOG = DATA_DIR / "autoeq-catalog.json"
+BUNDLED_TARGETS_DIR = DATA_DIR / "targety"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
 APP_VERSION = "0.4.0-beta.1"
 APP_STORAGE_NAME = "MOONDROP:Gravity Position"
@@ -1895,6 +1897,9 @@ class _FlowLayout(QLayout):
     def minimumSize(self) -> QSize:
         size = QSize()
         for item in self._items:
+            widget = item.widget()
+            if widget is not None and widget.isHidden() and not widget.sizePolicy().retainSizeWhenHidden():
+                continue
             size = size.expandedTo(item.minimumSize())
         m = self.contentsMargins()
         return size + QSize(m.left() + m.right(), m.top() + m.bottom())
@@ -2631,7 +2636,7 @@ class AutoEqPanel(QWidget):
         self.cache_directory = cache_directory
         self.index_path = cache_directory / "catalog.json"
         self.local_index_path = cache_directory / "local-catalog.json"
-        self.entries = [catalog.Entry("Harman In-Ear 2019", "Krzywa referencyjna", "target", str(HARMAN_TARGET), True)]
+        self.entries: list[catalog.Entry] = []
         self.result = None
         self.result_entry = None
         self.result_range = None
@@ -2711,7 +2716,8 @@ class AutoEqPanel(QWidget):
         list_layout.addWidget(self.targets, 1)
         layout.addWidget(self.catalog_list, 1)
 
-        self.status = self.text_label()
+        self.status = ElidingLabel()
+        self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(False)
         self.catalog_progress = FeedbackLabel()
         self.catalog_progress.setTextFormat(Qt.TextFormat.PlainText)
@@ -2751,13 +2757,33 @@ class AutoEqPanel(QWidget):
         self.fit_range.currentIndexChanged.connect(self.range_changed)
         self.generate.clicked.connect(self.generate_profile)
         self.cancel.clicked.connect(self.cancel_fit)
-        for path in (self.index_path, self.local_index_path):
-            try:
-                cached = json.loads(path.read_text())
-                self.entries.extend([catalog.Entry(**entry) for entry in cached])
-            except (OSError, ValueError, TypeError):
-                pass
+        self.entries = self.load_initial_entries()
         self.update_results()
+
+    @staticmethod
+    def _bundled_target_fallbacks(existing: list[catalog.Entry]) -> list[catalog.Entry]:
+        covered = {Path(entry.path).name for entry in existing if entry.kind == "target"}
+        fallbacks: list[catalog.Entry] = []
+        if BUNDLED_TARGETS_DIR.is_dir():
+            for csv_path in sorted(BUNDLED_TARGETS_DIR.glob("*.csv")):
+                if csv_path.name not in covered:
+                    fallbacks.append(catalog.Entry(csv_path.stem, "AutoEq", "target", str(csv_path), True))
+        return fallbacks
+
+    def load_initial_entries(self) -> list[catalog.Entry]:
+        remote_entries: list[catalog.Entry] = []
+        for path in (self.index_path, BUNDLED_CATALOG):
+            with contextlib.suppress(OSError, ValueError, TypeError):
+                loaded = catalog.load_index(path)
+                if loaded:
+                    remote_entries = loaded
+                    break
+        local_entries: list[catalog.Entry] = []
+        with contextlib.suppress(OSError, ValueError, TypeError):
+            local_entries = catalog.load_index(self.local_index_path)
+        entries = [*remote_entries, *local_entries]
+        entries.extend(self._bundled_target_fallbacks(entries))
+        return entries
 
     def refresh_source_filter(self) -> None:
         mode = self.mode.currentData()
@@ -2828,9 +2854,11 @@ class AutoEqPanel(QWidget):
                 message = tr("autoeq.no_matches")
             else:
                 message = tr("autoeq.no_catalog")
+            compact = ""
         else:
             message = tr("autoeq.results_count", count=len(matching))
-        self.status.setText(message)
+            compact = str(len(matching))
+        self.status.set_title(message, wrap=False, compact=compact)
 
     def apply_tooltips(self) -> None:
         self.mode.setToolTip(tr("tooltip.autoeq_mode"))
@@ -2902,7 +2930,9 @@ class AutoEqPanel(QWidget):
             return
         req_id = self.preview_request_id
         cache_dir = self.cache_directory / "curves"
-        job = Job(lambda: read_target_curve(catalog.resolve_curve(entry, cache_dir)))
+        job = Job(
+            lambda: read_target_curve(catalog.resolve_curve(entry, cache_dir, bundled_targets=BUNDLED_TARGETS_DIR))
+        )
         self.preview_jobs.add(job)
         job.signals.finished.connect(
             lambda result, error, rid=req_id, target_entry=entry, done_job=job: self._preview_loaded(
@@ -2982,7 +3012,14 @@ class AutoEqPanel(QWidget):
             self.status.clear()
             self.set_catalog_error(tr("autoeq.catalog_failed", error=error))
             return
-        self.entries = [entry for entry in self.entries if entry.local] + entries
+        local_entries = [
+            entry
+            for entry in self.entries
+            if entry.local and not (entry.kind == "target" and Path(entry.path).parent == BUNDLED_TARGETS_DIR)
+        ]
+        merged = [*local_entries, *entries]
+        merged.extend(self._bundled_target_fallbacks(merged))
+        self.entries = merged
         self.update_results()
 
     def open_catalog(self) -> None:
@@ -3007,7 +3044,7 @@ class AutoEqPanel(QWidget):
         self.entries = [
             entry
             for entry in self.entries
-            if not entry.local or entry.source in ("Krzywa referencyjna", "Plik lokalny")
+            if not entry.local or entry.source == "Plik lokalny" or Path(entry.path).parent == BUNDLED_TARGETS_DIR
         ] + entries
         self.update_results()
 
@@ -3037,7 +3074,10 @@ class AutoEqPanel(QWidget):
         self.fit_active = True
         self.fit_cancelled = False
         self.fit_status.setText(tr("autoeq.reading_target"))
-        self.start_job(lambda: catalog.resolve_curve(entry, self.cache_directory / "curves"), self.start_fit)
+        self.start_job(
+            lambda: catalog.resolve_curve(entry, self.cache_directory / "curves", bundled_targets=BUNDLED_TARGETS_DIR),
+            self.start_fit,
+        )
 
     def start_fit(self, target, error: str) -> None:
         if self.fit_cancelled:
@@ -3223,6 +3263,12 @@ class ElidingLabel(FeedbackLabel):
             (self.full_title, self.detail) if title != self.full_title and not self.compact_title else (self.detail,)
         )
         self.setToolTip("\n\n".join(filter(None, parts)))
+
+    def clear(self) -> None:
+        self.full_title = ""
+        self.detail = ""
+        self.compact_title = ""
+        super().clear()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -3575,7 +3621,7 @@ class ProfilesWindow(QWidget):
         self.catalog_actions = QWidget()
         catalog_actions = QHBoxLayout(self.catalog_actions)
         catalog_actions.setContentsMargins(0, 0, 0, 0)
-        catalog_actions.setSpacing(12)
+        catalog_actions.setSpacing(6)
         catalog_actions.addWidget(self.autoeq_panel.catalog_button)
         self.autoeq_panel.status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.autoeq_panel.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -3619,7 +3665,7 @@ class ProfilesWindow(QWidget):
         self.fit_provenance = self.autoeq_panel.fit_provenance
 
         self.plot_switcher = QWidget()
-        view_row = QHBoxLayout(self.plot_switcher)
+        view_row = _FlowLayout(self.plot_switcher, spacing=6)
         view_row.setContentsMargins(0, 0, 0, 0)
         self.plot_view_group = QButtonGroup(self)
         for index, key in enumerate(("plot.view_response", "plot.view_eq")):
@@ -3628,7 +3674,6 @@ class ProfilesWindow(QWidget):
             button.setStyleSheet(SEGMENT_BUTTON_STYLE)
             self.plot_view_group.addButton(button, index)
             view_row.addWidget(button)
-        view_row.addStretch()
         self.plot_view_group.button(0).setChecked(True)
         self.plot_view_group.idClicked.connect(self.update_plot_layout)
         preview.addWidget(self.plot_switcher)
@@ -3638,6 +3683,7 @@ class ProfilesWindow(QWidget):
         response_layout.setContentsMargins(0, 0, 0, 0)
         response_layout.setSpacing(6)
         self.fr_title_label = QLabel(tr("plot.fr_title"))
+        self.fr_title_label.setWordWrap(True)
         self.fr_title_label.setStyleSheet("font-weight: 600;")
         response_layout.addWidget(self.fr_title_label)
         self.preview_plot = ResponsePlot()
@@ -3677,6 +3723,7 @@ class ProfilesWindow(QWidget):
         correction_layout.setContentsMargins(0, 0, 0, 0)
         correction_layout.setSpacing(6)
         self.correction_title = QLabel(tr("plot.eq_title"))
+        self.correction_title.setWordWrap(True)
         self.correction_title.setStyleSheet("font-weight: 600;")
         correction_layout.addWidget(self.correction_title)
         correction_layout.addWidget(self.correction_plot, 1)
@@ -3715,11 +3762,12 @@ class ProfilesWindow(QWidget):
             status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         # Pole pozostaje w układzie, żeby pojawienie się statusu nie zawijało przycisków.
-        action_status_box = QWidget()
-        action_status_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.action_status_box = QWidget()
+        self.action_status_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         compact_preamp = tr("tuning.applied_preamp_compact", actual=-0.0)
-        action_status_box.setMinimumWidth(self.apply_status.fontMetrics().horizontalAdvance(compact_preamp))
-        status_layout = QVBoxLayout(action_status_box)
+        self.action_status_min_w = self.apply_status.fontMetrics().horizontalAdvance(compact_preamp)
+        self.action_status_box.setMinimumWidth(self.action_status_min_w)
+        status_layout = QVBoxLayout(self.action_status_box)
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(2)
         status_layout.addWidget(self.autoeq_panel.fit_status)
@@ -3732,8 +3780,8 @@ class ProfilesWindow(QWidget):
         self.apply_button = QPushButton(tr("actions.apply_dac"))
         self.apply_button.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.apply_button.setEnabled(False)
-        action_bar = QWidget()
-        self.preview_actions = _FlowLayout(action_bar, spacing=8, align_right=True)
+        self.action_bar = QWidget()
+        self.preview_actions = _FlowLayout(self.action_bar, spacing=8, align_right=True)
         self.preview_actions.setContentsMargins(0, 0, 0, 0)
         for button in (
             self.autoeq_panel.generate,
@@ -3746,11 +3794,12 @@ class ProfilesWindow(QWidget):
             self.preview_actions.addWidget(button)
         self.footer_bar = QWidget()
         self.footer_bar.setMinimumHeight(34)
-        footer_layout = QHBoxLayout(self.footer_bar)
-        footer_layout.setContentsMargins(0, 0, 0, 0)
-        footer_layout.setSpacing(12)
-        footer_layout.addWidget(action_status_box, 1, Qt.AlignmentFlag.AlignVCenter)
-        footer_layout.addWidget(action_bar, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.footer_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, self.footer_bar)
+        self.footer_layout.setContentsMargins(0, 0, 0, 0)
+        self.footer_layout.setSpacing(12)
+        self.footer_layout.addWidget(self.action_status_box, 1, Qt.AlignmentFlag.AlignVCenter)
+        self.footer_layout.addWidget(self.action_bar, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.action_primary_w = 0
         card.addWidget(self.footer_bar)
 
         library_split.addWidget(preview_card)
@@ -4011,7 +4060,11 @@ class ProfilesWindow(QWidget):
             (self.edit_button, edit_w),
         ):
             button.setFixedSize(width, action_h)
+        self.action_primary_w = primary_w
+        compact_preamp = tr("tuning.applied_preamp_compact", actual=-0.0)
+        self.action_status_min_w = self.apply_status.fontMetrics().horizontalAdvance(compact_preamp)
         self.footer_bar.setMinimumHeight(action_h)
+        self.update_plot_layout()
 
     def update_plot_layout(self) -> None:
         compact = self.preview_scroll.width() < 560 or self.preview_scroll.height() < 505
@@ -4030,6 +4083,21 @@ class ProfilesWindow(QWidget):
         self.plot_switcher.setVisible(compact)
         self.response_section.setVisible(not compact or self.plot_view_group.checkedId() == 0)
         self.correction_section.setVisible(not compact or self.plot_view_group.checkedId() == 1)
+        footer_w = self.preview_scroll.width()
+        min_side_by_side = self.action_status_min_w + self.footer_layout.spacing() + self.action_primary_w
+        stack_footer = footer_w > 0 and footer_w < min_side_by_side
+        self.footer_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if stack_footer else QBoxLayout.Direction.LeftToRight
+        )
+        self.action_status_box.setMinimumWidth(0 if stack_footer else self.action_status_min_w)
+        self.footer_layout.setStretchFactor(self.action_status_box, 0 if stack_footer else 1)
+        self.footer_layout.setStretchFactor(self.action_bar, 0)
+        self.footer_layout.setAlignment(
+            self.action_status_box, Qt.AlignmentFlag.AlignLeft if stack_footer else Qt.AlignmentFlag.AlignVCenter
+        )
+        self.footer_layout.setAlignment(
+            self.action_bar, Qt.AlignmentFlag.AlignRight if stack_footer else Qt.AlignmentFlag.AlignVCenter
+        )
 
     def show_fit_details(self) -> None:
         if not self.fit_details_text:

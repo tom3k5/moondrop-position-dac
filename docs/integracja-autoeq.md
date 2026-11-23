@@ -145,21 +145,18 @@ Proponowany układ (zgodny z zasadą „projekt samowystarczalny”):
 
 ```
 dane/
-├── pomiary/          # krzywa fabryczna Position (B&K 5128) + opcjonalne własne pliki REW/squig.link
-├── targety/          # targety MIT z AutoEq (Harman in-ear 2019, JM-1)
-└── profile/          # gotowe profile JSON
+├── autoeq-catalog.json # wbudowany indeks nazw modeli i źródeł AutoEq
+├── pomiary/            # krzywa fabryczna Position (B&K 5128) + opcjonalne własne pliki REW/squig.link
+├── targety/            # targety MIT z AutoEq (Harman in-ear 2019, JM-1, Diffuse Field, zero)
+└── profile/            # gotowe profile JSON
 ```
 
-Źródła i sposób odświeżania (opisane też w `dane/pomiary/README.md`):
+Źródła i sposób odświeżania (opisane też w `dane/pomiary/README.md` i `dane/targety/README.md`):
 
 * **MOONDROP Position (specyfikacja techniczna)** — `dane/pomiary/Moondrop Position (B&K 5128).csv`
   opracowany na podstawie publicznych materiałów producenta (`POSITION (Original)`).
 * **Własne pomiary użytkownika (REW / squig.link)** — parser (`skrypty/measurements.py`) obsługuje formaty CSV oraz eksporty `.txt` (REW 1/48 oct, pojedyncze lub L/R) dostarczone lokalnie przez użytkownika.
-* **AutoEq** — `measurements/<źródło>/data/in-ear/*.csv` i `targets/*.csv`
-  (MIT; dane pomiarowe od oratory1990/crinacle/Rtings itd.).
-  Aplikacja pobiera indeks i krzywe przez publiczne API GitHuba po HTTPS.
-  Pobieranie działa bez konta, w granicach limitu anonimowych zapytań GitHuba.
-  Wcześniej pobrane dane i lokalna kopia repozytorium działają również offline.
+* **AutoEq** — wbudowany indeks `dane/autoeq-catalog.json` udostępnia nazwy modeli i źródeł od pierwszego uruchomienia, a dołączone targety MIT w `dane/targety/` działają w pełni offline. Krzywe pomiarowe stron trzecich (`measurements/<źródło>/data/.../*.csv`) nie są redystrybuowane w repozytorium z uwagi na brak jednolitego potwierdzenia licencji na dalszą dystrybucję — aplikacja pobiera je na żądanie przez `raw.githubusercontent.com` po HTTPS, a odświeżanie indeksu korzysta z Git Smart HTTP (`filter=blob:none`, `deepen=1`), całkowicie bez zależności od anonimowego limitu REST API GitHuba. Nieudane odświeżenie zachowuje istniejący indeks i zapisane krzywe. Wcześniej pobrane dane i lokalna kopia repozytorium działają również offline.
 * **oficjalne Moondrop** — dwa kanały:
   1. sloty fabryczne w urządzeniu (slot 0 „Default”) — można je **odczytać
      przez HID** i zapisać jako „oficjalny preset”; to dosłownie fabryczne
