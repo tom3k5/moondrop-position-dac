@@ -2249,7 +2249,6 @@ class EqualizerDialog(QDialog):
         grid.setColumnStretch(3, 1)
         for number in range(1, dac.BAND_COUNT + 1):
             kind = QComboBox()
-            kind.setSizePolicy(kind.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Expanding)
             for label, code in (
                 (tr("editor.type_pk"), "PK"),
                 (tr("editor.type_lsq"), "LSQ"),
@@ -2273,6 +2272,7 @@ class EqualizerDialog(QDialog):
             q.setMinimumWidth(78)
             for control in (kind, frequency, gain, q):
                 control.setMinimumHeight(28)
+                control.setSizePolicy(control.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Expanding)
             grid.addWidget(QLabel(str(number)), number, 0)
             for column, key, widget in (
                 (1, "editor.col_type", kind),
