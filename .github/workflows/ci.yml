@@ -37,4 +37,4 @@ jobs:
       - name: Run quality checks and tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python3 skrypty/check_quality.py
+        run: python3 scripts/check_quality.py

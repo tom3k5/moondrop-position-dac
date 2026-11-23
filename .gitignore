@@ -10,4 +10,5 @@ flatpak-repo/
 *.flatpak
 AGENTS.md
 .agents/
-dane/urzadzenie-*.txt
+data/urzadzenie-*.txt
+data/device-*.txt

@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_DIRS = ["skrypty", "tests"]
+PYTHON_DIRS = ["scripts", "tests"]
 
 
 def run_step(title: str, command: list[str]) -> bool:
@@ -29,7 +29,7 @@ def run_step(title: str, command: list[str]) -> bool:
 
 
 def check_python_syntax() -> bool:
-    """Kompiluje wszystkie pliki Pythona w skrypty/ i tests/ w celu weryfikacji składni."""
+    """Kompiluje wszystkie pliki Pythona w scripts/ i tests/ w celu weryfikacji składni."""
     print("\n==> Składnia Pythona (py_compile)")
     files = sorted(
         path for directory in PYTHON_DIRS if (ROOT / directory).is_dir() for path in (ROOT / directory).rglob("*.py")
@@ -53,14 +53,15 @@ def check_data_configs() -> bool:
     """Waliduje składnię plików JSON oraz XML używanych przez aplikację i Flatpaka."""
     print("\n==> Walidacja JSON i XML")
     json_files = [
-        ROOT / "local.moondrop.Position.json",
-        ROOT / "dane" / "przyklad-eq.json",
-        *sorted((ROOT / "dane" / "profile").glob("*.json")),
-        *sorted((ROOT / "dane" / "i18n").glob("*.json")),
+        ROOT / "pl.innovibe.DspControl.json",
+        ROOT / "data" / "autoeq-catalog.json",
+        ROOT / "data" / "example-eq.json",
+        *sorted((ROOT / "data" / "profiles").glob("*.json")),
+        *sorted((ROOT / "data" / "i18n").glob("*.json")),
     ]
     xml_files = [
-        ROOT / "flatpak" / "local.moondrop.Position.metainfo.xml",
-        ROOT / "flatpak" / "local.moondrop.Position.svg",
+        ROOT / "flatpak" / "pl.innovibe.DspControl.metainfo.xml",
+        ROOT / "flatpak" / "pl.innovibe.DspControl.svg",
     ]
     ok = True
     checked = 0

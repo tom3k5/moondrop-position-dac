@@ -18,13 +18,13 @@ from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QMessageBox, QStyle, QStyleOptionComboBox, QWidget
 
-import position_gui as gui
+import dsp_control as gui
 
 
 def test_diagnose_serializes_dsp_coefficients(monkeypatch, capsys) -> None:
     demo = gui.DemoDevice()
-    monkeypatch.setattr(gui, "open_position", lambda: demo)
-    monkeypatch.setattr(sys, "argv", ["position_gui.py", "--diagnose"])
+    monkeypatch.setattr(gui, "open_dac", lambda: demo)
+    monkeypatch.setattr(sys, "argv", ["dsp_control.py", "--diagnose"])
     assert gui.main() == 0
     report = json.loads(capsys.readouterr().out)
     assert report["slot"] == 0
@@ -335,6 +335,7 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         # Verify State A AutoEq target preview, DSP reference curve, and legend chip toggle/solo
         window.readback_profile = sample
         window.source_group.button(1).click()
+        window.autoeq_panel.preview_timer.stop()
         window.autoeq_panel.preview_entry = gui.catalog.Entry(
             "Test Target", "Test Source", "model", "test/path.csv", False
         )
@@ -444,7 +445,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
 def test_app_version_matches_release_metadata_and_translates(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     pyproject_version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
-    metainfo_tree = ET.parse(root / "flatpak/local.moondrop.Position.metainfo.xml")
+    metainfo_tree = ET.parse(root / "flatpak/pl.innovibe.DspControl.metainfo.xml")
     metainfo_version = metainfo_tree.find("./releases/release").attrib["version"]
     assert gui.APP_VERSION == pyproject_version == metainfo_version
 
@@ -504,10 +505,12 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
         assert panel.catalog_button.height() == add_button_height
         assert panel.catalog_button.mapTo(window, QPoint()).y() == add_button_y
         assert panel.status.x() > panel.catalog_button.geometry().right()
+        catalog_btn_geo = panel.catalog_button.geometry()
         with monkeypatch.context() as pending:
             pending.setattr(panel, "start_job", lambda *_: None)
             panel.download_catalog()
             QTest.qWait(20)
+            assert panel.catalog_button.geometry() == catalog_btn_geo
             assert panel.catalog_progress.isVisible() and panel.catalog_progress.wordWrap()
             assert panel.catalog_progress.text() == gui.tr("autoeq.loading_catalog")
             assert panel.catalog_progress.parentWidget() is panel.catalog_list
@@ -517,6 +520,7 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
         cached_sources = [panel.source_filter.itemText(i) for i in range(panel.source_filter.count())]
         panel.catalog_downloaded(None, "GitHub API zwróciło błąd HTTP 403.")
         QTest.qWait(20)
+        assert panel.catalog_button.geometry() == catalog_btn_geo
         assert not panel.catalog_progress.isVisible()
         assert panel.catalog_error.isVisible()
         assert panel.catalog_error.parentWidget() is panel.catalog_list
@@ -836,4 +840,107 @@ def test_apply_and_restore_previous_profile(tmp_path: Path) -> None:
         assert window.apply_button.text() == "Wgraj do DAC-a"
     finally:
         window.quit_from_tray()
+        app.processEvents()
+
+
+def test_autoeq_clean_install_and_offline_behavior(tmp_path: Path, monkeypatch) -> None:
+    import urllib.error
+
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "settings.json").write_text('{"language":"pl","theme":"dark"}')
+
+    def offline_open(*_args, **_kwargs):
+        raise urllib.error.URLError("offline")
+
+    monkeypatch.setattr(gui.catalog.urllib.request, "urlopen", offline_open)
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.resize(1080, 760)
+        window.show()
+        window.switch_source(1)
+        panel = window.autoeq_panel
+        panel.preview_timer.stop()
+
+        # Czysta instalacja bez cache ma wbudowany indeks modeli i źródeł od pierwszego uruchomienia.
+        assert not panel.index_path.exists()
+        assert len(panel.entries) > 6000
+        assert panel.source_filter.count() > 10
+        assert panel.target_model.rowCount() > 6000
+
+        # Przełączenie na wbudowane cele MIT działa w pełni offline.
+        panel.mode.setCurrentIndex(panel.mode.findData("target"))
+        panel.search.setText("JM-1 with Harman filters")
+        QTest.qWait(30)
+        assert panel.target_model.rowCount() >= 1
+        panel.load_selected_preview()
+        for _ in range(40):
+            QTest.qWait(20)
+            app.processEvents()
+            if panel.preview_curve:
+                break
+        assert len(panel.preview_curve) > 50
+
+        # Nieudane odświeżenie offline zachowuje istniejący katalog i zgłasza błąd.
+        before_entries = list(panel.entries)
+        panel.download_catalog()
+        for _ in range(40):
+            QTest.qWait(20)
+            app.processEvents()
+            if panel.catalog_error.isVisible():
+                break
+        assert panel.catalog_error.isVisible()
+        assert panel.entries == before_entries
+
+        # Próba obliczenia niesbuforowanego modelu offline zwraca czytelny błąd i nie niszczy listy.
+        panel.mode.setCurrentIndex(panel.mode.findData("all"))
+        panel.search.setText("MOONDROP")
+        QTest.qWait(30)
+        panel.preview_timer.stop()
+        assert panel.target_model.rowCount() > 0
+        panel.generate_profile()
+        for _ in range(40):
+            QTest.qWait(20)
+            app.processEvents()
+            if not panel.fit_active:
+                break
+        assert not panel.fit_active
+        assert panel.fit_status.isVisible() and panel.fit_status.text()
+        assert panel.entries == before_entries
+    finally:
+        window.quit_from_tray()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("language", ["pl", "en"])
+def test_compact_autoeq_pl_en_large_font(tmp_path: Path, language: str) -> None:
+    app = QApplication.instance() or QApplication([])
+    original_font = app.font()
+    large_font = QFont(original_font)
+    large_font.setPointSize(max(13, original_font.pointSize() + 3))
+    app.setFont(large_font)
+    (tmp_path / "settings.json").write_text(json.dumps({"language": language, "theme": "dark"}))
+    window = gui.ProfilesWindow(demo=True, library_directory=tmp_path / "profiles")
+    try:
+        window.setMinimumWidth(640)
+        window.resize(640, 620)
+        window.show()
+        window.switch_source(1)
+        panel = window.autoeq_panel
+        panel.preview_timer.stop()
+        QTest.qWait(40)
+        assert window.plot_switcher.isVisible()
+        assert panel.source_filter.y() < panel.mode.y() < panel.fit_controls.y() < panel.search.y()
+        assert panel.search.y() < panel.catalog_list.y()
+        assert panel.catalog_button.isVisible()
+        assert panel.generate.isVisible()
+        assert panel.generate.parentWidget().rect().contains(panel.generate.geometry())
+        for combo in (panel.source_filter, panel.mode, panel.fit_range):
+            assert combo.width() <= panel.width()
+        for tab_idx in (0, 1, 2):
+            window.tabs.setCurrentIndex(tab_idx)
+            QTest.qWait(20)
+            assert window.width() == 640
+    finally:
+        window.quit_from_tray()
+        app.setFont(original_font)
         app.processEvents()

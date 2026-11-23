@@ -1,2 +1,0 @@
-#!/bin/sh
-exec /usr/bin/python3 /app/share/position-dac/skrypty/position_gui.py "$@"

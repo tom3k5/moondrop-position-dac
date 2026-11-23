@@ -1,6 +1,6 @@
-# MOONDROP:Gravity Position (35d8:0123) — dostęp do HID bez roota
+# Dostęp bez roota do interfejsów HID DAC-ów obsługiwanych przez DSP Control
 #
-# Urządzenie ma dwa interfejsy HID:
+# MOONDROP:Gravity Position (35d8:0123):
 #   * interface 3 (hidraw, report 0x4B i 0x54) — kanał vendor/DSP (EQ)
 #   * interface 4 (hidraw, report 0x03)        — klawisze konsumenckie (głośność itp.)
 #
@@ -8,7 +8,7 @@
 # ani FreeDSP Studio, ani skrypty użytkownika nie otworzą urządzenia.
 #
 # Instalacja:
-#   sudo cp 70-moondrop-position.rules /etc/udev/rules.d/
+#   sudo cp udev/70-dsp-control.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules
 #   sudo udevadm trigger
 #   # odłącz i podłącz DAC ponownie

@@ -11,12 +11,12 @@ Uruchamianie bez ręcznej aktywacji venv: skrypt sam przełączy się na
 
 Przykłady:
   # sam profil (bez urządzenia)
-  skrypty/eq_fit.py -m "dane/pomiary/Moondrop Position (B&K 5128).csv" \
-                    -t "dane/targety/Harman in-ear 2019.csv" \
-                    -o dane/profil-harman.json --plot dane/profil-harman.png
+  scripts/eq_fit.py -m "data/measurements/Moondrop Position (B&K 5128).csv" \
+                    -t "data/targets/Harman in-ear 2019.csv" \
+                    -o data/profiles/position-harman.json --plot data/profiles/position-harman.png
 
   # profil + zapis do DAC-a (wymaga reguły udev)
-  skrypty/eq_fit.py -m ... -t ... -o dane/profil-harman.json --apply
+  scripts/eq_fit.py -m ... -t ... -o data/profiles/position-harman.json --apply
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def _ensure_autoeq() -> None:
             "Brak biblioteki AutoEq. Utwórz venv w projekcie:\n"
             "  uv venv --python 3.11 .venvs/autoeq\n"
             "  uv pip install --python .venvs/autoeq/bin/python autoeq\n"
-            "albo uruchom przez: .venvs/autoeq/bin/python skrypty/eq_fit.py ..."
+            "albo uruchom przez: .venvs/autoeq/bin/python scripts/eq_fit.py ..."
         ) from exc
 
 
@@ -349,9 +349,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Przykład:\n"
-        "  skrypty/eq_fit.py -m 'dane/pomiary/Moondrop Position (B&K 5128).csv' \\\n"
-        "                    -t 'dane/targety/Harman in-ear 2019.csv' \\\n"
-        "                    -o dane/profil-harman.json --plot dane/profil-harman.png --apply\n",
+        "  scripts/eq_fit.py -m 'data/measurements/Moondrop Position (B&K 5128).csv' \\\n"
+        "                    -t 'data/targets/Harman in-ear 2019.csv' \\\n"
+        "                    -o data/profiles/position-harman.json --plot data/profiles/position-harman.png --apply\n",
     )
     parser.add_argument(
         "-m", "--measurement", required=True, metavar="PLIK", help="pomiar L (squig .txt lub CSV AutoEq)"
