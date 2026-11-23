@@ -7,27 +7,32 @@
 [![UI: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-41cd52?logo=qt&logoColor=white)](#screenshots)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Unlock full hardware DSP control for supported MOONDROP USB-C DACs (verified on MOONDROP:Gravity Position `35d8:0123`, experimental source-only support for CHU II DSP `31b2:0113` and ECHO-A `3302:12c5`) natively on Linux — no browser required, zero CPU overhead, and a 6,800+ model AutoEq catalog built in.**
+**Native Linux hardware DSP, AutoEq & PipeWire controller for MOONDROP USB-C DACs — zero CPU overhead, offline 6,800+ AutoEq index, unlocked `LSQ`/`HSQ` shelf filters, and live preview.**
 
-Whether you play competitive games on Steam/Proton or tune your IEMs to Harman, Diffuse Field, or your own REW measurements, this desktop app brings **100% of the official web configurator ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** offline to Linux — plus unlocked shelf filters (`LSQ` / `HSQ`), interactive EQ curve editing, and PipeWire UAC2 control.
+[Supported Hardware](#supported-hardware) · [Quick Start](#quick-start) · [Why DSP Control?](#why-use-the-native-linux-app) · [Screenshots](#screenshots) · [Docs](#technical-documentation) · [Support](#support-the-project)
 
-> **Supported hardware:**
->
-> | Model | USB VID:PID | EQ & Filters | Status |
-> |---|---|---|---|
-> | **MOONDROP:Gravity Position** | `35d8:0123` | 8 bands (`PK`, `LSQ`, `HSQ`, `LP`, `HP`), pre-gain | Verified on physical hardware |
-> | **MOONDROP CHU II DSP** | `31b2:0113` | 5 bands (`PK`, `LSQ`, `HSQ`), KTMicro KT0210 | **Experimental** (source builds, offline capture verified) |
-> | **MOONDROP ECHO-A** | `3302:12c5` | 8 bands (`PK`, `LSQ`, `HSQ`, `LP`, `HP`), WalkPlay | **Experimental** (source builds, offline capture verified) |
->
-> Own a CHU II DSP or ECHO-A? Follow the [Hardware Tester Guide](docs/tester-guide.md) and submit a [Hardware Test Report](https://github.com/tom3k5/moondrop-position-dac/issues/new?template=hardware-test-report.yml).
+![DSP Control Tuning panel with headphone response and EQ correction plots](docs/screenshots/01-tuning-profiles.png)
+
+---
+
+## Supported Hardware
+
+| Model | USB VID:PID | EQ & Filters | Status |
+|---|---|---|---|
+| **MOONDROP:Gravity Position** | `35d8:0123` | 8 bands (`PK`, `LSQ`, `HSQ`, `LP`, `HP`), pre-gain | **Verified** on physical hardware (Flatpak + source) |
+| **MOONDROP CHU II DSP** | `31b2:0113` | 5 bands (`PK`, `LSQ`, `HSQ`), KTMicro KT0210 | **Experimental** (source builds, verified on captured HID frames) |
+| **MOONDROP ECHO-A** | `3302:12c5` | 8 bands (`PK`, `LSQ`, `HSQ`, `LP`, `HP`), WalkPlay | **Experimental** (source builds, verified on captured HID frames) |
+
+> [!NOTE]
+> **Own a CHU II DSP or ECHO-A?** Help promote them from experimental to verified! Follow the [**Hardware Tester Guide**](docs/tester-guide.md) and submit a [**Hardware Test Report**](https://github.com/tom3k5/moondrop-position-dac/issues/new?template=hardware-test-report.yml) (includes rootless `--diagnose`).
 
 ---
 
 ## Quick Start
 
-DSP Control includes the AutoEq model/source index and core MIT targets from first launch; index refreshes and on-demand measurement downloads run over HTTPS with no GitHub sign-in or REST API rate limits.
+DSP Control ships the AutoEq model/source index and 9 MIT target curves offline from first launch; index refreshes and curve downloads run directly over HTTPS with no GitHub sign-in or REST API rate limits.
 
-### 1. Install via Flatpak (Recommended)
+### 1. Install via Flatpak (Recommended for Position)
 Download `dsp-control.flatpak` from [**GitHub Releases**](https://github.com/tom3k5/moondrop-position-dac/releases/latest) (bundles PySide6 and the full AutoEq optimizer):
 
 ```bash
@@ -35,7 +40,7 @@ flatpak install --user dsp-control.flatpak
 flatpak run pl.innovibe.DspControl
 ```
 
-### 2. Enable USB HID Access on Linux (One-Time `udev` Rule)
+### 2. Enable USB HID Access (One-Time `udev` Rule)
 Audio playback works out of the box in PipeWire. To allow non-root DSP/EQ control over `/dev/hidraw*` (required for both Flatpak and running from source):
 
 ```bash
@@ -43,19 +48,16 @@ sudo cp udev/70-dsp-control.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Replug your DAC and verify detection:
+Replug your DAC and verify detection without root:
 
 ```bash
 python3 scripts/dsp_control.py --diagnose
 ```
 
-The JSON report outputs the active slot, pre-gain, band parameters, and raw hexadecimal Q2.30 biquad coefficients.
-If more than one supported DAC is attached, use the HID CLI's `list` command and pass the intended DSP node as
-`--device /dev/hidrawN` to commands such as `info` or `eq_fit.py --apply`. In the source version,
-select the intended unit under **Device**. A single supported DAC is selected automatically.
+If multiple supported DACs are attached, use `list` in the HID CLI and pass `--device /dev/hidrawN` (or pick the unit under **Device** in the GUI). A single DAC is selected automatically.
 
-### 3. Try Without Hardware (Demo Simulator) or Run from Source
-Explore the entire UI, charts, AutoEq catalog, and EQ editor with no DAC connected:
+### 3. Run from Source (Experimental CHU II DSP / ECHO-A or `--demo` Mode)
+Explore the full UI, AutoEq catalog, and EQ editor with no DAC connected:
 
 ```bash
 git clone https://github.com/tom3k5/moondrop-position-dac.git
@@ -63,7 +65,7 @@ cd moondrop-position-dac
 python3 scripts/dsp_control.py --demo
 ```
 
-To run against a physical DAC from source, omit `--demo`:
+To run against a physical DAC (including experimental **CHU II DSP** / **ECHO-A**):
 
 ```bash
 python3 scripts/dsp_control.py
@@ -71,84 +73,66 @@ python3 scripts/dsp_control.py
 
 *(Optional: to run the AutoEq optimizer from source, set up `.venvs/autoeq` with Python 3.11 as described in [`docs/autoeq-integration.md`](docs/autoeq-integration.md).)*
 
-### 4. Build Flatpak Locally & Permissions
+<details>
+<summary>Build Flatpak locally &amp; sandbox permissions</summary>
+
 ```bash
 flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build pl.innovibe.DspControl.json
 flatpak build-bundle flatpak-repo dsp-control.flatpak pl.innovibe.DspControl
 ```
 
-The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requests `--device=all` (USB `hidraw` DSP access), `--share=network` (user-initiated AutoEq catalog downloads), `--talk-name=org.kde.StatusNotifierWatcher` (system tray icon), and `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (desktop window).
+The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requests `--device=all` (USB `hidraw` DSP access), `--share=network` (user-initiated AutoEq catalog downloads), `--talk-name=org.kde.StatusNotifierWatcher` (system tray icon), and `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (desktop window). For a strictly offline session with local profiles and cached curves, run `flatpak run --unshare=network pl.innovibe.DspControl`.
 
-The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal supplies a raw USB handle for a libusb-style transport. If you use local profiles and cached curves, run `flatpak run --unshare=network pl.innovibe.DspControl` for an offline session.
+</details>
 
 ---
 
 ## Why Use the Native Linux App?
 
-- **Hardware DSP, Zero CPU Load:** Your 8-band parametric EQ runs directly on the DAC chip (`< 5 ms` latency) and stays active in every Steam/Proton game, Discord call, and media player — even after closing the app or moving to another PC.
-- **Unlocks `LSQ` & `HSQ` Shelf Filters:** While `hub.moondroplab.tech` disables shelf filters for Position (`PK / LP / HP` only), this app unlocks hardware `LSQ` and `HSQ` shelves verified on firmware `0.5`. AutoEq defaults to `1× LSQ + 1× HSQ + 6× PK`, drastically reducing target error (`0.47 dB` vs `2.20 dB` RMS on Position → Harman In-Ear 2019).
-- **Safe Offline Workflow:** Browsing, AutoEq fitting, and saving profiles to disk are completely separate from flashing the DAC. Every write performs pre/post-flash readback verification, and live preview automatically restores your previous DAC state if you cancel.
-- **System Tray & PipeWire Control:** Minimize to the tray to switch profiles in two clicks, check your active ALSA bit depth, and optionally force the PipeWire sample rate (`44.1–384 kHz`).
+- **Hardware DSP, Zero CPU Load:** Parametric EQ runs directly on the DAC chip (`< 5 ms` latency) and stays active across Steam/Proton games, Discord, and media players — even after closing the app or moving to another PC.
+- **Unlocks `LSQ` & `HSQ` Shelf Filters:** While `hub.moondroplab.tech` disables shelf filters for Position (`PK / LP / HP` only), DSP Control unlocks hardware `LSQ` and `HSQ` shelves verified on firmware `0.5`. AutoEq defaults to `1× LSQ + 1× HSQ + 6× PK`, dropping Harman In-Ear 2019 RMS error from `2.20 dB` down to `0.47 dB`.
+- **Safe Offline Workflow:** Browsing, AutoEq fitting, and local profile storage are completely separated from DAC flash. Every write performs pre/post-flash verification, and live preview automatically restores your previous DAC state if you cancel.
+- **System Tray & PipeWire Control:** Minimize to the tray to switch profiles in two clicks, check active ALSA bit depth, and optionally force the PipeWire sample rate (`44.1–384 kHz`).
 
 | Feature | Official Web Hub | DSP Control |
 |---|---|---|
-| 8-band Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | `PK / LP / HP` only (shelves disabled) | **Unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), native USB HID `0x4B`, offline** |
-| Interactive EQ Curve & Headroom | Sliders only | **Drag handles `1–8` (Freq/Gain/Wheel Q) + Auto Headroom & Clip Check** |
+| Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | `PK / LP / HP` only (shelves disabled on Position) | **Unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), native USB HID `0x4B`, offline** |
+| Interactive EQ Curve & Headroom | Sliders only | **Drag points on plot (Freq / Gain / Wheel Q) + Auto Headroom & Clip Check** |
 | Live Auditioning | Yes | **Yes, auto-enabled with safe state restore on cancel** |
-| Built-in AutoEq Optimizer | Basic presets | **6,800+ models + pre-fit target preview + selectable fit range + Drag & Drop** |
-| Live DSP Comparison & Interactive Legend | No | **Compare against Current in DSP on both plots, toggle/solo pills, `Hz / dB / Δ dB` crosshair** |
+| Built-in AutoEq Optimizer | Basic presets | **6,800+ offline index + 9 MIT targets + pre-fit preview + fit range + Drag & Drop** |
+| Live DSP Comparison & Interactive Legend | No | **Compare against Current in DSP on both plots, toggle/solo pills, `Hz / dB / Δ dB`** |
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
 | Local Library vs DAC Flash | Limited | **Full local library, Drag & Drop, JSON & Equalizer APO (`.txt`) import/export** |
 | PipeWire UAC2 Monitor & Sample Rate | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
-| Readback Verification & Backup | Basic | **Pre/post-flash verification, 1-click Restore previous & DAC backup** |
+| Readback Verification & Diagnostics | Basic | **Pre/post-flash verification, 1-click Restore previous, rootless `--diagnose`** |
 | Themes, Language & Built-in Guide | Web only | **InnoVibe Dark & Light themes, EN / PL, built-in Guide tab** |
 
 ---
 
 ## Screenshots
 
-DSP Control running in demo mode with the **InnoVibe Dark** theme.
-
 ### 1. Tuning & Frequency Response Preview
-Browse **My profiles** on the left and inspect the prediction on the right without touching your DAC — **Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which changes to **Restore previous** after flashing so you can revert in one click, or shows **Already active on DAC** for an unchanged active state).
-
-- **Headphone response** compares the **Factory (B&K 5128)** baseline, **Target**, **Predicted result**, and **Current in DSP**; click **Details…** next to RMS to inspect the mean target offset and peak deviation in the `20 Hz–10 kHz` band (frequencies above `10 kHz` are shaded due to lower acoustic confidence).
-- **EQ correction** displays the electrical filter curve at `96 kHz` with **Current in DSP** and **Profile EQ** legend pills alongside separate profile and DSP pre-gain on the right. Plot heights stay locked across tabs while Y-axis scales adapt dynamically; compact windows use a view switcher. Hover over a shortened fit summary or status message to read the full text.
-- When the DAC confirms a rounded pre-gain, the action bar beside **Apply to DAC** shows the confirmed value and the profile value.
-- Click legend pills to hide/show curves, hover a pill to **solo** it, or hover the plot for a live `Hz / dB / Δ dB` readout.
-
-![Tuning with both plots and pre-gain beside the EQ correction legend](docs/screenshots/01-tuning-profiles.png)
+**Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which becomes **Restore previous** after flashing). **Headphone response** compares **Factory (B&K 5128)**, **Target**, **Predicted result**, and **Current in DSP**; **EQ correction** shows the electrical filter curve at `96 kHz` with interactive toggle/solo legend pills and `Hz / dB / Δ dB` hover readouts.
 
 <details>
-<summary>Compact Tuning view</summary>
+<summary>Compact Tuning view (640×620)</summary>
 
 ![Compact Tuning with a switch between frequency response and EQ correction](docs/screenshots/06-tuning-compact.png)
 
 </details>
 
 ### 2. Built-in AutoEq Catalog (6,800+ Models)
-Switch to **AutoEq catalog** to filter thousands of IEM and over-ear measurements by **Source**, **Headphone type**, and **Fit range**, then search by model (`Get catalog` and the result count sit on the shared bottom bar). You can also drop your own `.csv` / `.txt` curve onto the window.
-
-- Pick a **Fit range** (`20 Hz–20 kHz` or up to `6 / 4 / 2 kHz` to keep upper bands free for manual treble tweaks) and click **Compute profile** — the action bar cleanly reveals **Save profile**, **Edit EQ…**, and **Apply to DAC** once fitted.
-- Each computed profile records its fit range (including when saved to disk); if you change the range afterwards, **Recompute profile** replaces the right action button so you never apply or save a stale fit.
+Filter thousands of IEM and over-ear measurements by **Source**, **Headphone type**, and **Fit range** (`20 Hz–20 kHz` or `6 / 4 / 2 kHz`), or drop your own `.csv` / `.txt` curve onto the window.
 
 ![AutoEq Catalog](docs/screenshots/02-autoeq-catalog.png)
 
-### 3. 8-Band Parametric EQ Editor & Live Preview
-Click **Edit EQ…** to open the dedicated editor. With a DAC connected, **Live preview** turns on automatically, lets you audition every tweak in real time without flashing memory, and safely restores your previous DAC settings if you turn it off or cancel.
-
-- Drag numbered handles `1–8` directly on the **EQ correction** plot (Freq / Gain / scroll wheel Q), fine-tune with sliders or numeric fields, and click **Set automatically** to set pre-gain from available headroom.
-- The editor fits all eight bands on opening when the available screen height allows it. Expand **Output and microphone gain in profile** below the bands to attach those settings.
-- If a steep `LSQ` or `HSQ` exceeds the DAC's coefficient range, reduce Q or gain. Live preview restores the original coefficients and pre-gain when it ends.
-- Switch to **Frequency response** to check the predicted acoustic curve, enable **Compare with initial profile**, and use the bottom bar to **Export profile…** (`.txt` / `.json`), **Save profile**, or **Apply to DAC**.
+### 3. Parametric EQ Editor & Live Preview
+Drag handles directly on the **EQ correction** plot, scroll to adjust Q, and click **Set automatically** for headroom. With a DAC connected, **Live preview** lets you audition tweaks in real time and restores your previous settings if canceled.
 
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
 ### 4. Device Status, Gains & PipeWire UAC2 Quality
-Check your active DAC profile, slot (`0` Factory / `7` Custom), pre-gain, and output/microphone gain at a glance.
-
-- View the active ALSA playback stream and set the session-wide **PipeWire sample rate**. Choose **Automatic (PipeWire)** or a fixed rate (`44.1–384 kHz`) and select **Apply**. Expand **USB and PipeWire details** for raw USB format and firmware info.
-- Back up your DAC's Custom slot to JSON, run a **Factory reset…**, and switch between **InnoVibe Dark / Light** themes and **EN / PL** languages.
+Inspect active ALSA bit depth, set session-wide **PipeWire sample rate** (`44.1–384 kHz`), export/restore DAC backups, and switch between **InnoVibe Dark / Light** themes and **EN / PL** languages.
 
 ![Device settings with the full Automatic (PipeWire) label](docs/screenshots/03-device-settings.png)
 
@@ -160,7 +144,7 @@ Check your active DAC profile, slot (`0` Factory / `7` Custom), pre-gain, and ou
 </details>
 
 ### 5. Built-in Guide, Shortcuts & Diagnostics
-Everything you need inside the app: quick walkthroughs for tuning and live preview, drag-and-drop import tips, keyboard shortcuts (`Ctrl+F` search, `Ctrl+O` import, `Ctrl+Q` quit), 1-click diagnostic copy for bug reports, the current version and license indicator in the bottom-right corner, and direct support links.
+In-app walkthroughs, keyboard shortcuts (`Ctrl+F`, `Ctrl+O`, `Ctrl+Q`), 1-click diagnostic copy, and direct support links.
 
 ![Guide Tab](docs/screenshots/05-guide-tab.png)
 
@@ -170,7 +154,8 @@ Everything you need inside the app: quick walkthroughs for tuning and live previ
 
 - [`docs/hid-protocol.md`](docs/hid-protocol.md) — Reverse-engineered USB HID `0x4B` DSP protocol (Q2.30 biquad encoding, slots, pre-gain, global/mic gain).
 - [`docs/autoeq-integration.md`](docs/autoeq-integration.md) — AutoEq catalog pipeline and 8-band (`LSQ + HSQ + 6× PK` / `PK`) optimization details.
-- [`docs/sources.md`](docs/sources.md) — Hardware USB descriptors, UAC2 modes, and reference configurations.
+- [`docs/tester-guide.md`](docs/tester-guide.md) — Step-by-step verification guide for CHU II DSP & ECHO-A testers.
+- [`docs/sources.md`](docs/sources.md) — Hardware USB descriptors, UAC2 modes, and open-source references.
 
 ---
 
@@ -180,6 +165,6 @@ Everything you need inside the app: quick walkthroughs for tuning and live previ
 > **Enjoying DSP Control?**
 > If this app helps you get better sound out of your DAC on Linux, consider supporting continued development — every coffee helps keep updates, hardware testing, and new features coming!
 
-- ☕ **Buy me a coffee:** Visit the [**InnoVibe support page**](https://innovibe.pl/en/ko-fi/) (choose your preferred amount and payment method) or click **Buy me a coffee…** under **Support the project** in the app's **Guide** tab.
-- 👤 **Author:** [InnoVibe](https://www.innovibe.pl/en)
-- 🐛 **Bugs & Feature Ideas:** Use **Report bug / Feature** in the **Guide** tab (includes a 1-click diagnostic copy) or open an issue on [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose).
+- ☕ **Buy me a coffee:** Visit the [**InnoVibe support page**](https://innovibe.pl/en/ko-fi/) or click **Buy me a coffee…** in the app's **Guide** tab.
+- 🌐 **Project Page:** [DSP Control on InnoVibe](https://innovibe.pl/en/dsp-control/)
+- 🐛 **Bugs, Hardware Reports & Ideas:** Submit a [Hardware Test Report](https://github.com/tom3k5/moondrop-position-dac/issues/new?template=hardware-test-report.yml) or open an issue on [GitHub Issues](https://github.com/tom3k5/moondrop-position-dac/issues/new/choose).
