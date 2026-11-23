@@ -157,6 +157,9 @@ dane/
 * **Własne pomiary użytkownika (REW / squig.link)** — parser (`skrypty/measurements.py`) obsługuje formaty CSV oraz eksporty `.txt` (REW 1/48 oct, pojedyncze lub L/R) dostarczone lokalnie przez użytkownika.
 * **AutoEq** — `measurements/<źródło>/data/in-ear/*.csv` i `targets/*.csv`
   (MIT; dane pomiarowe od oratory1990/crinacle/Rtings itd.).
+  Aplikacja pobiera indeks i krzywe przez publiczne API GitHuba po HTTPS.
+  Pobieranie działa bez konta, w granicach limitu anonimowych zapytań GitHuba.
+  Wcześniej pobrane dane i lokalna kopia repozytorium działają również offline.
 * **oficjalne Moondrop** — dwa kanały:
   1. sloty fabryczne w urządzeniu (slot 0 „Default”) — można je **odczytać
      przez HID** i zapisać jako „oficjalny preset”; to dosłownie fabryczne

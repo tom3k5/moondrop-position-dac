@@ -2706,6 +2706,10 @@ class AutoEqPanel(QWidget):
 
         self.status = self.text_label()
         self.status.setWordWrap(False)
+        self.catalog_error = FeedbackLabel()
+        self.catalog_error.setTextFormat(Qt.TextFormat.PlainText)
+        self.catalog_error.setWordWrap(True)
+        layout.addWidget(self.catalog_error)
         layout.addWidget(self.fit_provenance)
         self.fit_status = FeedbackLabel()
         self.fit_status.setTextFormat(Qt.TextFormat.PlainText)
@@ -2923,12 +2927,14 @@ class AutoEqPanel(QWidget):
         self.preview_changed.emit()
 
     def download_catalog(self) -> None:
+        self.catalog_error.clear()
         self.status.setText(tr("autoeq.loading_catalog"))
         self.start_job(lambda: catalog.download_index(self.index_path), self.catalog_downloaded)
 
     def catalog_downloaded(self, entries, error: str) -> None:
         if error:
-            self.status.setText(tr("autoeq.catalog_failed", error=error))
+            self.status.clear()
+            self.catalog_error.setText(tr("autoeq.catalog_failed", error=error))
             return
         self.entries = [entry for entry in self.entries if entry.local] + entries
         self.update_results()
@@ -2936,6 +2942,7 @@ class AutoEqPanel(QWidget):
     def open_catalog(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Wybierz folder repozytorium AutoEq")
         if path:
+            self.catalog_error.clear()
             self.status.setText(tr("autoeq.indexing_catalog"))
             self.start_job(lambda: self.index_local_catalog(Path(path)), self.catalog_opened)
 
@@ -2946,7 +2953,8 @@ class AutoEqPanel(QWidget):
 
     def catalog_opened(self, entries, error: str) -> None:
         if error:
-            self.status.setText(error)
+            self.status.clear()
+            self.catalog_error.setText(error)
             return
         self.entries = [
             entry

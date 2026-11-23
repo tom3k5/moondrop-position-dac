@@ -249,7 +249,7 @@ def test_i18n_languages_switch_and_extensibility(tmp_path: Path) -> None:
     assert custom_langs["de"] == "Deutsch"
 
 
-def test_autoeq_read_github_https_fallback(monkeypatch) -> None:
+def test_autoeq_read_github_uses_public_https(monkeypatch) -> None:
     class FakeResponse:
         def __init__(self, payload: bytes) -> None:
             self.payload = payload
@@ -263,8 +263,13 @@ def test_autoeq_read_github_https_fallback(monkeypatch) -> None:
         def read(self, _n: int) -> bytes:
             return self.payload
 
-    monkeypatch.setattr(catalog.shutil, "which", lambda _cmd: None)
-    monkeypatch.setattr(catalog.urllib.request, "urlopen", lambda _req, timeout=18: FakeResponse(b'{"tree": []}'))
+    def open_public_index(request, *, timeout):
+        assert request.full_url == "https://api.github.com/repos/jaakkopasanen/AutoEq/git/trees/master"
+        assert request.get_header("Authorization") is None
+        assert timeout == 18
+        return FakeResponse(b'{"tree": []}')
+
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", open_public_index)
     data = catalog.read_github("repos/jaakkopasanen/AutoEq/git/trees/master", 1024)
     assert data == b'{"tree": []}'
 

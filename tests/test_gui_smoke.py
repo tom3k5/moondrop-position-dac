@@ -503,6 +503,12 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path) -> None:
         assert panel.catalog_button.height() == add_button_height
         assert panel.catalog_button.mapTo(window, QPoint()).y() == add_button_y
         assert panel.status.x() > panel.catalog_button.geometry().right()
+        panel.catalog_downloaded(None, "GitHub API zwróciło błąd HTTP 403.")
+        QTest.qWait(20)
+        assert panel.catalog_error.isVisible() and panel.catalog_error.wordWrap()
+        assert panel.catalog_error.geometry().right() <= panel.rect().right()
+        assert "HTTP 403" in panel.catalog_error.text()
+        panel.catalog_error.clear()
         fit_option = QStyleOptionComboBox()
         panel.fit_range.initStyleOption(fit_option)
         fit_rect = panel.fit_range.style().subControlRect(
