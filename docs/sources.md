@@ -4,7 +4,9 @@
 
 | Project | License | Used For |
 |---|---|---|
-| [jeromeof/devicePEQ](https://github.com/jeromeof/devicePEQ) | 0BSD | `devicePEQ/moondropUsbHidHandler.js` — Moondrop command & frame layout; `walkplayHidHandler.js` + `walkplayHIDHandler.md`; `usbDeviceConfig.js` (`0x0123` = scheme 13) |
+| [jeromeof/devicePEQ](https://github.com/jeromeof/devicePEQ) | 0BSD | `devicePEQ/moondropUsbHidHandler.js` — Moondrop command & frame layout; `ktmicroUsbHidHandler.js` + `tests/captures/ktmicro_chu2_dsp.json` (CHU II DSP); `walkplayHidHandler.js` + `walkplayHIDHandler.md` (ECHO-A); `usbDeviceConfig.js` (`0x0123` = scheme 13) |
+| [jcharvet/chu2-studio](https://github.com/jcharvet/chu2-studio) | MIT | `docs/PROTOCOL.md` — KTMicro KT0210 USB topology and commit restart behavior for CHU II DSP (`31b2:0113`) |
+| [Chronosauros/contour](https://github.com/Chronosauros/contour) | Apache-2.0 | `devices/moondrop-echo-a.json` & `echo-a-read-195126.log` — ECHO-A (`3302:12c5`) WalkPlay SchemeNo 11 hardware read capture & capabilities |
 | [EffectiveEquivalent/FreeDSP-Studio](https://github.com/EffectiveEquivalent/FreeDSP-Studio) | MIT | `tools/app/src/dsp2.rs`, `hid_gen2.rs` — independent gen-2 coefficient/timing reference |
 | [potatosalad775/eqcaps](https://github.com/potatosalad775/eqcaps) | code MIT, data CC0 | `data/profiles/moondrop/moondrop-position.json`, `data/bases/moondrop-hub.json` — official Moondrop app limits |
 | [modernGraphTool — Hardware EQ](https://potatosalad775.github.io/modernGraphTool/docs/features/device-peq/) | — | WebHID device-PEQ documentation |

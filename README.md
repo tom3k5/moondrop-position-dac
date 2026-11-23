@@ -11,6 +11,8 @@
 
 Whether you play competitive games on Steam/Proton or tune your IEMs to Harman, Diffuse Field, or your own REW measurements, this desktop app brings **100% of the official web configurator ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** offline to Linux — plus unlocked shelf filters (`LSQ` / `HSQ`), interactive EQ curve editing, and PipeWire UAC2 control.
 
+> **Supported hardware:** **MOONDROP:Gravity Position** (`35d8:0123`) is verified on physical hardware. Source builds also include **experimental** drivers (verified offline on captured HID frames, awaiting community hardware testing) for **MOONDROP CHU II DSP** (`31b2:0113`) and **MOONDROP ECHO-A** (`3302:12c5`).
+
 ---
 
 ## Quick Start

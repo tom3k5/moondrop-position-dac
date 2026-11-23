@@ -763,6 +763,10 @@ class DeviceState:
     coefficients: tuple[bytes, ...] = ()
     interface: HidInterface | None = None
     model_name: str = dac.POSITION_NAME
+    experimental: bool = False
+    band_count: int = dac.BAND_COUNT
+    custom_slot: int = dac.CUSTOM_SLOT
+    slot_names: dict[int, str] | None = None
 
     @property
     def target(self) -> DeviceTarget:
@@ -855,12 +859,13 @@ def read_state(dev) -> DeviceState:
     slot = dev.slot()
     firmware = dev.version()
     preamp = dev.preamp()
+    band_count = getattr(dev, "band_count", dac.BAND_COUNT)
     bands = []
     coefficients = []
-    for index in range(dac.BAND_COUNT):
+    for index in range(band_count):
         band = dev.read_band(index, include_coefficients=True)
         if band is not None:
-            coefficients.append(band.pop("coefficients"))
+            coefficients.append(band.pop("coefficients", b""))
         bands.append(band)
         time.sleep(dac.DELAY_BAND_MS / 1000)
     try:
@@ -884,6 +889,10 @@ def read_state(dev) -> DeviceState:
         tuple(coefficients),
         getattr(dev, "interface", None),
         getattr(dev, "model_name", dac.POSITION_NAME),
+        bool(getattr(dev, "experimental", False)),
+        band_count,
+        getattr(dev, "custom_slot", dac.CUSTOM_SLOT),
+        dict(getattr(dev, "slot_names", dac.SLOT_NAMES)),
     )
 
 
@@ -894,7 +903,13 @@ class DeviceChoice:
 
 
 def hardware_choices() -> list[DeviceChoice]:
-    return [DeviceChoice(item.interface, item.model.display_name) for item in dac.DEVICE_REGISTRY.detect()]
+    choices = []
+    for item in dac.DEVICE_REGISTRY.detect():
+        label = item.model.display_name
+        if getattr(item.model.connect, "experimental", False):
+            label = f"{label} [Experimental]"
+        choices.append(DeviceChoice(item.interface, label))
+    return choices
 
 
 def poll_devices(
@@ -5326,7 +5341,7 @@ def main() -> int:
                 else:
                     state = read_state(dev)
                     report = {
-                        key: value for key, value in vars(state).items() if key not in ("interface", "model_name")
+                        key: value for key, value in vars(state).items() if key not in ("interface", "slot_names")
                     }
                     report["coefficients"] = [band.hex() for band in state.coefficients]
         except dac.HidError as exc:

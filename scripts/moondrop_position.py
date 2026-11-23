@@ -26,8 +26,10 @@ import struct
 import sys
 import time
 
+from chu2_dsp import CHU2_MODEL
 from dac_devices import DacModel, DacRegistry, DeviceTarget
 from dac_transport import HidDeviceMissing, HidError, HidPermissionError, HidrawTransport, HidReport
+from echo_a import ECHO_A_MODEL
 
 REPORT_ID = 0x4B
 VENDOR_ID = 0x35D8
@@ -74,7 +76,17 @@ REPLY_TIMEOUT_MS = 600
 
 
 class MoondropPosition:
+    model_id = "moondrop-position"
     model_name = POSITION_NAME
+    experimental = False
+    band_count = BAND_COUNT
+    supported_types = tuple(TYPE_TO_CODE)
+    gain_range = (-18.0, 12.0)
+    preamp_range = (-128.0, 0.0)
+    custom_slot = CUSTOM_SLOT
+    slot_names = SLOT_NAMES
+    sample_rate_hz = COEFF_FS
+    reconnect_on_save = False
 
     def __init__(self, transport: HidrawTransport, timeout_ms: int = REPLY_TIMEOUT_MS):
         self.transport = transport
@@ -339,30 +351,34 @@ POSITION_MODEL = DacModel(
     reports=frozenset(HidReport(REPORT_ID, kind, PAYLOAD_LEN) for kind in ("input", "output")),
     connect=MoondropPosition,
 )
-DEVICE_REGISTRY = DacRegistry((POSITION_MODEL,))
+DEVICE_REGISTRY = DacRegistry((POSITION_MODEL, CHU2_MODEL, ECHO_A_MODEL))
 
 
-def connect_device(target: DeviceTarget | None = None, timeout_ms: int = REPLY_TIMEOUT_MS) -> MoondropPosition | None:
+def connect_device(target: DeviceTarget | None = None, timeout_ms: int = REPLY_TIMEOUT_MS):
     selected = DEVICE_REGISTRY.select(target)
     return DEVICE_REGISTRY.open(selected, timeout_ms) if selected is not None else None
 
 
-def require_device(target: DeviceTarget | None = None, timeout_ms: int = REPLY_TIMEOUT_MS) -> MoondropPosition:
+def require_device(target: DeviceTarget | None = None, timeout_ms: int = REPLY_TIMEOUT_MS):
     device = connect_device(target, timeout_ms)
     if device is None:
-        raise HidDeviceMissing("Nie znaleziono MOONDROP:Gravity Position (35d8:0123) z raportem HID 0x4B.")
+        raise HidDeviceMissing(
+            "Nie znaleziono obsługiwanego DAC-a (Position 35d8:0123, CHU II DSP 31b2:0113, ECHO-A 3302:12c5) "
+            "z raportem HID 0x4B."
+        )
     return device
 
 
 def cmd_list(_args) -> int:
     devices = DEVICE_REGISTRY.detect()
     if not devices:
-        print("Brak urządzenia 35d8:0123 z raportem 0x4B.")
+        print("Brak obsługiwanego urządzenia z raportem 0x4B (Position, CHU II DSP, ECHO-A).")
         return 1
     for selected in devices:
         interface = selected.interface
         print(
-            f"{interface.node}  [{interface.name}]  {interface.vendor_id:04x}:{interface.product_id:04x}  (report 0x4B)"
+            f"{interface.node}  [{selected.model.display_name}]  "
+            f"{interface.vendor_id:04x}:{interface.product_id:04x}  (report 0x4B)"
         )
         print(f"  sysfs: {interface.sysfs}")
         try:
@@ -605,6 +621,9 @@ def preamp_matches(actual: float, requested: float, *, allow_half_db: bool = Fal
 def verify_profile(
     dev: MoondropPosition, bands: list[dict], slot: int | None, preamp: float | None, *, allow_half_db: bool = False
 ) -> None:
+    if not isinstance(dev, MoondropPosition) and hasattr(dev, "verify_profile"):
+        dev.verify_profile(bands, slot, preamp)
+        return
     actual_slot = dev.slot()
     if slot is not None and actual_slot != slot:
         raise HidError(f"Slot: odczytano {actual_slot}, oczekiwano {slot}.")
@@ -624,6 +643,8 @@ def verify_profile(
 
 
 def apply_preamp(dev: MoondropPosition, db: float) -> bool:
+    if not isinstance(dev, MoondropPosition) and hasattr(dev, "apply_preamp"):
+        return dev.apply_preamp(db)
     return _write_preamp(dev, db)[0]
 
 
@@ -658,6 +679,8 @@ def write_profile(
     previous_bands: list[dict] | None = None,
     allow_half_db: bool = False,
 ) -> float | None:
+    if not isinstance(dev, MoondropPosition) and hasattr(dev, "write_profile"):
+        return dev.write_profile(bands, preamp, slot=slot, persist=persist, previous_bands=previous_bands)
     validate_profile(bands, slot, preamp)
     if slot != CUSTOM_SLOT:
         raise HidError("Zapis EQ jest dostępny tylko w slocie 7 (Custom).")

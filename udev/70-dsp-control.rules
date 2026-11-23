@@ -1,20 +1,25 @@
-# Dostęp bez roota do interfejsów HID DAC-ów obsługiwanych przez DSP Control
+# Non-root access to HID interfaces of DACs supported by DSP Control
 #
 # MOONDROP:Gravity Position (35d8:0123):
-#   * interface 3 (hidraw, report 0x4B i 0x54) — kanał vendor/DSP (EQ)
-#   * interface 4 (hidraw, report 0x03)        — klawisze konsumenckie (głośność itp.)
+#   * interface 3 (hidraw, report 0x4B and 0x54) — vendor/DSP channel (EQ)
+#   * interface 4 (hidraw, report 0x03)         — consumer controls (volume, etc.)
+# MOONDROP CHU II DSP (31b2:0113, experimental):
+#   * interface 3 (hidraw, report 0x4B, 10 B)   — KTMicro DSP channel (EQ)
+# MOONDROP ECHO-A (3302:12c5, experimental):
+#   * interface 3 (hidraw, report 0x4B, 63 B)   — WalkPlay DSP channel (EQ)
 #
-# Bez tej reguły /dev/hidraw* jest root:root 0600 i ani Chrome/WebHID,
-# ani FreeDSP Studio, ani skrypty użytkownika nie otworzą urządzenia.
+# Without this rule /dev/hidraw* is root:root 0600 and user-space apps cannot open it.
 #
-# Instalacja:
+# Installation:
 #   sudo cp udev/70-dsp-control.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules
 #   sudo udevadm trigger
-#   # odłącz i podłącz DAC ponownie
+#   # unplug and replug the DAC
 #
-# Weryfikacja:
-#   ls -l /dev/hidraw*   # powinno być crw-rw----+ 1 root root ...
-#   getfacl /dev/hidraw0 # ACL dla zalogowanego użytkownika (tag uaccess)
+# Verification:
+#   ls -l /dev/hidraw*   # should show crw-rw----+ 1 root root ...
+#   getfacl /dev/hidraw0 # ACL for the logged-in user (uaccess tag)
 
 KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="35d8", ATTRS{idProduct}=="0123", MODE="0660", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="31b2", ATTRS{idProduct}=="0113", MODE="0660", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="12c5", MODE="0660", TAG+="uaccess"
