@@ -36,7 +36,7 @@ plików REW / `squig.link` (L/R `.txt`).
 | pipeline AutoEq: pomiar + target → 8 pasm → profil JSON | `skrypty/eq_fit.py` | **przetestowany** na prawdziwym pomiarze Position |
 | import EQ z autoeq.app (Equalizer APO) | `moondrop_position.py import-eq` | przetestowany na przykładowym eksporcie |
 | venv z AutoEq (Python 3.11, numpy/scipy) | `.venvs/autoeq/` | działa, skrypt sam się przełącza |
-| reguła udev | `udev/70-moondrop-position.rules` | gotowa, wymaga `sudo` |
+| reguła udev | `udev/70-dsp-control.rules` | gotowa, wymaga `sudo` |
 | dane: krzywa fabryczna + targety | `dane/pomiary/`, `dane/targety/` | opracowana ze specyfikacji + targety MIT z AutoEq |
 | przykładowy profil | `dane/profile/moondrop-position-harman.json` | wygenerowany dla Harman In-Ear 2019 |
 
@@ -172,7 +172,7 @@ sprzętowy na firmware 0.5 potwierdził oba sloty (w tym `HSQ` w fabrycznym sloc
 
 ## 6. Integracja z systemem Linux
 
-1. Sprawdzić istniejącą regułę `udev/70-moondrop-position.rules` w aktywnej
+1. Sprawdzić istniejącą regułę `udev/70-dsp-control.rules` w aktywnej
    sesji KDE. Potwierdzić otwarcie interfejsu DSP przez użytkownika po
    ponownym podłączeniu DAC-a. Interfejs klawiszy konsumenckich pomijamy.
 2. Sprawdzić start GUI na Wayland poza sandboxem. Pierwszą wersję uruchomić
@@ -248,8 +248,8 @@ GUI pokazało obie wartości i pominęło ponowny zapis flash. Próba potwierdza
 trwałość zapisanego stanu. Słyszalność zmian pozostaje do sprawdzenia.
 
 Bieżące testy uruchamiamy ze źródeł. Tryb demonstracyjny uruchamia
-`python3 skrypty/position_gui.py --demo`, a odczyt fizycznego DAC-a
-`python3 skrypty/position_gui.py --diagnose`. Manifest pozostaje w
+`python3 skrypty/dsp_control.py --demo`, a odczyt fizycznego DAC-a
+`python3 skrypty/dsp_control.py --diagnose`. Manifest pozostaje w
 projekcie na etap dystrybucji Flatpaka.
 
 ## 10. Szybki start (to, co już można uruchomić)

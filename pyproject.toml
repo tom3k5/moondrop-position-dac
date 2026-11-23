@@ -1,7 +1,7 @@
 [project]
-name = "moondrop-position-dac"
+name = "dsp-control"
 version = "0.4.0-beta.1"
-description = "Linux desktop GUI and CLI for MOONDROP:Gravity Position USB-C DAC/AMP (35d8:0123) DSP/EQ"
+description = "Linux desktop GUI and CLI for USB-C DAC/AMP hardware DSP/EQ (MOONDROP:Gravity Position and compatible devices)"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
@@ -36,7 +36,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["moondrop_position", "autoeq_catalog", "measurements", "eq_fit", "position_gui", "dac_devices", "dac_transport"]
+known-first-party = ["moondrop_position", "autoeq_catalog", "measurements", "eq_fit", "dsp_control", "dac_devices", "dac_transport"]
 
 [tool.ruff.format]
 quote-style = "double"

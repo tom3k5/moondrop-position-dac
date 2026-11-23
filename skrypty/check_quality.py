@@ -53,15 +53,15 @@ def check_data_configs() -> bool:
     """Waliduje składnię plików JSON oraz XML używanych przez aplikację i Flatpaka."""
     print("\n==> Walidacja JSON i XML")
     json_files = [
-        ROOT / "local.moondrop.Position.json",
+        ROOT / "pl.innovibe.DspControl.json",
         ROOT / "dane" / "autoeq-catalog.json",
         ROOT / "dane" / "przyklad-eq.json",
         *sorted((ROOT / "dane" / "profile").glob("*.json")),
         *sorted((ROOT / "dane" / "i18n").glob("*.json")),
     ]
     xml_files = [
-        ROOT / "flatpak" / "local.moondrop.Position.metainfo.xml",
-        ROOT / "flatpak" / "local.moondrop.Position.svg",
+        ROOT / "flatpak" / "pl.innovibe.DspControl.metainfo.xml",
+        ROOT / "flatpak" / "pl.innovibe.DspControl.svg",
     ]
     ok = True
     checked = 0

@@ -32,18 +32,18 @@ flatpak run local.moondrop.Position
 Samo odtwarzanie audio działa od razu w PipeWire. Aby sterować DSP/EQ z konta zwykłego użytkownika przez `/dev/hidraw*` (wymagane zarówno dla Flatpaka, jak i uruchomienia ze źródeł):
 
 ```bash
-sudo cp udev/70-moondrop-position.rules /etc/udev/rules.d/
+sudo cp udev/70-dsp-control.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Podłącz ponownie MOONDROP:Gravity Position i sprawdź połączenie:
+Podłącz ponownie DAC i sprawdź połączenie:
 
 ```bash
-python3 skrypty/position_gui.py --diagnose
+python3 skrypty/dsp_control.py --diagnose
 ```
 
 Raport JSON wypisze aktywny slot, pre-gain, parametry pasm oraz surowe współczynniki biquad Q2.30 zapisane szesnastkowo.
-Jeśli podłączono więcej niż jeden Position, uruchom polecenie `list` w CLI HID. Użyj właściwego węzła DSP jako
+Jeśli podłączono więcej niż jeden obsługiwany DAC, uruchom polecenie `list` w CLI HID. Użyj właściwego węzła DSP jako
 `--device /dev/hidrawN` w poleceniach takich jak `info` lub `eq_fit.py --apply`. W wersji uruchamianej
 ze źródeł wybierz egzemplarz w zakładce **Urządzenie**. Jeden obsługiwany DAC jest wybierany automatycznie.
 
@@ -53,26 +53,26 @@ Przetestuj cały interfejs, wykresy, katalog AutoEq i edytor EQ bez podłączani
 ```bash
 git clone https://github.com/tom3k5/moondrop-position-dac.git
 cd moondrop-position-dac
-python3 skrypty/position_gui.py --demo
+python3 skrypty/dsp_control.py --demo
 ```
 
 Aby uruchomić wersję ze źródeł z fizycznym DAC-em, pomiń `--demo`:
 
 ```bash
-python3 skrypty/position_gui.py
+python3 skrypty/dsp_control.py
 ```
 
 *(Opcjonalnie: do uruchamiania optymalizatora AutoEq ze źródeł skonfiguruj środowisko `.venvs/autoeq` z Pythonem 3.11 zgodnie z [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md).)*
 
 ### 4. Lokalna budowa Flatpaka i uprawnienia
 ```bash
-flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build local.moondrop.Position.json
-flatpak build-bundle flatpak-repo position-dac.flatpak local.moondrop.Position
+flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build pl.innovibe.DspControl.json
+flatpak build-bundle flatpak-repo dsp-control.flatpak pl.innovibe.DspControl
 ```
 
-Manifest Flatpak ([`local.moondrop.Position.json`](local.moondrop.Position.json)) używa `--device=all` (dostęp do `/dev/hidraw*` dla DSP), `--share=network` (pobieranie katalogu AutoEq na żądanie użytkownika), `--talk-name=org.kde.StatusNotifierWatcher` (ikona w zasobniku systemowym) oraz `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (okno aplikacji).
+Manifest Flatpak ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `--device=all` (dostęp do `/dev/hidraw*` dla DSP), `--share=network` (pobieranie katalogu AutoEq na żądanie użytkownika), `--talk-name=org.kde.StatusNotifierWatcher` (ikona w zasobniku systemowym) oraz `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (okno aplikacji).
 
-Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka przekazuje uchwyt do surowego urządzenia USB dla transportu takiego jak libusb. Do pracy z lokalnymi profilami i zapisanymi krzywymi możesz uruchomić sesję offline poleceniem `flatpak run --unshare=network local.moondrop.Position`.
+Obecny transport HID otwiera bezpośrednio `/dev/hidraw*`. Portal USB Flatpaka przekazuje uchwyt do surowego urządzenia USB dla transportu takiego jak libusb. Do pracy z lokalnymi profilami i zapisanymi krzywymi możesz uruchomić sesję offline poleceniem `flatpak run --unshare=network pl.innovibe.DspControl`.
 
 ---
 

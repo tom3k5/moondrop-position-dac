@@ -1,11 +1,11 @@
 {
-  "id": "local.moondrop.Position",
+  "id": "pl.innovibe.DspControl",
   "runtime": "org.kde.Platform",
   "runtime-version": "6.11",
   "sdk": "org.kde.Sdk",
   "base": "io.qt.PySide.BaseApp",
   "base-version": "6.11",
-  "command": "position-dac",
+  "command": "dsp-control",
   "finish-args": [
     "--socket=wayland",
     "--socket=fallback-x11",
@@ -108,45 +108,45 @@
       ]
     },
     {
-      "name": "position-dac",
+      "name": "dsp-control",
       "buildsystem": "simple",
       "build-commands": [
-        "install -Dm755 position-dac /app/bin/position-dac",
-        "install -Dm644 position_gui.py /app/share/position-dac/skrypty/position_gui.py",
-        "install -Dm644 moondrop_position.py /app/share/position-dac/skrypty/moondrop_position.py",
-        "install -Dm644 dac_devices.py /app/share/position-dac/skrypty/dac_devices.py",
-        "install -Dm644 dac_transport.py /app/share/position-dac/skrypty/dac_transport.py",
-        "install -Dm644 autoeq_catalog.py /app/share/position-dac/skrypty/autoeq_catalog.py",
-        "install -Dm644 i18n.py /app/share/position-dac/skrypty/i18n.py",
-        "install -Dm644 measurements.py /app/share/position-dac/skrypty/measurements.py",
-        "install -Dm644 eq_fit.py /app/share/position-dac/skrypty/eq_fit.py",
-        "install -Dm644 pl.json /app/share/position-dac/dane/i18n/pl.json",
-        "install -Dm644 en.json /app/share/position-dac/dane/i18n/en.json",
-        "install -Dm644 innovibe.svg /app/share/position-dac/dane/innovibe.svg",
-        "install -Dm644 autoeq-catalog.json /app/share/position-dac/dane/autoeq-catalog.json",
-        "install -Dm644 moondrop-position-harman.json /app/share/position-dac/dane/profile/moondrop-position-harman.json",
-        "install -Dm644 'AutoEq in-ear.csv' '/app/share/position-dac/dane/targety/AutoEq in-ear.csv'",
-        "install -Dm644 'Diffuse field 5128 -1dB per octave.csv' '/app/share/position-dac/dane/targety/Diffuse field 5128 -1dB per octave.csv'",
-        "install -Dm644 'Diffuse field 5128.csv' '/app/share/position-dac/dane/targety/Diffuse field 5128.csv'",
-        "install -Dm644 'Diffuse field GRAS KEMAR.csv' '/app/share/position-dac/dane/targety/Diffuse field GRAS KEMAR.csv'",
-        "install -Dm644 'Harman in-ear 2019.csv' '/app/share/position-dac/dane/targety/Harman in-ear 2019.csv'",
-        "install -Dm644 'Harman over-ear 2018.csv' '/app/share/position-dac/dane/targety/Harman over-ear 2018.csv'",
-        "install -Dm644 'JM-1 with Harman filters.csv' '/app/share/position-dac/dane/targety/JM-1 with Harman filters.csv'",
-        "install -Dm644 'JM-1 with Harman treble filter.csv' '/app/share/position-dac/dane/targety/JM-1 with Harman treble filter.csv'",
-        "install -Dm644 zero.csv /app/share/position-dac/dane/targety/zero.csv",
-        "install -Dm644 'Moondrop Position (B&K 5128).csv' '/app/share/position-dac/dane/pomiary/Moondrop Position (B&K 5128).csv'",
-        "install -Dm644 local.moondrop.Position.desktop /app/share/applications/local.moondrop.Position.desktop",
-        "install -Dm644 local.moondrop.Position.metainfo.xml /app/share/metainfo/local.moondrop.Position.metainfo.xml",
-        "install -Dm644 local.moondrop.Position.svg /app/share/icons/hicolor/scalable/apps/local.moondrop.Position.svg"
+        "install -Dm755 dsp-control /app/bin/dsp-control",
+        "install -Dm644 dsp_control.py /app/share/dsp-control/skrypty/dsp_control.py",
+        "install -Dm644 moondrop_position.py /app/share/dsp-control/skrypty/moondrop_position.py",
+        "install -Dm644 dac_devices.py /app/share/dsp-control/skrypty/dac_devices.py",
+        "install -Dm644 dac_transport.py /app/share/dsp-control/skrypty/dac_transport.py",
+        "install -Dm644 autoeq_catalog.py /app/share/dsp-control/skrypty/autoeq_catalog.py",
+        "install -Dm644 i18n.py /app/share/dsp-control/skrypty/i18n.py",
+        "install -Dm644 measurements.py /app/share/dsp-control/skrypty/measurements.py",
+        "install -Dm644 eq_fit.py /app/share/dsp-control/skrypty/eq_fit.py",
+        "install -Dm644 pl.json /app/share/dsp-control/dane/i18n/pl.json",
+        "install -Dm644 en.json /app/share/dsp-control/dane/i18n/en.json",
+        "install -Dm644 innovibe.svg /app/share/dsp-control/dane/innovibe.svg",
+        "install -Dm644 autoeq-catalog.json /app/share/dsp-control/dane/autoeq-catalog.json",
+        "install -Dm644 moondrop-position-harman.json /app/share/dsp-control/dane/profile/moondrop-position-harman.json",
+        "install -Dm644 'AutoEq in-ear.csv' '/app/share/dsp-control/dane/targety/AutoEq in-ear.csv'",
+        "install -Dm644 'Diffuse field 5128 -1dB per octave.csv' '/app/share/dsp-control/dane/targety/Diffuse field 5128 -1dB per octave.csv'",
+        "install -Dm644 'Diffuse field 5128.csv' '/app/share/dsp-control/dane/targety/Diffuse field 5128.csv'",
+        "install -Dm644 'Diffuse field GRAS KEMAR.csv' '/app/share/dsp-control/dane/targety/Diffuse field GRAS KEMAR.csv'",
+        "install -Dm644 'Harman in-ear 2019.csv' '/app/share/dsp-control/dane/targety/Harman in-ear 2019.csv'",
+        "install -Dm644 'Harman over-ear 2018.csv' '/app/share/dsp-control/dane/targety/Harman over-ear 2018.csv'",
+        "install -Dm644 'JM-1 with Harman filters.csv' '/app/share/dsp-control/dane/targety/JM-1 with Harman filters.csv'",
+        "install -Dm644 'JM-1 with Harman treble filter.csv' '/app/share/dsp-control/dane/targety/JM-1 with Harman treble filter.csv'",
+        "install -Dm644 zero.csv /app/share/dsp-control/dane/targety/zero.csv",
+        "install -Dm644 'Moondrop Position (B&K 5128).csv' '/app/share/dsp-control/dane/pomiary/Moondrop Position (B&K 5128).csv'",
+        "install -Dm644 pl.innovibe.DspControl.desktop /app/share/applications/pl.innovibe.DspControl.desktop",
+        "install -Dm644 pl.innovibe.DspControl.metainfo.xml /app/share/metainfo/pl.innovibe.DspControl.metainfo.xml",
+        "install -Dm644 pl.innovibe.DspControl.svg /app/share/icons/hicolor/scalable/apps/pl.innovibe.DspControl.svg"
       ],
       "sources": [
         {
           "type": "file",
-          "path": "flatpak/position-dac"
+          "path": "flatpak/dsp-control"
         },
         {
           "type": "file",
-          "path": "skrypty/position_gui.py"
+          "path": "skrypty/dsp_control.py"
         },
         {
           "type": "file",
@@ -238,15 +238,15 @@
         },
         {
           "type": "file",
-          "path": "flatpak/local.moondrop.Position.desktop"
+          "path": "flatpak/pl.innovibe.DspControl.desktop"
         },
         {
           "type": "file",
-          "path": "flatpak/local.moondrop.Position.metainfo.xml"
+          "path": "flatpak/pl.innovibe.DspControl.metainfo.xml"
         },
         {
           "type": "file",
-          "path": "flatpak/local.moondrop.Position.svg"
+          "path": "flatpak/pl.innovibe.DspControl.svg"
         }
       ]
     }

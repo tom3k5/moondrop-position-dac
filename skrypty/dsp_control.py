@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aplikacja MOONDROP Position na Linux i tryb demonstracyjny bez USB."""
+"""DSP Control — aplikacja GUI na Linux oraz tryb demonstracyjny bez USB."""
 
 from __future__ import annotations
 
@@ -118,7 +118,8 @@ BUNDLED_CATALOG = DATA_DIR / "autoeq-catalog.json"
 BUNDLED_TARGETS_DIR = DATA_DIR / "targety"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
 APP_VERSION = "0.4.0-beta.1"
-APP_STORAGE_NAME = "MOONDROP:Gravity Position"
+APP_STORAGE_NAME = "DSP Control"
+LEGACY_STORAGE_NAME = "MOONDROP:Gravity Position"
 SOURCE_LABELS = (
     ("source.my_profiles", "source.my_profiles_short", "tooltip.source_my_profiles"),
     ("source.autoeq_catalog", "source.autoeq_catalog_short", "tooltip.source_autoeq"),
@@ -836,11 +837,11 @@ def custom_profile(
     return Profile(name, slot, bands, preamp, global_gain_db, mic_gain_raw)
 
 
-def open_position(target: DeviceTarget | None = None) -> dac.MoondropPosition | None:
+def open_dac(target: DeviceTarget | None = None):
     try:
         return dac.connect_device(target)
     except AmbiguousDac as exc:
-        raise dac.HidError("Podłącz jeden MOONDROP:Gravity Position.") from exc
+        raise dac.HidError("Podłącz jeden obsługiwany DAC.") from exc
     except HidPermissionError as exc:
         raise dac.HidError("Brak dostępu do DAC-a. Sprawdź regułę udev na hoście.") from exc
     except HidDeviceMissing as exc:
@@ -1415,7 +1416,7 @@ def profile_from_readback(state: DeviceState) -> Profile | None:
 
 def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str | None:
     """Eksportuje profil EQ do JSON lub Equalizer APO (.txt); zwraca komunikat lub None."""
-    base_name = profile.name.replace("/", "_") or "moondrop-position-eq"
+    base_name = profile.name.replace("/", "_") or "dsp-control-eq"
     path, selected_filter = QFileDialog.getSaveFileName(parent, title, f"{base_name}.txt", tr("export.filter"))
     if not path:
         return None
@@ -3100,7 +3101,7 @@ class AutoEqPanel(QWidget):
             self.finish_fit()
             return
         try:
-            self.temporary = TemporaryDirectory(prefix="position-autoeq-")
+            self.temporary = TemporaryDirectory(prefix="dsp-control-autoeq-")
             work = Path(self.temporary.name)
             if self.fit_factory is not None:
                 measured = measured_position()
@@ -3283,8 +3284,13 @@ class ProfilesWindow(QWidget):
         self.setAcceptDrops(True)
         self.setMinimumSize(720, 500)
         size_to_screen(self, 1140, 820)
-        app_data = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
-        self.library_directory = library_directory or Path(app_data) / ("profiles-demo" if demo else "profiles")
+        app_data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
+        if library_directory is None and not app_data.exists():
+            legacy_data = app_data.with_name(LEGACY_STORAGE_NAME)
+            if legacy_data.is_dir():
+                with contextlib.suppress(OSError):
+                    shutil.copytree(legacy_data, app_data, dirs_exist_ok=True)
+        self.library_directory = library_directory or app_data / ("profiles-demo" if demo else "profiles")
         self.settings_path = self.library_directory.parent / "settings.json"
         lang_pref = i18n.load_language_preference(self.settings_path)
         i18n.set_language(lang_pref, locale_name=QLocale.system().name())
@@ -3302,7 +3308,7 @@ class ProfilesWindow(QWidget):
         self.demo_forced_rate = 0
         self.observed_forced_rate = None
         demo_device = DemoDevice() if demo else None
-        self.open_device = (lambda _path=None: demo_device) if demo else open_position
+        self.open_device = (lambda _path=None: demo_device) if demo else open_dac
         self.list_devices = (
             (lambda: [DeviceChoice(demo_device.path, demo_device.model_name)]) if demo else hardware_choices
         )
@@ -4356,11 +4362,11 @@ class ProfilesWindow(QWidget):
         self.refresh_playback_quality()
 
     def setup_tray(self) -> None:
-        icon_file = Path(__file__).resolve().parents[1] / "flatpak/local.moondrop.Position.svg"
+        icon_file = Path(__file__).resolve().parents[1] / "flatpak/pl.innovibe.DspControl.svg"
         fallback = QIcon(str(icon_file))
         if fallback.isNull():
             fallback = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)
-        self.tray = QSystemTrayIcon(QIcon.fromTheme("local.moondrop.Position", fallback), self)
+        self.tray = QSystemTrayIcon(QIcon.fromTheme("pl.innovibe.DspControl", fallback), self)
         self.tray_menu = QMenu(self)
         self.tray_menu.aboutToShow.connect(self.populate_tray)
         self.tray.setContextMenu(self.tray_menu)
@@ -5237,7 +5243,7 @@ class ProfilesWindow(QWidget):
             if not self.tray_notice_shown and self.tray.supportsMessages():
                 self.tray_notice_shown = True
                 self.tray.showMessage(
-                    "MOONDROP Position",
+                    "DSP Control",
                     "Okno zostało ukryte. Aplikacja nadal działa w zasobniku systemowym.",
                     QSystemTrayIcon.MessageIcon.Information,
                     2500,
@@ -5305,9 +5311,9 @@ def main() -> int:
     args = parser.parse_args()
     if args.diagnose or args.diagnose_controls or args.test_global_gain or args.test_mic_gain:
         try:
-            dev = open_position()
+            dev = open_dac()
             if dev is None:
-                raise dac.HidError("Nie znaleziono MOONDROP:Gravity Position w sysfs.")
+                raise dac.HidError("Nie znaleziono obsługiwanego DAC-a w sysfs.")
             with dev:
                 if args.test_global_gain:
                     report = test_global_gain(dev)
@@ -5330,11 +5336,11 @@ def main() -> int:
     app.setApplicationName(APP_STORAGE_NAME)
     app.setApplicationDisplayName(tr("app.title"))
     app.setApplicationVersion(APP_VERSION)
-    server_name = f"moondrop-position-{'demo' if args.demo else 'live'}"
+    server_name = f"dsp-control-{'demo' if args.demo else 'live'}"
     if activate_existing_instance(server_name):
         return 0
     app.setQuitOnLastWindowClosed(not QSystemTrayIcon.isSystemTrayAvailable())
-    desktop_id = "local.moondrop.Position"
+    desktop_id = "pl.innovibe.DspControl"
     if QStandardPaths.locate(QStandardPaths.StandardLocation.GenericDataLocation, f"applications/{desktop_id}.desktop"):
         app.setDesktopFileName(desktop_id)
     window = ProfilesWindow(args.demo)

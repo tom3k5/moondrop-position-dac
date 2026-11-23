@@ -154,7 +154,7 @@ współczynników Q2.30 każdego pasma zwróconych przez `0x09`. Przy wyliczaniu
 krzywej uwzględnia częstotliwość 96 kHz i pokazuje odczytany pre-gain osobno.
 Weryfikacja przed zapisem do flash i po nim nadal sprawdza odczytane
 parametry pasm, aktywny slot i potwierdzoną wartość pre-gainu.
-Pole `coefficients` w raporcie `position_gui.py --diagnose` zawiera
+Pole `coefficients` w raporcie `dsp_control.py --diagnose` zawiera
 w kolejności pasm po 20 bajtów z odczytu `0x09`, zapisanych szesnastkowo.
 
 Odstępy: ~25 ms między pasmami, ~50 ms między operacjami, ~150 ms po zmianie

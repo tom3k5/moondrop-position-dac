@@ -18,13 +18,13 @@ from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QMessageBox, QStyle, QStyleOptionComboBox, QWidget
 
-import position_gui as gui
+import dsp_control as gui
 
 
 def test_diagnose_serializes_dsp_coefficients(monkeypatch, capsys) -> None:
     demo = gui.DemoDevice()
-    monkeypatch.setattr(gui, "open_position", lambda: demo)
-    monkeypatch.setattr(sys, "argv", ["position_gui.py", "--diagnose"])
+    monkeypatch.setattr(gui, "open_dac", lambda: demo)
+    monkeypatch.setattr(sys, "argv", ["dsp_control.py", "--diagnose"])
     assert gui.main() == 0
     report = json.loads(capsys.readouterr().out)
     assert report["slot"] == 0
@@ -445,7 +445,7 @@ def test_builtin_profiles_keep_plot_geometry(tmp_path: Path, font: str | None) -
 def test_app_version_matches_release_metadata_and_translates(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     pyproject_version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
-    metainfo_tree = ET.parse(root / "flatpak/local.moondrop.Position.metainfo.xml")
+    metainfo_tree = ET.parse(root / "flatpak/pl.innovibe.DspControl.metainfo.xml")
     metainfo_version = metainfo_tree.find("./releases/release").attrib["version"]
     assert gui.APP_VERSION == pyproject_version == metainfo_version
 

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 /app/share/dsp-control/skrypty/dsp_control.py "$@"

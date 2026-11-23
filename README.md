@@ -32,18 +32,18 @@ flatpak run local.moondrop.Position
 Audio playback works out of the box in PipeWire. To allow non-root DSP/EQ control over `/dev/hidraw*` (required for both Flatpak and running from source):
 
 ```bash
-sudo cp udev/70-moondrop-position.rules /etc/udev/rules.d/
+sudo cp udev/70-dsp-control.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Replug your MOONDROP:Gravity Position and verify detection:
+Replug your DAC and verify detection:
 
 ```bash
-python3 skrypty/position_gui.py --diagnose
+python3 skrypty/dsp_control.py --diagnose
 ```
 
 The JSON report outputs the active slot, pre-gain, band parameters, and raw hexadecimal Q2.30 biquad coefficients.
-If more than one Position is attached, use the HID CLI's `list` command and pass the intended DSP node as
+If more than one supported DAC is attached, use the HID CLI's `list` command and pass the intended DSP node as
 `--device /dev/hidrawN` to commands such as `info` or `eq_fit.py --apply`. In the source version,
 select the intended unit under **Device**. A single supported DAC is selected automatically.
 
@@ -53,26 +53,26 @@ Explore the entire UI, charts, AutoEq catalog, and EQ editor with no DAC connect
 ```bash
 git clone https://github.com/tom3k5/moondrop-position-dac.git
 cd moondrop-position-dac
-python3 skrypty/position_gui.py --demo
+python3 skrypty/dsp_control.py --demo
 ```
 
 To run against a physical DAC from source, omit `--demo`:
 
 ```bash
-python3 skrypty/position_gui.py
+python3 skrypty/dsp_control.py
 ```
 
 *(Optional: to run the AutoEq optimizer from source, set up `.venvs/autoeq` with Python 3.11 as described in [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md).)*
 
 ### 4. Build Flatpak Locally & Permissions
 ```bash
-flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build local.moondrop.Position.json
-flatpak build-bundle flatpak-repo position-dac.flatpak local.moondrop.Position
+flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build pl.innovibe.DspControl.json
+flatpak build-bundle flatpak-repo dsp-control.flatpak pl.innovibe.DspControl
 ```
 
-The manifest ([`local.moondrop.Position.json`](local.moondrop.Position.json)) requests `--device=all` (USB `hidraw` DSP access), `--share=network` (user-initiated AutoEq catalog downloads), `--talk-name=org.kde.StatusNotifierWatcher` (system tray icon), and `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (desktop window).
+The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requests `--device=all` (USB `hidraw` DSP access), `--share=network` (user-initiated AutoEq catalog downloads), `--talk-name=org.kde.StatusNotifierWatcher` (system tray icon), and `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (desktop window).
 
-The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal supplies a raw USB handle for a libusb-style transport. If you use local profiles and cached curves, run `flatpak run --unshare=network local.moondrop.Position` for an offline session.
+The current HID transport opens `/dev/hidraw*` directly. Flatpak's USB portal supplies a raw USB handle for a libusb-style transport. If you use local profiles and cached curves, run `flatpak run --unshare=network pl.innovibe.DspControl` for an offline session.
 
 ---
 

@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 
 import autoeq_catalog as catalog
+import dsp_control as gui
 import i18n
 import moondrop_position as dac
-import position_gui as gui
 from measurements import fit_to_target
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -465,8 +465,8 @@ def test_bundled_autoeq_index_and_targets_present_in_repo_and_manifest() -> None
     for target_path in bundled_targets:
         assert len(gui.read_target_curve(target_path)) > 50
 
-    manifest = json.loads((root / "local.moondrop.Position.json").read_text(encoding="utf-8"))
-    app_module = next(mod for mod in manifest["modules"] if mod["name"] == "position-dac")
+    manifest = json.loads((root / "pl.innovibe.DspControl.json").read_text(encoding="utf-8"))
+    app_module = next(mod for mod in manifest["modules"] if mod["name"] == "dsp-control")
     source_paths = {item["path"] for item in app_module["sources"]}
     assert "dane/autoeq-catalog.json" in source_paths
     for target_path in bundled_targets:

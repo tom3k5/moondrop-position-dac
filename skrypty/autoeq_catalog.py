@@ -87,7 +87,7 @@ def _read_https(
     headers: dict[str, str] | None = None,
     timeout: int = 20,
 ) -> bytes:
-    request_headers = {"User-Agent": "moondrop-position-dac"}
+    request_headers = {"User-Agent": "dsp-control"}
     if headers:
         request_headers.update(headers)
     request = urllib.request.Request(url, data=data, headers=request_headers)
