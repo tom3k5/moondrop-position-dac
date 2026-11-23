@@ -304,7 +304,7 @@ QSplitter::handle {
 QSplitter::handle:hover, QSplitter::handle:pressed {
     background: palette(alternate-base);
 }
-QFrame#sourceCard, QFrame#previewCard {
+QFrame#sourceCard, QFrame#previewCard, QFrame#catalogList {
     border: 1px solid palette(mid);
     border-radius: 8px;
     background: palette(base);
@@ -2703,14 +2703,21 @@ class AutoEqPanel(QWidget):
         self.targets.setAccessibleName(tr("autoeq.target_list"))
         self.targets.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.targets.setTextElideMode(Qt.TextElideMode.ElideRight)
-        layout.addWidget(self.targets, 1)
+        self.catalog_list = QFrame()
+        self.catalog_list.setObjectName("catalogList")
+        list_layout = QVBoxLayout(self.catalog_list)
+        list_layout.setContentsMargins(4, 4, 4, 4)
+        list_layout.setSpacing(2)
+        list_layout.addWidget(self.targets, 1)
+        layout.addWidget(self.catalog_list, 1)
 
         self.status = self.text_label()
         self.status.setWordWrap(False)
         self.catalog_progress = FeedbackLabel()
         self.catalog_progress.setTextFormat(Qt.TextFormat.PlainText)
         self.catalog_progress.setWordWrap(True)
-        layout.addWidget(self.catalog_progress)
+        self.catalog_progress.setContentsMargins(8, 3, 8, 3)
+        list_layout.addWidget(self.catalog_progress)
         self.catalog_error_detail = ""
         self.catalog_error = QLabel()
         self.catalog_error.setTextFormat(Qt.TextFormat.RichText)
@@ -2727,7 +2734,7 @@ class AutoEqPanel(QWidget):
         )
         self.catalog_error.linkActivated.connect(self.report_catalog_error)
         self.catalog_error.hide()
-        layout.addWidget(self.catalog_error)
+        list_layout.addWidget(self.catalog_error)
         layout.addWidget(self.fit_provenance)
         self.fit_status = FeedbackLabel()
         self.fit_status.setTextFormat(Qt.TextFormat.PlainText)

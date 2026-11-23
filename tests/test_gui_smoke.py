@@ -499,7 +499,8 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
         window.source_group.button(1).click()
         panel = window.autoeq_panel
         QTest.qWait(40)
-        assert panel.source_filter.y() < panel.mode.y() < panel.fit_controls.y() < panel.search.y() < panel.targets.y()
+        assert panel.source_filter.y() < panel.mode.y() < panel.fit_controls.y() < panel.search.y()
+        assert panel.search.y() < panel.catalog_list.y()
         assert panel.catalog_button.height() == add_button_height
         assert panel.catalog_button.mapTo(window, QPoint()).y() == add_button_y
         assert panel.status.x() > panel.catalog_button.geometry().right()
@@ -509,12 +510,16 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
             QTest.qWait(20)
             assert panel.catalog_progress.isVisible() and panel.catalog_progress.wordWrap()
             assert panel.catalog_progress.text() == gui.tr("autoeq.loading_catalog")
+            assert panel.catalog_progress.parentWidget() is panel.catalog_list
+            assert panel.catalog_list.contentsRect().contains(panel.catalog_progress.geometry())
             assert not panel.status.text()
         panel.catalog_downloaded(None, "GitHub API zwróciło błąd HTTP 403.")
         QTest.qWait(20)
         assert not panel.catalog_progress.isVisible()
         assert panel.catalog_error.isVisible()
-        assert panel.catalog_error.geometry().right() <= panel.rect().right()
+        assert panel.catalog_error.parentWidget() is panel.catalog_list
+        assert panel.catalog_list.contentsRect().contains(panel.catalog_error.geometry())
+        assert panel.targets.geometry().bottom() < panel.catalog_error.geometry().top()
         assert panel.catalog_error.accessibleName() == "Błąd"
         assert "HTTP 403" in panel.catalog_error.toolTip()
         opened = []
