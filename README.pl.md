@@ -38,6 +38,9 @@ python3 skrypty/position_gui.py --diagnose
 ```
 
 Raport JSON wypisze aktywny slot, pre-gain, parametry pasm oraz surowe współczynniki biquad Q2.30 zapisane szesnastkowo.
+Jeśli podłączono więcej niż jeden Position, uruchom polecenie `list` w CLI HID. Użyj właściwego węzła DSP jako
+`--device /dev/hidrawN` w poleceniach takich jak `info` lub `eq_fit.py --apply`. Do pracy w GUI zostaw podłączony
+jeden obsługiwany DAC.
 
 ### 3. Wypróbuj bez sprzętu (symulator) lub uruchom ze źródeł
 Przetestuj cały interfejs, wykresy, katalog AutoEq i edytor EQ bez podłączania DAC-a:

@@ -19,6 +19,28 @@ oraz w [README](../README.md#7-wyniki-prób-sprzętowych).
 Interface 4 to osobny HID konsumencki (`report 0x03`) — klawisze głośności,
 play/pauza i mute (szczegóły w §8).
 
+### Wykrywanie i sesja na Linuksie
+
+`skrypty/dac_transport.py` skanuje sysfs bez otwierania węzłów HID i odczytuje
+rozmiary raportów z deskryptora. Rejestr w `skrypty/dac_devices.py` wybiera
+Position na podstawie VID/PID i 63-bajtowych raportów wejścia oraz wyjścia
+`0x4B`. GUI, CLI i `eq_fit.py --apply` otwierają sesję przez ten sam rejestr.
+`skrypty/moondrop_position.py` koduje ramki i odpowiada za operacje DSP
+specyficzne dla Position.
+
+Sama obecność w sysfs nie gwarantuje dostępu do urządzenia. Transport osobno
+sprawdza otwarcie węzła na hoście lub w Flatpaku. Zmiana instancji jądra,
+nawet przy ponownym użyciu tego samego `/dev/hidrawN`, unieważnia docelowy
+egzemplarz zapamiętany przez GUI. Przy kilku dopasowaniach CLI wymaga
+`--device`; wynik polecenia `list` podaje właściwe węzły DSP.
+
+23 listopada 2026 r. porównano nową sesję z wydaniem 0.3.8 na fizycznym
+Position z firmware 0.5. Odczyt dał ten sam slot, poziomy i surowe
+współczynniki ośmiu pasm. Tymczasowe tłumienie jednego pasma o 1 dB
+przeszło odczyt i przywrócenie bez zapisu flash. Jawne wgranie
+potwierdzono odczytem, ponowienie pominęło flash, a po przywróceniu kopii
+i fizycznym ponownym podłączeniu odczyt był zgodny ze stanem początkowym.
+
 ## 2. Format ramki
 
 ```
