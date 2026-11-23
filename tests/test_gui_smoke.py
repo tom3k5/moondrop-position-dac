@@ -513,6 +513,8 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
             assert panel.catalog_progress.parentWidget() is panel.catalog_list
             assert panel.catalog_list.contentsRect().contains(panel.catalog_progress.geometry())
             assert not panel.status.text()
+        cached_entries = list(panel.entries)
+        cached_sources = [panel.source_filter.itemText(i) for i in range(panel.source_filter.count())]
         panel.catalog_downloaded(None, "GitHub API zwróciło błąd HTTP 403.")
         QTest.qWait(20)
         assert not panel.catalog_progress.isVisible()
@@ -522,6 +524,8 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
         assert panel.targets.geometry().bottom() < panel.catalog_error.geometry().top()
         assert panel.catalog_error.accessibleName() == "Błąd"
         assert "HTTP 403" in panel.catalog_error.toolTip()
+        assert panel.entries == cached_entries
+        assert [panel.source_filter.itemText(i) for i in range(panel.source_filter.count())] == cached_sources
         opened = []
         monkeypatch.setattr(window, "open_external_url", opened.append)
         QTest.mouseClick(

@@ -148,14 +148,16 @@ def download_index(cache: Path) -> list[Entry]:
         for item in tree_children("master")
         if item.get("type") == "tree" and item.get("path") in ("measurements", "targets")
     }
+    if roots.keys() != {"measurements", "targets"}:
+        raise ValueError("GitHub zwrócił niepełną strukturę katalogu AutoEq.")
     entries = [
         entry
         for prefix, revision in roots.items()
         for path, sha in catalog_blobs(revision, prefix)
         if (entry := describe_path(path, revision=sha)) is not None
     ]
-    if not any(entry.kind == "model" for entry in entries):
-        raise ValueError("Indeks AutoEq nie zawiera pomiarów modeli słuchawek.")
+    if {entry.kind for entry in entries} != {"model", "target"}:
+        raise ValueError("Indeks AutoEq musi zawierać pomiary modeli słuchawek i krzywe docelowe.")
     save_index(cache, entries)
     return entries
 
