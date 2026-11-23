@@ -49,5 +49,5 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostic output (--diagnose or GUI "Copy diagnostic info")
-      description: Paste output from `python3 skrypty/dsp_control.py --diagnose` or use Copy diagnostic info in the Guide tab.
+      description: Paste output from `python3 scripts/dsp_control.py --diagnose` or use Copy diagnostic info in the Guide tab.
       render: text

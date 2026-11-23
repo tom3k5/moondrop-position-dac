@@ -39,7 +39,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 Replug your DAC and verify detection:
 
 ```bash
-python3 skrypty/dsp_control.py --diagnose
+python3 scripts/dsp_control.py --diagnose
 ```
 
 The JSON report outputs the active slot, pre-gain, band parameters, and raw hexadecimal Q2.30 biquad coefficients.
@@ -53,16 +53,16 @@ Explore the entire UI, charts, AutoEq catalog, and EQ editor with no DAC connect
 ```bash
 git clone https://github.com/tom3k5/moondrop-position-dac.git
 cd moondrop-position-dac
-python3 skrypty/dsp_control.py --demo
+python3 scripts/dsp_control.py --demo
 ```
 
 To run against a physical DAC from source, omit `--demo`:
 
 ```bash
-python3 skrypty/dsp_control.py
+python3 scripts/dsp_control.py
 ```
 
-*(Optional: to run the AutoEq optimizer from source, set up `.venvs/autoeq` with Python 3.11 as described in [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md).)*
+*(Optional: to run the AutoEq optimizer from source, set up `.venvs/autoeq` with Python 3.11 as described in [`docs/autoeq-integration.md`](docs/autoeq-integration.md).)*
 
 ### 4. Build Flatpak Locally & Permissions
 ```bash
@@ -161,9 +161,9 @@ Everything you need inside the app: quick walkthroughs for tuning and live previ
 
 ## Technical Documentation
 
-- [`docs/protokol-hid.md`](docs/protokol-hid.md) — Reverse-engineered USB HID `0x4B` DSP protocol (Q2.30 biquad encoding, slots, pre-gain, global/mic gain).
-- [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md) — AutoEq catalog pipeline and 8-band (`LSQ + HSQ + 6× PK` / `PK`) optimization details.
-- [`docs/zrodla.md`](docs/zrodla.md) — Hardware USB descriptors, UAC2 modes, and reference configurations.
+- [`docs/hid-protocol.md`](docs/hid-protocol.md) — Reverse-engineered USB HID `0x4B` DSP protocol (Q2.30 biquad encoding, slots, pre-gain, global/mic gain).
+- [`docs/autoeq-integration.md`](docs/autoeq-integration.md) — AutoEq catalog pipeline and 8-band (`LSQ + HSQ + 6× PK` / `PK`) optimization details.
+- [`docs/sources.md`](docs/sources.md) — Hardware USB descriptors, UAC2 modes, and reference configurations.
 
 ---
 

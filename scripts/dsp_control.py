@@ -111,11 +111,11 @@ from dac_transport import HidDeviceMissing, HidInterface, HidPermissionError
 from i18n import tr
 from measurements import FIT_HIGH_HZ, curve_level, fit_to_target, read_squig_txt
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "dane"
-BUILTIN_PROFILE = DATA_DIR / "profile/moondrop-position-harman.json"
-HARMAN_TARGET = DATA_DIR / "targety/Harman in-ear 2019.csv"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+BUILTIN_PROFILE = DATA_DIR / "profiles/moondrop-position-harman.json"
+HARMAN_TARGET = DATA_DIR / "targets/Harman in-ear 2019.csv"
 BUNDLED_CATALOG = DATA_DIR / "autoeq-catalog.json"
-BUNDLED_TARGETS_DIR = DATA_DIR / "targety"
+BUNDLED_TARGETS_DIR = DATA_DIR / "targets"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
 APP_VERSION = "0.4.0-beta.1"
 APP_STORAGE_NAME = "DSP Control"
@@ -1353,7 +1353,7 @@ class Job(QRunnable):
 
 @lru_cache(maxsize=1)
 def measured_position() -> list[tuple[float, float]]:
-    path = DATA_DIR / "pomiary" / "Moondrop Position (B&K 5128).csv"
+    path = DATA_DIR / "measurements" / "Moondrop Position (B&K 5128).csv"
     try:
         freqs, dbs = read_squig_txt(path)
     except (OSError, ValueError):
@@ -3095,7 +3095,7 @@ class AutoEqPanel(QWidget):
             self.finish_fit()
             return
         self.fit_factory = self.window.factory_profile
-        measurement = DATA_DIR / "pomiary" / "Moondrop Position (B&K 5128).csv"
+        measurement = DATA_DIR / "measurements" / "Moondrop Position (B&K 5128).csv"
         if not measurement.exists():
             self.fit_status.setText(tr("autoeq.missing_measurement"))
             self.finish_fit()

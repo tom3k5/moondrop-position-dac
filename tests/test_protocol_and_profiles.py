@@ -119,7 +119,7 @@ def test_harman_fit_uses_one_level_offset_and_excludes_upper_treble() -> None:
 
 
 def test_validate_profile_accepts_example_and_rejects_invalid() -> None:
-    bands, meta = dac.load_eq_file(str(ROOT / "dane" / "przyklad-eq.json"))
+    bands, meta = dac.load_eq_file(str(ROOT / "data" / "example-eq.json"))
     dac.validate_profile(bands, meta.get("slot"), meta.get("preamp"))
 
     with pytest.raises(dac.HidError):
@@ -151,7 +151,7 @@ def test_demo_device_apply_and_live_eq_restore() -> None:
     assert dev.slot() == 0
     open_demo = lambda _path=None: dev  # noqa: E731
 
-    profile = gui.load_profile(ROOT / "dane" / "profile" / "moondrop-position-harman.json")
+    profile = gui.load_profile(ROOT / "data" / "profiles" / "moondrop-position-harman.json")
     state = gui.apply_profile(open_demo, "demo", profile)
     assert state.slot == dac.CUSTOM_SLOT
     assert len(state.bands) == dac.BAND_COUNT
@@ -453,13 +453,13 @@ def test_autoeq_failed_refresh_keeps_existing_index_and_curve(tmp_path, monkeypa
 
 def test_bundled_autoeq_index_and_targets_present_in_repo_and_manifest() -> None:
     root = Path(__file__).resolve().parents[1]
-    bundled_index = root / "dane" / "autoeq-catalog.json"
+    bundled_index = root / "data" / "autoeq-catalog.json"
     assert bundled_index.is_file()
     entries = catalog.load_index(bundled_index)
     assert sum(1 for entry in entries if entry.kind == "model") > 6000
     assert sum(1 for entry in entries if entry.kind == "target") >= 50
 
-    targets_dir = root / "dane" / "targety"
+    targets_dir = root / "data" / "targets"
     bundled_targets = sorted(targets_dir.glob("*.csv"))
     assert len(bundled_targets) >= 9
     for target_path in bundled_targets:
@@ -468,9 +468,9 @@ def test_bundled_autoeq_index_and_targets_present_in_repo_and_manifest() -> None
     manifest = json.loads((root / "pl.innovibe.DspControl.json").read_text(encoding="utf-8"))
     app_module = next(mod for mod in manifest["modules"] if mod["name"] == "dsp-control")
     source_paths = {item["path"] for item in app_module["sources"]}
-    assert "dane/autoeq-catalog.json" in source_paths
+    assert "data/autoeq-catalog.json" in source_paths
     for target_path in bundled_targets:
-        assert f"dane/targety/{target_path.name}" in source_paths
+        assert f"data/targets/{target_path.name}" in source_paths
 
 
 def test_shelves_supported_in_custom_profile_and_eq_fit() -> None:

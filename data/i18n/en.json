@@ -39,7 +39,7 @@
   "autoeq.results_count": "Results: {count}",
   "autoeq.no_matches": "No matches for this query.",
   "autoeq.no_catalog": "No model catalog. Fetch the AutoEq catalog or open a local copy.",
-  "autoeq.missing_measurement": "No local measurement file found (dane/pomiary/Moondrop Position (B&K 5128).csv).",
+  "autoeq.missing_measurement": "No local measurement file found (data/measurements/Moondrop Position (B&K 5128).csv).",
   "autoeq.select_target": "Select AutoEq target",
   "actions.add_profile": "Add",
   "actions.new_empty": "New from scratch…",

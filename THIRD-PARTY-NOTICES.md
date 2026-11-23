@@ -7,7 +7,6 @@ The application and Flatpak distribution use or bundle the following third-party
 - **PySide6 (Qt for Python)** (`6.11.3` / `6.12.0`): `LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only` (used under the terms of `LGPL-3.0-only`).
 - **org.kde.Platform / org.kde.Sdk / io.qt.PySide.BaseApp** (`6.11`): Flathub KDE & Qt runtime components (`LGPL`, `GPL`, `MIT`, `BSD`).
 - **PipeWire** (`pw-metadata`): `MIT`.
-- **GitHub CLI (`gh`)**: `MIT`.
 
 ## AutoEq & Scientific Python Packages (bundled in Flatpak `python3-autoeq`)
 - **autoeq** (`4.1.2`): `MIT`
@@ -30,7 +29,7 @@ The application and Flatpak distribution use or bundle the following third-party
 - `docs/ref/moondropUsbHidHandler.js`, `usbHidProtocolUtils.js`, `walkplayHIDHandler.md` (from `jeromeof/devicePEQ`): `0BSD`
 - `docs/ref/freedsp-gen2.rs` (from `EffectiveEquivalent/FreeDSP-Studio`): `MIT`
 - `docs/ref/moondrop-position.json`, `moondrop-hub.json` (from `potatosalad775/eqcaps`): `CC0-1.0` (data) / `MIT` (code)
-- `dane/targety/Harman in-ear 2019.csv`, `JM-1 with Harman filters.csv` (from `jaakkopasanen/AutoEq`): `MIT`
+- `data/targets/*.csv` and `data/autoeq-catalog.json` index metadata (from `jaakkopasanen/AutoEq`): `MIT`
 
 ## Manufacturer Technical Data
-- `dane/pomiary/Moondrop Position (B&K 5128).csv`: Factory frequency response curve digitized from public MOONDROP Position technical specification (`POSITION (Original)`).
+- `data/measurements/Moondrop Position (B&K 5128).csv`: Factory frequency response curve digitized from public MOONDROP Position technical specification (`POSITION (Original)`).

@@ -39,7 +39,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 Podłącz ponownie DAC i sprawdź połączenie:
 
 ```bash
-python3 skrypty/dsp_control.py --diagnose
+python3 scripts/dsp_control.py --diagnose
 ```
 
 Raport JSON wypisze aktywny slot, pre-gain, parametry pasm oraz surowe współczynniki biquad Q2.30 zapisane szesnastkowo.
@@ -53,16 +53,16 @@ Przetestuj cały interfejs, wykresy, katalog AutoEq i edytor EQ bez podłączani
 ```bash
 git clone https://github.com/tom3k5/moondrop-position-dac.git
 cd moondrop-position-dac
-python3 skrypty/dsp_control.py --demo
+python3 scripts/dsp_control.py --demo
 ```
 
 Aby uruchomić wersję ze źródeł z fizycznym DAC-em, pomiń `--demo`:
 
 ```bash
-python3 skrypty/dsp_control.py
+python3 scripts/dsp_control.py
 ```
 
-*(Opcjonalnie: do uruchamiania optymalizatora AutoEq ze źródeł skonfiguruj środowisko `.venvs/autoeq` z Pythonem 3.11 zgodnie z [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md).)*
+*(Opcjonalnie: do uruchamiania optymalizatora AutoEq ze źródeł skonfiguruj środowisko `.venvs/autoeq` z Pythonem 3.11 zgodnie z [`docs/autoeq-integration.md`](docs/autoeq-integration.md).)*
 
 ### 4. Lokalna budowa Flatpaka i uprawnienia
 ```bash
@@ -161,9 +161,9 @@ Wszystko pod ręką wewnątrz aplikacji: krótkie instrukcje wgrywania i odsłuc
 
 ## Dokumentacja techniczna
 
-- [`docs/protokol-hid.md`](docs/protokol-hid.md) — Pełna specyfikacja protokołu USB HID `0x4B` (współczynniki Q2.30, sloty, pre-gain, global/mic gain).
-- [`docs/integracja-autoeq.md`](docs/integracja-autoeq.md) — Szczegóły integracji katalogu AutoEq i optymalizacji 8 pasm (`LSQ + HSQ + 6× PK` / `PK`).
-- [`docs/zrodla.md`](docs/zrodla.md) — Deskryptory USB/UAC2 i pliki referencyjne.
+- [`docs/hid-protocol.md`](docs/hid-protocol.md) — Pełna specyfikacja protokołu USB HID `0x4B` (współczynniki Q2.30, sloty, pre-gain, global/mic gain).
+- [`docs/autoeq-integration.md`](docs/autoeq-integration.md) — Szczegóły integracji katalogu AutoEq i optymalizacji 8 pasm (`LSQ + HSQ + 6× PK` / `PK`).
+- [`docs/sources.md`](docs/sources.md) — Deskryptory USB/UAC2 i pliki referencyjne.
 
 ---
 

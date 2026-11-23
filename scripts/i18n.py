@@ -1,4 +1,4 @@
-"""Moduł internacjonalizacji (i18n) oparty na katalogach JSON w dane/i18n/."""
+"""Moduł internacjonalizacji (i18n) oparty na katalogach JSON w data/i18n/."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-I18N_DIR = Path(__file__).resolve().parents[1] / "dane" / "i18n"
+I18N_DIR = Path(__file__).resolve().parents[1] / "data" / "i18n"
 DEFAULT_LANGUAGE = "pl"
 FALLBACK_LANGUAGE = "en"
 

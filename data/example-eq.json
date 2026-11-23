@@ -1,9 +1,9 @@
 {
   "_comment": [
-    "Przykład EQ dla MOONDROP Position (8 pasm, oficjalna apka: PK/LP/HP, bez półek).",
-    "Wartości są w jednostkach, które urządzenie przyjmuje: Hz, dB, Q; typ: PK/LPQ/HPQ.",
-    "Aby zapisać: skrypty/moondrop_position.py write-eq --file dane/przyklad-eq.json --dry-run",
-    "Potem (po regule udev) bez --dry-run i z --yes."
+    "Example EQ profile for MOONDROP Position (8 bands, official app: PK/LP/HP, no shelves).",
+    "Values use device units (Hz, dB, Q; type: PK/LPQ/HPQ).",
+    "To test: scripts/moondrop_position.py write-eq --file data/example-eq.json --dry-run",
+    "Then (with the udev rule installed) run without --dry-run and with --yes."
   ],
   "slot": 7,
   "preamp": -2.5,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MOONDROP:Gravity Position (35d8:0123) — odczyt i zapis DSP przez HID report 0x4B.
 
-Protokół odtworzony z publicznych implementacji (patrz docs/zrodla.md):
+Protokół odtworzony z publicznych implementacji (patrz docs/sources.md):
   * devicePEQ / moondropUsbHidHandler.js  (0BSD)
   * FreeDSP Studio / dsp2.rs              (MIT)
   * eqcaps: profil moondrop-position      (MIT / CC)
@@ -907,9 +907,9 @@ def build_parser() -> argparse.ArgumentParser:
         "  %(prog)s list\n"
         "  %(prog)s info\n"
         "  %(prog)s read-eq --json\n"
-        "  %(prog)s write-eq --file dane/przyklad-eq.json --dry-run\n"
-        "  %(prog)s write-eq --file dane/przyklad-eq.json --yes\n"
-        "  %(prog)s import-eq --file eqapo.txt --out dane/profil.json\n"
+        "  %(prog)s write-eq --file data/example-eq.json --dry-run\n"
+        "  %(prog)s write-eq --file data/example-eq.json --yes\n"
+        "  %(prog)s import-eq --file eqapo.txt --out data/profiles/profile.json\n"
         "  %(prog)s preamp --value -3.5\n"
         "  %(prog)s slot --value 7\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
