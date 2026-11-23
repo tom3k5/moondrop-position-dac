@@ -7,11 +7,19 @@
 [![UI: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-41cd52?logo=qt&logoColor=white)](#screenshots)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Unlock the full hardware DSP of your MOONDROP:Gravity Position (`35d8:0123`) natively on Linux — no browser required, zero CPU overhead, and a 6,800+ model AutoEq catalog built in.**
+**Unlock full hardware DSP control for supported MOONDROP USB-C DACs (verified on MOONDROP:Gravity Position `35d8:0123`, experimental source-only support for CHU II DSP `31b2:0113` and ECHO-A `3302:12c5`) natively on Linux — no browser required, zero CPU overhead, and a 6,800+ model AutoEq catalog built in.**
 
 Whether you play competitive games on Steam/Proton or tune your IEMs to Harman, Diffuse Field, or your own REW measurements, this desktop app brings **100% of the official web configurator ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** offline to Linux — plus unlocked shelf filters (`LSQ` / `HSQ`), interactive EQ curve editing, and PipeWire UAC2 control.
 
-> **Supported hardware:** **MOONDROP:Gravity Position** (`35d8:0123`) is verified on physical hardware. Source builds also include **experimental** drivers (verified offline on captured HID frames, awaiting community hardware testing) for **MOONDROP CHU II DSP** (`31b2:0113`) and **MOONDROP ECHO-A** (`3302:12c5`).
+> **Supported hardware:**
+>
+> | Model | USB VID:PID | EQ & Filters | Status |
+> |---|---|---|---|
+> | **MOONDROP:Gravity Position** | `35d8:0123` | 8 bands (`PK`, `LSQ`, `HSQ`, `LP`, `HP`), pre-gain | Verified on physical hardware |
+> | **MOONDROP CHU II DSP** | `31b2:0113` | 5 bands (`PK`, `LSQ`, `HSQ`), KTMicro KT0210 | **Experimental** (source builds, offline capture verified) |
+> | **MOONDROP ECHO-A** | `3302:12c5` | 8 bands (`PK`, `LSQ`, `HSQ`, `LP`, `HP`), WalkPlay | **Experimental** (source builds, offline capture verified) |
+>
+> Own a CHU II DSP or ECHO-A? Follow the [Hardware Tester Guide](docs/tester-guide.md) and submit a [Hardware Test Report](https://github.com/tom3k5/moondrop-position-dac/issues/new?template=hardware-test-report.yml).
 
 ---
 

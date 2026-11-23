@@ -1,0 +1,59 @@
+name: Hardware Test Report (CHU II DSP / ECHO-A)
+description: Submit hardware verification results for experimental DAC/DSP drivers.
+title: "[Hardware Test]: "
+labels: ["hardware-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing DSP Control on physical hardware!
+        Please follow the [Tester Guide (EN)](https://github.com/tom3k5/moondrop-position-dac/blob/main/docs/tester-guide.md) or [Instrukcja dla testerów (PL)](https://github.com/tom3k5/moondrop-position-dac/blob/main/docs/tester-guide.pl.md) before submitting.
+  - type: dropdown
+    id: model
+    attributes:
+      label: DAC / DSP Model
+      options:
+        - MOONDROP CHU II DSP (31b2:0113)
+        - MOONDROP ECHO-A (3302:12c5)
+        - MOONDROP:Gravity Position (35d8:0123)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware / Hardware Revision
+      placeholder: "e.g., 0.1, KT0210, 0.5, or unknown"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Tested Functions
+      description: Check all steps that succeeded on your unit.
+      options:
+        - label: Detection without root (`--diagnose` sees the device and reports `readable`/`writable: true`)
+        - label: Read current EQ state & backup exported
+        - label: Write EQ & pre-gain with readback verification
+        - label: Persistence after USB-C unplug/replug
+        - label: Restore original backup cleanly
+  - type: input
+    id: os
+    attributes:
+      label: OS / Distro / Desktop Environment
+      placeholder: "e.g., Arch / KDE Plasma 6 (Wayland), running from source"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose_output
+    attributes:
+      label: Rootless diagnostic output (`python3 scripts/dsp_control.py --diagnose`)
+      description: Paste the full JSON printed by `python3 scripts/dsp_control.py --diagnose`.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Observations / Issues
+      description: Note any unexpected behavior, audible artifacts, USB reconnect timing (CHU II DSP), or failed steps.
