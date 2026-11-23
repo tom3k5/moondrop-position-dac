@@ -203,6 +203,8 @@ def test_source_labels_fit_compact_and_wide_windows(tmp_path: Path) -> None:
         assert [button.text() for button in buttons] == ["Profile", "AutoEq"]
         assert [button.accessibleName() for button in buttons] == ["Moje profile", "Katalog AutoEq"]
         assert buttons[1].toolTip().startswith("Katalog AutoEq")
+        assert window.add_button.text() == "Dodaj"
+        assert window.add_button.toolTip()
         assert buttons[0].geometry().right() < buttons[1].geometry().left()
         for button in buttons:
             assert button.width() >= button.fontMetrics().horizontalAdvance(button.text()) + 20
@@ -214,6 +216,7 @@ def test_source_labels_fit_compact_and_wide_windows(tmp_path: Path) -> None:
 
         window.language_combo.setCurrentIndex(window.language_combo.findData("en"))
         assert [button.text() for button in buttons] == ["Profiles", "AutoEq"]
+        assert window.add_button.text() == "Add"
         window.resize(1140, 820)
         window.source_panel.parentWidget().setSizes([365, 700])
         QTest.qWait(60)
@@ -315,6 +318,9 @@ def test_phase1_phase2_eq_features(tmp_path: Path, monkeypatch) -> None:
         assert editor.plot.correction and editor.plot.interactive
         assert not editor.acoustic_plot.correction
         assert not editor.upload.autoDefault()
+        for kind, frequency, gain, q in editor.rows:
+            assert {field.font().pointSizeF() for field in (kind, frequency, gain, q)} == {kind.font().pointSizeF()}
+            assert abs(kind.height() - max(frequency.height(), gain.height(), q.height())) <= 1
         editor.preamp.setValue(0.0)
         editor.on_plot_band_changed(0, 120.0, 5.5)
         assert editor.rows[0][1].value() == 120
