@@ -32,6 +32,7 @@ from dac_transport import HidDeviceMissing, HidError, HidPermissionError, Hidraw
 REPORT_ID = 0x4B
 VENDOR_ID = 0x35D8
 PRODUCT_ID = 0x0123
+POSITION_NAME = "MOONDROP:Gravity Position"
 SLOT_NAMES = {0: "Default", 7: "Custom"}
 CUSTOM_SLOT = 7
 BAND_COUNT = 8
@@ -73,6 +74,8 @@ REPLY_TIMEOUT_MS = 600
 
 
 class MoondropPosition:
+    model_name = POSITION_NAME
+
     def __init__(self, transport: HidrawTransport, timeout_ms: int = REPLY_TIMEOUT_MS):
         self.transport = transport
         self.interface = transport.interface
@@ -331,7 +334,7 @@ def fmt_band(b: dict) -> str:
 
 POSITION_MODEL = DacModel(
     model_id="moondrop-position",
-    display_name="MOONDROP:Gravity Position",
+    display_name=POSITION_NAME,
     usb_id=(VENDOR_ID, PRODUCT_ID),
     reports=frozenset(HidReport(REPORT_ID, kind, PAYLOAD_LEN) for kind in ("input", "output")),
     connect=MoondropPosition,

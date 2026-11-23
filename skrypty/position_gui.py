@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from collections import Counter
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -35,6 +36,7 @@ from PySide6.QtCore import (
     QRectF,
     QRunnable,
     QSaveFile,
+    QSignalBlocker,
     QSize,
     QStandardPaths,
     Qt,
@@ -91,6 +93,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QStyle,
+    QStyleOptionButton,
     QStyleOptionTabWidgetFrame,
     QSystemTrayIcon,
     QTabWidget,
@@ -112,6 +115,11 @@ BUILTIN_PROFILE = DATA_DIR / "profile/moondrop-position-harman.json"
 HARMAN_TARGET = DATA_DIR / "targety/Harman in-ear 2019.csv"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
 APP_VERSION = "0.3.8"
+APP_STORAGE_NAME = "MOONDROP:Gravity Position"
+SOURCE_LABELS = (
+    ("source.my_profiles", "source.my_profiles_short", "tooltip.source_my_profiles"),
+    ("source.autoeq_catalog", "source.autoeq_catalog_short", "tooltip.source_autoeq"),
+)
 GITHUB_REPO_URL = "https://github.com/tom3k5/moondrop-position-dac"
 OFFICIAL_HUB_URL = "https://hub.moondroplab.tech/"
 PROFILE_ROLE = Qt.ItemDataRole.UserRole
@@ -613,7 +621,9 @@ def read_pipewire_rates() -> tuple[bool, int | None, int | None]:
     return True, clock_rate, forced_rate
 
 
-def read_playback_quality(*, demo: bool = False, demo_forced_rate: int = 0) -> PlaybackQuality:
+def read_playback_quality(
+    *, interface: HidInterface | None = None, demo: bool = False, demo_forced_rate: int = 0
+) -> PlaybackQuality:
     """Odczytuje aktywny format UAC2 (Alt 1–3) i częstotliwość próbkowania."""
     if demo:
         return PlaybackQuality(
@@ -628,16 +638,18 @@ def read_playback_quality(*, demo: bool = False, demo_forced_rate: int = 0) -> P
         )
 
     alsa_info: dict = {}
-    asound = Path("/proc/asound")
-    if asound.is_dir():
-        for stream_file in sorted(asound.glob("card*/stream0")):
+    if interface is not None:
+        usb_device = next((parent for parent in interface.instance.parents if (parent / "idVendor").is_file()), None)
+        for card in sorted(Path("/sys/class/sound").glob("card*")):
             try:
-                text = stream_file.read_text(encoding="utf-8", errors="replace")
+                sound_device = (card / "device").resolve(strict=True)
+                if usb_device is None or usb_device not in (sound_device, *sound_device.parents):
+                    continue
+                stream_file = Path("/proc/asound") / card.name / "stream0"
+                alsa_info = parse_alsa_stream0(stream_file.read_text(encoding="utf-8", errors="replace"))
             except OSError:
                 continue
-            if "MOONDROP" in text or "Position" in text:
-                alsa_info = parse_alsa_stream0(text)
-                break
+            break
 
     pw_ok, clock_rate, forced_rate = read_pipewire_rates()
     rate_hz = alsa_info.get("rate_hz") or (forced_rate if forced_rate else clock_rate)
@@ -746,6 +758,7 @@ class DeviceState:
     mic_gain_raw: int | None = None
     coefficients: tuple[bytes, ...] = ()
     interface: HidInterface | None = None
+    model_name: str = dac.POSITION_NAME
 
     @property
     def target(self) -> DeviceTarget:
@@ -866,15 +879,36 @@ def read_state(dev) -> DeviceState:
         mic_gain_raw,
         tuple(coefficients),
         getattr(dev, "interface", None),
+        getattr(dev, "model_name", dac.POSITION_NAME),
     )
 
 
-def poll_device(open_device) -> DeviceState | None:
-    dev = open_device()
-    if dev is None:
-        return None
-    with dev:
-        return read_state(dev)
+@dataclass(frozen=True)
+class DeviceChoice:
+    target: DeviceTarget
+    name: str
+
+
+def hardware_choices() -> list[DeviceChoice]:
+    return [DeviceChoice(item.interface, item.model.display_name) for item in dac.DEVICE_REGISTRY.detect()]
+
+
+def poll_devices(
+    list_devices, open_device, target: DeviceTarget | None
+) -> tuple[list[DeviceChoice], DeviceState | None, str]:
+    choices = list_devices()
+    if target is None and len(choices) == 1:
+        target = choices[0].target
+    if target is None or all(choice.target != target for choice in choices):
+        return choices, None, ""
+    try:
+        dev = open_device(target)
+        if dev is not None:
+            with dev:
+                return choices, read_state(dev), ""
+    except dac.HidError as exc:
+        return choices, None, str(exc)
+    return choices, None, ""
 
 
 def diagnose_controls(dev: dac.MoondropPosition) -> dict:
@@ -1212,6 +1246,7 @@ def save_profile(path: str, profile: Profile) -> None:
 
 class DemoDevice:
     path = "demo"
+    model_name = dac.POSITION_NAME
 
     def __init__(self):
         self.active_slot = 0
@@ -3141,7 +3176,6 @@ class ElidingLabel(FeedbackLabel):
 class ProfilesWindow(QWidget):
     def __init__(self, demo: bool, library_directory: Path | None = None):
         super().__init__()
-        self.setWindowTitle("MOONDROP:Gravity Position")
         self.setStyleSheet(APP_STYLE)
         self.setAcceptDrops(True)
         self.setMinimumSize(720, 500)
@@ -3151,6 +3185,7 @@ class ProfilesWindow(QWidget):
         self.settings_path = self.library_directory.parent / "settings.json"
         lang_pref = i18n.load_language_preference(self.settings_path)
         i18n.set_language(lang_pref, locale_name=QLocale.system().name())
+        self.setWindowTitle(tr("app.title"))
         self.theme_pref = load_theme_preference(self.settings_path)
         app_instance = QApplication.instance()
         self.system_dark = (
@@ -3165,6 +3200,11 @@ class ProfilesWindow(QWidget):
         self.observed_forced_rate = None
         demo_device = DemoDevice() if demo else None
         self.open_device = (lambda _path=None: demo_device) if demo else open_position
+        self.list_devices = (
+            (lambda: [DeviceChoice(demo_device.path, demo_device.model_name)]) if demo else hardware_choices
+        )
+        self.device_choices: list[DeviceChoice] = []
+        self.selected_target: DeviceTarget | None = None
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(1)
         self.job = None
@@ -3188,18 +3228,20 @@ class ProfilesWindow(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 14, 20, 12)
         layout.setSpacing(12)
-        heading = QLabel("MOONDROP:Gravity Position")
-        font = heading.font()
+        self.heading = QLabel(tr("app.title"))
+        font = self.heading.font()
         font.setPointSizeF(font.pointSizeF() * 1.55)
         font.setBold(True)
-        heading.setFont(font)
-        self.connection = QLabel(tr("status.demo") if demo else tr("status.searching"))
+        self.heading.setFont(font)
+        self.connection = ElidingLabel()
         self.connection.setTextFormat(Qt.TextFormat.PlainText)
         self.connection.setStyleSheet(STATUS_PILL_STYLE)
+        self.connection.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.set_connection_status("status.demo" if demo else "status.searching")
         header = QHBoxLayout()
-        header.addWidget(heading)
+        header.addWidget(self.heading)
         header.addStretch()
-        header.addWidget(self.connection, 0, Qt.AlignmentFlag.AlignVCenter)
+        header.addWidget(self.connection, 1, Qt.AlignmentFlag.AlignVCenter)
         layout.addLayout(header)
         self.connection_problem = FeedbackLabel()
         self.connection_problem.setTextFormat(Qt.TextFormat.PlainText)
@@ -3219,6 +3261,16 @@ class ProfilesWindow(QWidget):
         self.device_box = QGroupBox(tr("device.read_settings"))
         details = QGridLayout(self.device_box)
         details.setColumnStretch(1, 1)
+        self.device_select_label = QLabel(tr("device.selected_model"))
+        self.device_select = QComboBox()
+        self.device_select.setAccessibleName(self.device_select_label.text())
+        self.device_select.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.device_select.setMinimumContentsLength(12)
+        self.device_select_label.setBuddy(self.device_select)
+        details.addWidget(self.device_select_label, 0, 0)
+        details.addWidget(self.device_select, 0, 1)
+        self.update_device_choices([])
+        self.device_select.currentIndexChanged.connect(self.change_device)
         self.active_slot = QLabel("—")
         self.active_profile = QLabel("—")
         self.preamp = QLabel("—")
@@ -3227,9 +3279,9 @@ class ProfilesWindow(QWidget):
         self.mic_gain = QLabel("—")
         self.detail_labels: dict[str, QLabel] = {}
         for row, key, value in (
-            (0, "device.profile", self.active_profile),
-            (1, "device.preamp", self.preamp),
-            (2, "device.active_slot", self.active_slot),
+            (1, "device.profile", self.active_profile),
+            (2, "device.preamp", self.preamp),
+            (3, "device.active_slot", self.active_slot),
         ):
             value.setTextFormat(Qt.TextFormat.PlainText)
             value.setWordWrap(True)
@@ -3385,15 +3437,15 @@ class ProfilesWindow(QWidget):
         library_split = QSplitter(Qt.Orientation.Horizontal)
         library_split.setChildrenCollapsible(False)
         library_split.setHandleWidth(16)
-        source_panel = QFrame()
+        source_panel = self.source_panel = QFrame()
         source_panel.setObjectName("sourceCard")
-        source_layout = QVBoxLayout(source_panel)
+        source_layout = self.source_layout = QVBoxLayout(source_panel)
         source_layout.setContentsMargins(12, 12, 12, 10)
         source_layout.setSpacing(8)
         source_buttons = QHBoxLayout()
         source_buttons.setSpacing(0)
         self.source_group = QButtonGroup(self)
-        for index, key in enumerate(("source.my_profiles", "source.autoeq_catalog")):
+        for index, (key, _, _) in enumerate(SOURCE_LABELS):
             button = QPushButton(tr(key))
             button.setCheckable(True)
             radius = (
@@ -3646,6 +3698,7 @@ class ProfilesWindow(QWidget):
 
         library_split.addWidget(preview_card)
         source_panel.setMinimumWidth(245)
+        source_panel.installEventFilter(self)
         library_split.setStretchFactor(0, 1)
         library_split.setStretchFactor(1, 3)
         library_split.setSizes([310, 800])
@@ -3742,6 +3795,12 @@ class ProfilesWindow(QWidget):
         self.ensurePolished()
         self.size_preview_actions()
         layout.activate()
+        margins = layout.contentsMargins()
+        minimum_page_width = max(device_layout.minimumSize().width(), guide_layout.minimumSize().width())
+        scroll_width = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+        required_width = minimum_page_width + margins.left() + margins.right() + scroll_width
+        size_to_screen(self, max(self.width(), required_width), self.height())
+        layout.activate()
         tab_style = QStyleOptionTabWidgetFrame()
         self.tabs.initStyleOption(tab_style)
         tab_contents = self.tabs.style().subElementRect(QStyle.SubElement.SE_TabWidgetTabContents, tab_style, self.tabs)
@@ -3750,6 +3809,7 @@ class ProfilesWindow(QWidget):
             for page_layout in (device_layout, guide_layout)
         )
         size_to_screen(self, self.width(), self.height() + max(0, page_height - tab_contents.height()))
+        self.update_source_labels()
 
         self.load_library()
         self.profiles.currentItemChanged.connect(self.update_selection)
@@ -3797,7 +3857,28 @@ class ProfilesWindow(QWidget):
                 self.update_device_actions_layout()
             elif watched is self.preview_scroll.viewport():
                 self.update_plot_layout()
+            elif watched is self.source_panel:
+                self.update_source_labels()
         return super().eventFilter(watched, event)
+
+    def update_source_labels(self) -> None:
+        margin = self.source_layout.contentsMargins()
+        available = self.source_panel.contentsRect().width() - margin.left() - margin.right()
+        required = 0
+        for index, (full, _, _) in enumerate(SOURCE_LABELS):
+            button = self.source_group.button(index)
+            option = QStyleOptionButton()
+            option.initFrom(button)
+            option.text = tr(full)
+            text_size = QSize(button.fontMetrics().horizontalAdvance(option.text), button.fontMetrics().height())
+            required += (
+                button.style().sizeFromContents(QStyle.ContentsType.CT_PushButton, option, text_size, button).width()
+            )
+        for index, (full, short, tooltip) in enumerate(SOURCE_LABELS):
+            button = self.source_group.button(index)
+            button.setText(tr(short if available < required else full))
+            button.setAccessibleName(tr(full))
+            button.setToolTip(f"{tr(full)}\n{tr(tooltip)}")
 
     def update_device_actions_layout(self) -> None:
         margins = self.device_actions.contentsMargins()
@@ -3968,9 +4049,7 @@ class ProfilesWindow(QWidget):
             self.apply_theme("auto")
 
     def apply_tooltips(self) -> None:
-        self.connection.setToolTip(tr("tooltip.connection"))
-        self.source_group.button(0).setToolTip(tr("tooltip.source_my_profiles"))
-        self.source_group.button(1).setToolTip(tr("tooltip.source_autoeq"))
+        self.update_source_labels()
         self.profile_search.setToolTip(tr("tooltip.profile_search"))
         self.profiles.setToolTip(tr("tooltip.profiles_list"))
         self.preview_plot.setToolTip(tr("tooltip.preview_plot"))
@@ -4003,16 +4082,17 @@ class ProfilesWindow(QWidget):
 
     def diagnostic_summary(self) -> str:
         lines = [
-            f"App: MOONDROP:Gravity Position {APP_VERSION}",
+            f"App: {tr('app.title')} {APP_VERSION}",
             f"OS: {platform.platform()}",
             f"Python: {platform.python_version()}",
             f"Mode: {'demo' if self.demo else 'hardware'}",
-            f"Connection: {self.connection.text()}",
+            f"Connection: {self.connection.full_title}",
         ]
         if self.state is not None:
             slot_label = dac.SLOT_NAMES.get(self.state.slot, str(self.state.slot))
             lines.extend(
                 [
+                    f"Model: {self.state.model_name}",
                     f"Firmware: {self.state.firmware}",
                     f"Active slot: {self.state.slot} ({slot_label})",
                     f"Pre-gain: {self.state.preamp:+.2f} dB",
@@ -4054,6 +4134,7 @@ class ProfilesWindow(QWidget):
 
     def retranslate_ui(self) -> None:
         self.setWindowTitle(tr("app.title"))
+        self.heading.setText(tr("app.title"))
         self.guide_version_label.setToolTip(tr("tooltip.app_version", version=APP_VERSION))
         self.report_button.setText(tr("footer.report"))
         self.report_bug_action.setText(tr("footer.report_bug"))
@@ -4072,6 +4153,9 @@ class ProfilesWindow(QWidget):
         self.guide_coffee_btn.setText(tr("help.coffee_link"))
         self.guide_version_label.setText(tr("help.version", version=APP_VERSION))
         self.device_box.setTitle(tr("device.read_settings"))
+        self.device_select_label.setText(tr("device.selected_model"))
+        self.device_select.setAccessibleName(self.device_select_label.text())
+        self.update_device_choices(self.device_choices, force=True)
         for key, lbl in self.detail_labels.items():
             lbl.setText(tr(key))
         self.gains_box.setTitle(tr("device.gain_group"))
@@ -4107,8 +4191,6 @@ class ProfilesWindow(QWidget):
         self.defaults_button.setText(tr("device.factory_reset"))
         self.update_device_actions_layout()
         self.update_accent_texts()
-        for index, key in enumerate(("source.my_profiles", "source.autoeq_catalog")):
-            self.source_group.button(index).setText(tr(key))
         self.profile_search.setPlaceholderText(tr("search.profiles_placeholder"))
         self.profile_search.setAccessibleName(tr("search.profiles_a11y"))
         self.profiles.setAccessibleName(tr("tuning.library"))
@@ -4157,7 +4239,7 @@ class ProfilesWindow(QWidget):
         self.tray_menu.aboutToShow.connect(self.populate_tray)
         self.tray.setContextMenu(self.tray_menu)
         self.tray.activated.connect(self.tray_activated)
-        self.tray.setToolTip("MOONDROP:Gravity Position")
+        self.tray.setToolTip(tr("app.title"))
         self.tray.show()
 
     def open_window(self) -> None:
@@ -4398,6 +4480,13 @@ class ProfilesWindow(QWidget):
         plot_description = [*self.preview_key.labels[:3], target_detail, summary, *notes]
         self.preview_plot.setAccessibleDescription("\n".join(filter(None, plot_description)))
 
+    def set_connection_status(self, key: str, model: str = "") -> None:
+        status = tr(key)
+        if model:
+            status = f"{status} · {model}"
+        self.connection.setMaximumWidth(self.connection.fontMetrics().horizontalAdvance(status) + 24)
+        self.connection.set_title(status, wrap=False, detail=tr("tooltip.connection"))
+
     def render_state(self, error: str = "") -> None:
         state = self.state
         items = self.profile_items()
@@ -4421,9 +4510,14 @@ class ProfilesWindow(QWidget):
                 item.setText(label)
         self.connection_problem.setText(error if state is None else "")
         if state is None:
-            self.connection.setText(tr("status.connection_error" if error else "tuning.dac_offline"))
+            if error:
+                self.set_connection_status("status.connection_error")
+            elif len(self.device_choices) > 1 or (self.device_choices and self.selected_target is not None):
+                self.set_connection_status("status.choose_device")
+            else:
+                self.set_connection_status("tuning.dac_offline")
             if self.tray:
-                self.tray.setToolTip(f"MOONDROP:Gravity Position · {self.connection.text()}")
+                self.tray.setToolTip(f"{tr('app.title')} · {self.connection.full_title}")
             for label in (
                 self.active_slot,
                 self.active_profile,
@@ -4434,12 +4528,12 @@ class ProfilesWindow(QWidget):
             ):
                 label.setText("—")
             return
-        self.connection.setText(tr("status.demo") if state.path == "demo" else tr("status.connected"))
+        self.set_connection_status("status.demo" if self.demo else "status.connected", state.model_name)
         slot_name = {0: tr("tuning.factory"), dac.CUSTOM_SLOT: tr("tuning.custom")}.get(state.slot)
         self.active_slot.setText(f"{state.slot} · {slot_name}" if slot_name else str(state.slot))
         self.active_profile.setText(active_name)
         if self.tray:
-            self.tray.setToolTip(f"MOONDROP:Gravity Position · {self.active_profile.text()}")
+            self.tray.setToolTip(f"{state.model_name} · {self.active_profile.text()}")
         self.preamp.setText(f"{state.preamp:+.2f} dB")
         self.global_gain.setText("—" if state.global_gain_db is None else f"{state.global_gain_db} dB")
         self.mic_gain.setText("—" if state.mic_gain_raw is None else mic_gain_label(state.mic_gain_raw))
@@ -4453,6 +4547,7 @@ class ProfilesWindow(QWidget):
         )
 
     def refresh_buttons(self) -> None:
+        self.device_select.setEnabled(bool(self.device_choices) and not self.command_active and not self.editor_active)
         profile = self.candidate_profile()
         active = profile is not None and self.state is not None and profile.matches(self.state)
         restore_ready = active and self.can_restore_previous()
@@ -4559,8 +4654,51 @@ class ProfilesWindow(QWidget):
             self.pending_command = None
             self.launch(operation, finished, background=False)
 
+    def update_device_choices(self, choices: list[DeviceChoice], *, force: bool = False) -> None:
+        if not force and self.device_select.count() and self.device_choices == choices:
+            return
+        self.device_choices = choices
+        active = self.selected_target
+        if active is None and len(choices) == 1:
+            active = choices[0].target
+        counts = Counter(choice.name for choice in choices)
+        with QSignalBlocker(self.device_select):
+            self.device_select.clear()
+            self.device_select.addItem(tr("device.choose_model"))
+            selected = 0
+            for index, choice in enumerate(choices, 1):
+                name = choice.name
+                if counts[name] > 1:
+                    node = choice.target.node if isinstance(choice.target, HidInterface) else choice.target
+                    name = f"{name} · {node}"
+                self.device_select.addItem(name, choice.target)
+                self.device_select.setItemData(index, name, Qt.ItemDataRole.ToolTipRole)
+                if active == choice.target:
+                    selected = index
+            self.device_select.setCurrentIndex(selected)
+            self.device_select.setToolTip(self.device_select.currentText())
+
+    def change_device(self) -> None:
+        self.selected_target = self.device_select.currentData()
+        self.update_device_choices(self.device_choices, force=True)
+        self.refresh_done(None, "")
+        self.refresh()
+
     def refresh(self) -> None:
-        self.start(lambda: poll_device(self.open_device), self.refresh_done, background=True)
+        target = self.selected_target
+
+        def finished(result, error: str) -> None:
+            if self.selected_target != target:
+                self.refresh()
+                return
+            if result is None:
+                self.refresh_done(None, error)
+                return
+            choices, state, device_error = result
+            self.update_device_choices(choices)
+            self.refresh_done(state, device_error)
+
+        self.start(lambda: poll_devices(self.list_devices, self.open_device, target), finished, background=True)
 
     def refresh_done(self, state, error: str) -> None:
         if (
@@ -4581,7 +4719,8 @@ class ProfilesWindow(QWidget):
         self.refresh_playback_quality()
 
     def refresh_playback_quality(self) -> None:
-        quality = read_playback_quality(demo=self.demo, demo_forced_rate=self.demo_forced_rate)
+        interface = self.state.interface if self.state is not None else None
+        quality = read_playback_quality(interface=interface, demo=self.demo, demo_forced_rate=self.demo_forced_rate)
         if quality.altset is not None and quality.audio_format:
             status = tr("device.stream_running") if quality.running else tr("device.stream_ready")
             channels = ""
@@ -5052,7 +5191,9 @@ def main() -> int:
                     report = diagnose_controls(dev)
                 else:
                     state = read_state(dev)
-                    report = {key: value for key, value in vars(state).items() if key != "interface"}
+                    report = {
+                        key: value for key, value in vars(state).items() if key not in ("interface", "model_name")
+                    }
                     report["coefficients"] = [band.hex() for band in state.coefficients]
         except dac.HidError as exc:
             print(exc, file=sys.stderr)
@@ -5060,7 +5201,8 @@ def main() -> int:
         print(json.dumps(report, indent=2, ensure_ascii=False))
         return 0
     app = QApplication([sys.argv[0]])
-    app.setApplicationName("MOONDROP:Gravity Position")
+    app.setApplicationName(APP_STORAGE_NAME)
+    app.setApplicationDisplayName(tr("app.title"))
     app.setApplicationVersion(APP_VERSION)
     server_name = f"moondrop-position-{'demo' if args.demo else 'live'}"
     if activate_existing_instance(server_name):
