@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import json
 import math
+import os
 import platform
 import re
 import shutil
@@ -928,6 +929,52 @@ def poll_devices(
     except dac.HidError as exc:
         return choices, None, str(exc)
     return choices, None, ""
+
+
+def build_diagnostic_report(scan=None, open_device=None) -> dict:
+    """Build a rootless diagnostic report covering sysfs hidraw nodes and live DSP state."""
+    if scan is None:
+        from dac_transport import scan_hidraw
+
+        scan_fn = scan_hidraw
+    else:
+        scan_fn = scan
+    open_fn = open_device or open_dac
+
+    interfaces = []
+    for iface in scan_fn():
+        matched = [model for model in dac.DEVICE_REGISTRY.models if model.matches(iface)]
+        interfaces.append(
+            {
+                "node": iface.node,
+                "vid_pid": f"{iface.vendor_id:04x}:{iface.product_id:04x}",
+                "name": iface.name,
+                "readable": os.access(iface.node, os.R_OK),
+                "writable": os.access(iface.node, os.W_OK),
+                "matched_model": matched[0].model_id if len(matched) == 1 else None,
+                "reports": sorted(
+                    ({"id": f"0x{r.report_id:02x}", "kind": r.kind, "length": r.length} for r in iface.reports),
+                    key=lambda item: (item["id"], item["kind"]),
+                ),
+            }
+        )
+
+    report: dict[str, object] = {
+        "app_version": APP_VERSION,
+        "hidraw_interfaces": interfaces,
+    }
+    try:
+        dev = open_fn()
+        if dev is None:
+            report["open_error"] = "Nie znaleziono obsługiwanego DAC-a w sysfs."
+            return report
+        with dev:
+            state = read_state(dev)
+            report.update({key: value for key, value in vars(state).items() if key not in ("interface", "slot_names")})
+            report["coefficients"] = [band.hex() for band in state.coefficients]
+    except dac.HidError as exc:
+        report["open_error"] = str(exc)
+    return report
 
 
 def diagnose_controls(dev: dac.MoondropPosition) -> dict:
@@ -5326,7 +5373,10 @@ def main() -> int:
         help="sprawdź odwracalną zmianę wzmocnienia mikrofonu bez komendy zapisu flash",
     )
     args = parser.parse_args()
-    if args.diagnose or args.diagnose_controls or args.test_global_gain or args.test_mic_gain:
+    if args.diagnose:
+        print(json.dumps(build_diagnostic_report(), indent=2, ensure_ascii=False))
+        return 0
+    if args.diagnose_controls or args.test_global_gain or args.test_mic_gain:
         try:
             dev = open_dac()
             if dev is None:
@@ -5336,14 +5386,8 @@ def main() -> int:
                     report = test_global_gain(dev)
                 elif args.test_mic_gain:
                     report = test_mic_gain(dev)
-                elif args.diagnose_controls:
-                    report = diagnose_controls(dev)
                 else:
-                    state = read_state(dev)
-                    report = {
-                        key: value for key, value in vars(state).items() if key not in ("interface", "slot_names")
-                    }
-                    report["coefficients"] = [band.hex() for band in state.coefficients]
+                    report = diagnose_controls(dev)
         except dac.HidError as exc:
             print(exc, file=sys.stderr)
             return 1

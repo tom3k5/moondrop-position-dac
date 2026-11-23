@@ -226,3 +226,20 @@ def test_echo_a_reads_real_capture_and_writes_with_verification():
     assert dev.read_band(0)["type"] == "LSQ"
     assert dev.read_band(7)["type"] == "HSQ"
     assert dev.preamp() == -4.0
+
+
+def test_rootless_diagnostic_report_works_without_open_permission():
+    iface = _make_interface("hidraw9", 0x31B2, 0x0113, "Chu2 DSP", chu2_dsp.CHU2_MODEL.reports)
+
+    def raise_perm():
+        raise dac.HidError("Brak dostępu do DAC-a. Sprawdź regułę udev na hoście.")
+
+    report = dsp_control.build_diagnostic_report(scan=lambda: [iface], open_device=raise_perm)
+    assert report["app_version"] == dsp_control.APP_VERSION
+    assert report["open_error"] == "Brak dostępu do DAC-a. Sprawdź regułę udev na hoście."
+    assert len(report["hidraw_interfaces"]) == 1
+    entry = report["hidraw_interfaces"][0]
+    assert entry["vid_pid"] == "31b2:0113"
+    assert entry["matched_model"] == "moondrop-chu2-dsp"
+    assert entry["readable"] is False
+    assert entry["writable"] is False

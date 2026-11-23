@@ -7,11 +7,11 @@
 [![UI: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-41cd52?logo=qt&logoColor=white)](#zrzuty-ekranu)
 [![Licencja: MIT](https://img.shields.io/badge/Licencja-MIT-blue.svg)](LICENSE)
 
-**Odblokuj pełne możliwości sprzętowego DSP w swoim MOONDROP:Gravity Position (`35d8:0123`) natywnie na Linuxie — bez przeglądarki, bez obciążania CPU i z wbudowaną bazą ponad 6800 pomiarów AutoEq.**
+**Odblokuj pełne możliwości sprzętowego DSP w obsługiwanych DAC-ach USB-C MOONDROP (potwierdzone na MOONDROP:Gravity Position `35d8:0123`, eksperymentalnie ze źródeł dla CHU II DSP `31b2:0113` i ECHO-A `3302:12c5`) natywnie na Linuxie — bez przeglądarki, bez obciążania CPU i z wbudowaną bazą ponad 6800 pomiarów AutoEq.**
 
 Niezależnie od tego, czy grasz na Steam/Proton, czy stroisz swoje słuchawki IEM pod krzywą Harmana albo własne pomiary REW — ta aplikacja przenosi **100% możliwości oficjalnego konfiguratora ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** offline na pulpit Linuxa, dokładając odblokowane filtry półkowe (`LSQ` / `HSQ`), interaktywny edytor EQ i kontrolę PipeWire UAC2.
 
-> **Obsługiwany sprzęt:** **MOONDROP:Gravity Position** (`35d8:0123`) jest potwierdzony na fizycznym sprzęcie. Wersja ze źródeł zawiera również **eksperymentalne** sterowniki (zweryfikowane offline na zapisanych próbkach HID, oczekujące na testy sprzętowe) dla **MOONDROP CHU II DSP** (`31b2:0113`) oraz **MOONDROP ECHO-A** (`3302:12c5`).
+> **Obsługiwany sprzęt:** **MOONDROP:Gravity Position** (`35d8:0123`) jest potwierdzony na fizycznym sprzęcie. Wersja ze źródeł zawiera również **eksperymentalne** sterowniki (zweryfikowane offline na zapisanych próbkach HID, oczekujące na testy sprzętowe) dla **MOONDROP CHU II DSP** (`31b2:0113`) oraz **MOONDROP ECHO-A** (`3302:12c5`). Masz któryś z tych modeli? Sprawdź [Instrukcję dla testerów](docs/tester-guide.pl.md) i prześlij [raport z testów](https://github.com/tom3k5/moondrop-position-dac/issues/new?template=hardware-test-report.yml).
 
 ---
 
