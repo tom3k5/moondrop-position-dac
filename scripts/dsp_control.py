@@ -2717,7 +2717,7 @@ class AutoEqPanel(QWidget):
         list_layout.addWidget(self.targets, 1)
         layout.addWidget(self.catalog_list, 1)
 
-        self.status = ElidingLabel()
+        self.status = ElidingLabel(retain_hidden=True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(False)
         self.catalog_progress = FeedbackLabel()
@@ -3630,7 +3630,9 @@ class ProfilesWindow(QWidget):
         catalog_actions.setSpacing(6)
         catalog_actions.addWidget(self.autoeq_panel.catalog_button)
         self.autoeq_panel.status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.autoeq_panel.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        status_policy = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        status_policy.setRetainSizeWhenHidden(True)
+        self.autoeq_panel.status.setSizePolicy(status_policy)
         catalog_actions.addWidget(self.autoeq_panel.status, 1, Qt.AlignmentFlag.AlignVCenter)
         tool_height = max(
             self.add_button.sizeHint().height(),

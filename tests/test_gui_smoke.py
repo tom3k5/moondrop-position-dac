@@ -505,10 +505,12 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
         assert panel.catalog_button.height() == add_button_height
         assert panel.catalog_button.mapTo(window, QPoint()).y() == add_button_y
         assert panel.status.x() > panel.catalog_button.geometry().right()
+        catalog_btn_geo = panel.catalog_button.geometry()
         with monkeypatch.context() as pending:
             pending.setattr(panel, "start_job", lambda *_: None)
             panel.download_catalog()
             QTest.qWait(20)
+            assert panel.catalog_button.geometry() == catalog_btn_geo
             assert panel.catalog_progress.isVisible() and panel.catalog_progress.wordWrap()
             assert panel.catalog_progress.text() == gui.tr("autoeq.loading_catalog")
             assert panel.catalog_progress.parentWidget() is panel.catalog_list
@@ -518,6 +520,7 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
         cached_sources = [panel.source_filter.itemText(i) for i in range(panel.source_filter.count())]
         panel.catalog_downloaded(None, "GitHub API zwróciło błąd HTTP 403.")
         QTest.qWait(20)
+        assert panel.catalog_button.geometry() == catalog_btn_geo
         assert not panel.catalog_progress.isVisible()
         assert panel.catalog_error.isVisible()
         assert panel.catalog_error.parentWidget() is panel.catalog_list
