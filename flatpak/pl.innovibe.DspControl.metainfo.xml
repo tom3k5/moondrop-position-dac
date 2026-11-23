@@ -17,7 +17,7 @@
     <p xml:lang="pl">Edytuj i odsłuchuj osiem pasm sprzętowego EQ, porównuj przewidywaną charakterystykę z odczytem DSP oraz zapisuj lub wgrywaj profile lokalne i AutoEq do obsługiwanych DAC-ów USB-C (począwszy od MOONDROP:Gravity Position).</p>
   </description>
   <launchable type="desktop-id">pl.innovibe.DspControl.desktop</launchable>
-  <url type="homepage">https://innovibe.pl/moondrop-position-dac/</url>
+  <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
     <release version="0.4.0" date="2026-11-23">

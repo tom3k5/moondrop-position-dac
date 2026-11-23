@@ -114,6 +114,8 @@
         "install -Dm755 dsp-control /app/bin/dsp-control",
         "install -Dm644 dsp_control.py /app/share/dsp-control/scripts/dsp_control.py",
         "install -Dm644 moondrop_position.py /app/share/dsp-control/scripts/moondrop_position.py",
+        "install -Dm644 chu2_dsp.py /app/share/dsp-control/scripts/chu2_dsp.py",
+        "install -Dm644 echo_a.py /app/share/dsp-control/scripts/echo_a.py",
         "install -Dm644 dac_devices.py /app/share/dsp-control/scripts/dac_devices.py",
         "install -Dm644 dac_transport.py /app/share/dsp-control/scripts/dac_transport.py",
         "install -Dm644 autoeq_catalog.py /app/share/dsp-control/scripts/autoeq_catalog.py",
@@ -151,6 +153,14 @@
         {
           "type": "file",
           "path": "scripts/moondrop_position.py"
+        },
+        {
+          "type": "file",
+          "path": "scripts/chu2_dsp.py"
+        },
+        {
+          "type": "file",
+          "path": "scripts/echo_a.py"
         },
         {
           "type": "file",
