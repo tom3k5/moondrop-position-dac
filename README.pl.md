@@ -11,6 +11,8 @@
 
 Niezależnie od tego, czy grasz na Steam/Proton, czy stroisz swoje słuchawki IEM pod krzywą Harmana albo własne pomiary REW — ta aplikacja przenosi **100% możliwości oficjalnego konfiguratora ([hub.moondroplab.tech](https://hub.moondroplab.tech/))** offline na pulpit Linuxa, dokładając odblokowane filtry półkowe (`LSQ` / `HSQ`), interaktywny edytor EQ i kontrolę PipeWire UAC2.
 
+> **Obsługiwany sprzęt:** **MOONDROP:Gravity Position** (`35d8:0123`) jest potwierdzony na fizycznym sprzęcie. Wersja ze źródeł zawiera również **eksperymentalne** sterowniki (zweryfikowane offline na zapisanych próbkach HID, oczekujące na testy sprzętowe) dla **MOONDROP CHU II DSP** (`31b2:0113`) oraz **MOONDROP ECHO-A** (`3302:12c5`).
+
 ---
 
 ## Szybki start
