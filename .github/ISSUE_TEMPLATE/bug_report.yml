@@ -33,7 +33,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Connect MOONDROP Position
+        1. Connect your USB-C DAC (e.g., MOONDROP Position)
         2. Open Tuning, choose AutoEq catalog, and select...
         3. Click 'Apply to DAC'
     validations:
