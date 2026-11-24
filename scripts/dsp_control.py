@@ -4622,6 +4622,7 @@ class ProfilesWindow(QWidget):
             ),
             linked_plots=[self.correction_plot],
             reserved_roles=(0, 1, 2, 3),
+            order=(2, 0, 3, 1),
         )
         response_layout.addWidget(self.preview_key)
         summary_row = QHBoxLayout()
@@ -4657,7 +4658,7 @@ class ProfilesWindow(QWidget):
             (tr("plot.key.profile_eq"), tr("plot.key.current_dsp")),
             linked_plots=[self.preview_plot],
             reserved_roles=(0, 1),
-            order=(1, 0),
+            order=(0, 1),
         )
         self.correction_key.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.preamp_summary = FeedbackLabel()
