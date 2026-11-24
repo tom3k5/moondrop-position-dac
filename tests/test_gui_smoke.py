@@ -484,7 +484,10 @@ def test_tuning_plots_keep_geometry_with_dynamic_scale(tmp_path: Path, monkeypat
             return plot.mapTo(window, QPoint()), plot.size()
 
         baseline = (plot_geometry(window.preview_plot), plot_geometry(window.correction_plot))
-        assert window.correction_key.chips[1].x() < window.correction_key.chips[0].x()
+        assert window.correction_key.chips[0].x() < window.correction_key.chips[1].x()
+        assert window.preview_key.chips[2].x() < window.preview_key.chips[0].x()
+        assert window.preview_key.chips[0].x() < window.preview_key.chips[3].x()
+        assert window.preview_key.chips[3].x() < window.preview_key.chips[1].x()
         assert window.preamp_summary.x() >= window.correction_key.geometry().right()
         edit_x = window.edit_button.mapTo(window, QPoint()).x()
         apply_x = window.apply_button.mapTo(window, QPoint()).x()
