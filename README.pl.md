@@ -103,15 +103,15 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 | Funkcja | Oficjalny Web Hub | DSP Control |
 |---|---|---|
 | EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tylko `PK / LP / HP` (półki wyłączone na Position) | **Odblokowuje `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), natywny USB HID `0x4B`, offline** |
-| Interaktywny wykres EQ i zapas do przesteru | Tylko suwaki | **Przeciąganie punktów na wykresie (Hz/dB/kółko Q) + automatyczny pre-gain** |
+| Interaktywny wykres EQ i zapas do przesteru | Tylko suwaki | **Przeciąganie punktów na wykresie (Hz/dB/kółko Q) + auto pre-gain + Wyzeruj EQ** |
 | Odsłuch na żywo (`Live preview`) | Tak | **Tak — auto-odsłuch + `A/B: Bypass` (płaski 0 dB) + bezpieczne przywracanie** |
 | Wbudowany optymalizator AutoEq | Podstawowe presety | **Indeks 6800+ offline + Bas / Tilt / Tylko PK + zakres + Drag & Drop** |
 | Porównanie z obecnym DSP i interaktywna legenda | Nie | **Krzywa `Obecnie w DSP` na obu wykresach, ukrywanie/solo pigułek, `Hz / dB / Δ dB`** |
 | Wzmocnienie wyjścia (`-18…0 dB`) i mikrofonu | Tak | **Tak, z opcjonalnym zapisem w profilu** |
-| Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka, auto-synchronizacja słuchawek, Drag & Drop, wklejanie/import/eksport Equalizer APO** |
+| Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka, pamięć profilu per DAC, auto-sync słuchawek, wklejanie/import Equalizer APO** |
 | Monitor strumienia UAC2 i próbkowania PipeWire | Nie | **Tak (`44,1–384 kHz` + odczyt głębi bitowej ALSA)** |
 | Weryfikacja zapisu i diagnostyka | Podstawowa | **Weryfikacja przed/po zapisie flash, Przywróć poprzedni, bezrootowy `--diagnose`** |
-| Motywy, język, Przewodnik i aktualizacje | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, Przewodnik, opcjonalne sprawdzanie wydań** |
+| Motywy, język, Przewodnik i aktualizacje | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, stopka aktualizacji i kopiowanie komendy Flatpak** |
 
 ---
 
