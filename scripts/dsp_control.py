@@ -2909,17 +2909,14 @@ class EqualizerDialog(QDialog):
             self.macro_controls[key] = spin
         macro_row.addStretch(1)
         macro_vbox.addLayout(macro_row)
-        macro_btns = QHBoxLayout()
-        macro_btns.setContentsMargins(0, 0, 0, 0)
-        macro_btns.setSpacing(8)
-        macro_btns.addStretch(1)
-        self.apply_macro_btn = QPushButton(tr("editor.macro_apply"))
+        macro_btns = QDialogButtonBox()
+        self.apply_macro_btn = macro_btns.addButton(tr("editor.macro_apply"), QDialogButtonBox.ButtonRole.ApplyRole)
         self.apply_macro_btn.clicked.connect(self.apply_macro)
-        self.revert_macro_btn = QPushButton(tr("editor.macro_revert"))
+        self.revert_macro_btn = macro_btns.addButton(tr("editor.macro_revert"), QDialogButtonBox.ButtonRole.RejectRole)
         self.revert_macro_btn.clicked.connect(self.revert_macro)
-        macro_btns.addWidget(self.apply_macro_btn)
-        macro_btns.addWidget(self.revert_macro_btn)
-        macro_vbox.addLayout(macro_btns)
+        for button in macro_btns.buttons():
+            button.setAutoDefault(False)
+        macro_vbox.addWidget(macro_btns)
         layout.addWidget(self.macro_panel)
 
         bands_panel = QWidget()
