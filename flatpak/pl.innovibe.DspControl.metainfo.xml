@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.4.2" date="2026-11-24">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.2</url>
+      <description>
+        <p>DSP Control 0.4.2: modular per-DAC device definitions (Position, CHU II DSP, ECHO-A), bundled CHU II measurement and 5-band Harman profile, per-DAC filtering of My Profiles, and connected headphone selection (AutoEq catalog, local CSV/TXT, or Flat mode) for detachable and standalone DACs.</p>
+        <p xml:lang="pl">DSP Control 0.4.2: modularne definicje urządzeń DAC (Position, CHU II DSP, ECHO-A), wbudowany pomiar i 5-pasmowy profil Harman dla CHU II, filtrowanie Moich profili względem podpiętego DAC-a oraz wybór podłączonych słuchawek (katalog AutoEq, lokalny CSV/TXT lub tryb Flat) dla DAC-ów odpinanych i samodzielnych.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.1</url>
       <description>
