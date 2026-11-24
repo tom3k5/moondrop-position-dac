@@ -63,6 +63,9 @@ Przetestuj cały interfejs, katalog AutoEq i edytor EQ bez podłączania DAC-a:
 git clone https://github.com/tom3k5/moondrop-position-dac.git
 cd moondrop-position-dac
 python3 scripts/dsp_control.py --demo
+# Lub podgląd innego modelu DAC w trybie demo:
+python3 scripts/dsp_control.py --demo --model moondrop-chu2-dsp
+python3 scripts/dsp_control.py --demo --model moondrop-echo-a
 ```
 
 Aby uruchomić wersję ze źródeł z fizycznym DAC-em (w tym eksperymentalne **CHU II DSP** / **ECHO-A**), pomiń `--demo`:
@@ -91,6 +94,7 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 
 - **Sprzętowe DSP, zero obciążenia CPU:** Korektor parametryczny działa bezpośrednio na układzie DAC-a (`< 5 ms` opóźnienia) i pozostaje aktywny w grach (Steam/Proton, natywne), na Discordzie i w odtwarzaczach — nawet po zamknięciu aplikacji.
 - **Odblokowane filtry półkowe `LSQ` i `HSQ`:** Podczas gdy `hub.moondroplab.tech` wyłącza półki dla Position (`PK / LP / HP`), DSP Control odblokowuje sprzętowe `LSQ` i `HSQ` (potwierdzone na firmware `0.5`). AutoEq domyślnie używa układu `1× LSQ + 1× HSQ + 6× PK`, zmniejszając błąd dopasowania Harman In-Ear 2019 z `2,20 dB` do `0,47 dB` RMS.
+- **Krzywe, profile i wybór słuchawek per DAC:** Każdy model korzysta z modularnej definicji w [`data/devices/`](data/devices/README.md) (liczba pasm, próbkowanie, typy filtrów, krzywa bazowa), filtruje listę *Moje profile* do podpiętego DAC-a i pozwala wybrać dowolne słuchawki z katalogu AutoEq (np. `KZ ZSN Pro X`), własny plik CSV/TXT lub tryb **Flat**.
 - **Bezpieczna praca offline:** Przeglądanie, obliczenia AutoEq i zapis profili na dysku są oddzielone od pamięci flash DAC-a. Każde wgranie wykonuje weryfikację przed/po zapisie, a odsłuch na żywo automatycznie przywraca poprzedni stan po anulowaniu.
 - **Zasobnik systemowy i kontrola PipeWire:** Przełączaj profile dwoma kliknięciami z traya, sprawdzaj aktywną głębię bitową ALSA i wymuszaj próbkowanie PipeWire (`44,1–384 kHz`).
 
