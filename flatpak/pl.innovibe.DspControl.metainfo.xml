@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.4.1" date="2026-11-24">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.1</url>
+      <description>
+        <p>DSP Control 0.4.1: fixes HidrawTransport compatibility for experimental CHU II DSP and ECHO-A drivers (write_report, read_report, drain), aligns 1-based band numbering and custom slot mapping, adds USB reconnect handling after CHU II DSP flash commit, and unifies ECHO-A biquad evaluation at 93,750 Hz.</p>
+        <p xml:lang="pl">DSP Control 0.4.1: poprawia zgodność HidrawTransport z eksperymentalnymi sterownikami CHU II DSP i ECHO-A (write_report, read_report, drain), ujednolica numerację pasm od 1 i mapowanie slotów Custom, dodaje obsługę ponownego połączenia USB po zapisie flash w CHU II DSP oraz ujednolica obliczenia biquad ECHO-A przy 93 750 Hz.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-23">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.0</url>
       <description>

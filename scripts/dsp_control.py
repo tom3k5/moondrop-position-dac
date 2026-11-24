@@ -118,7 +118,7 @@ HARMAN_TARGET = DATA_DIR / "targets/Harman in-ear 2019.csv"
 BUNDLED_CATALOG = DATA_DIR / "autoeq-catalog.json"
 BUNDLED_TARGETS_DIR = DATA_DIR / "targets"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 APP_STORAGE_NAME = "DSP Control"
 LEGACY_STORAGE_NAME = "MOONDROP:Gravity Position"
 SOURCE_LABELS = (
@@ -725,8 +725,25 @@ class Profile:
     target_curve: tuple[tuple[float, float], ...] = ()
     coefficients: tuple[bytes, ...] = ()
     fit_range: tuple[int, int] | None = None
+    sample_rate_hz: float = dac.COEFF_FS
 
     def matches_eq(self, state: DeviceState) -> bool:
+        if state.model_name != dac.POSITION_NAME:
+            expected_slot = state.custom_slot if self.slot == dac.CUSTOM_SLOT else self.slot
+            if state.slot != expected_slot or len(state.bands) != len(self.bands):
+                return False
+            for index, (actual, expected) in enumerate(zip(state.bands, self.bands, strict=True)):
+                if actual is None:
+                    return False
+                if (
+                    actual.get("band") != index + 1
+                    or actual.get("type") != expected.get("type")
+                    or actual.get("freq") != round(float(expected["freq"]))
+                    or abs(float(actual["gain"]) - float(expected["gain"])) > 0.06
+                    or abs(float(actual["q"]) - float(expected["q"])) > 0.01
+                ):
+                    return False
+            return True
         return state.slot == self.slot and (
             self.slot == 0
             or (
@@ -768,6 +785,7 @@ class DeviceState:
     band_count: int = dac.BAND_COUNT
     custom_slot: int = dac.CUSTOM_SLOT
     slot_names: dict[int, str] | None = None
+    sample_rate_hz: float = dac.COEFF_FS
 
     @property
     def target(self) -> DeviceTarget:
@@ -894,6 +912,7 @@ def read_state(dev) -> DeviceState:
         band_count,
         getattr(dev, "custom_slot", dac.CUSTOM_SLOT),
         dict(getattr(dev, "slot_names", dac.SLOT_NAMES)),
+        float(getattr(dev, "sample_rate_hz", dac.COEFF_FS)),
     )
 
 
@@ -1130,15 +1149,36 @@ def previous_profile_from_state(state: DeviceState) -> Profile | None:
     return None
 
 
-def _write_profile_on_device(dev, profile: Profile, state: DeviceState) -> DeviceState:
+def _reconnect_after_save(open_device, model_id: str | None, *, timeout_s: float = 4.0) -> DeviceState:
+    """Wait for a device that restarts USB on flash commit (e.g. CHU II DSP) and read its state."""
+    deadline = time.monotonic() + timeout_s
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        time.sleep(0.25)
+        for detected in dac.DEVICE_REGISTRY.detect():
+            if model_id is not None and detected.model.model_id != model_id:
+                continue
+            try:
+                dev = open_device(detected.interface)
+                if dev is not None:
+                    with dev:
+                        return read_state(dev)
+            except dac.HidError as exc:
+                last_error = exc
+    detail = f" ({last_error})" if last_error is not None else ""
+    raise dac.HidError(f"DAC nie wrócił po restarcie USB po zapisie do flash{detail}.")
+
+
+def _write_profile_on_device(dev, profile: Profile, state: DeviceState, open_device=None) -> DeviceState:
     if profile.matches(state):
         return state
     if profile.global_gain_db is not None and state.global_gain_db is None:
         raise dac.HidError("Brak odczytu global gainu wymaganego przez profil.")
     if profile.mic_gain_raw is not None and state.mic_gain_raw is None:
         raise dac.HidError("Brak odczytu wzmocnienia mikrofonu wymaganego przez profil.")
+    reconnected = False
     if not profile.matches_eq(state):
-        if profile.slot == 0:
+        if profile.slot == 0 and state.custom_slot != 0:
             dac.activate_slot(dev, 0)
             dev.save()
             time.sleep(dac.DELAY_FLASH_MS / 1000)
@@ -1152,11 +1192,17 @@ def _write_profile_on_device(dev, profile: Profile, state: DeviceState) -> Devic
                 else profile.bands
             )
             dac.write_profile(dev, bands, profile.preamp, allow_half_db=True)
-    if profile.global_gain_db is not None:
-        apply_global_gain(dev, profile.global_gain_db)
-    if profile.mic_gain_raw is not None:
-        apply_mic_gain(dev, profile.mic_gain_raw)
-    updated = read_state(dev)
+            reconnected = bool(getattr(dev, "reconnect_on_save", False))
+    if reconnected:
+        if open_device is None:
+            raise dac.HidError("Urządzenie zrestartowało USB po zapisie; odczytaj stan ponownie.")
+        updated = _reconnect_after_save(open_device, getattr(dev, "model_id", None))
+    else:
+        if profile.global_gain_db is not None:
+            apply_global_gain(dev, profile.global_gain_db)
+        if profile.mic_gain_raw is not None:
+            apply_mic_gain(dev, profile.mic_gain_raw)
+        updated = read_state(dev)
     if not profile.matches(updated):
         raise dac.HidError("DAC nie potwierdził zastosowania profilu.")
     return updated
@@ -1164,7 +1210,7 @@ def _write_profile_on_device(dev, profile: Profile, state: DeviceState) -> Devic
 
 def apply_profile(open_device, device: DeviceTarget, profile: Profile) -> DeviceState:
     with open_device(device) as dev:
-        return _write_profile_on_device(dev, profile, read_state(dev))
+        return _write_profile_on_device(dev, profile, read_state(dev), open_device=open_device)
 
 
 def apply_profile_with_previous(
@@ -1173,7 +1219,7 @@ def apply_profile_with_previous(
     with open_device(device) as dev:
         before = read_state(dev)
         previous = previous_profile_from_state(before)
-        after = _write_profile_on_device(dev, profile, before)
+        after = _write_profile_on_device(dev, profile, before, open_device=open_device)
         return previous, after
 
 
@@ -1445,16 +1491,21 @@ def read_target_curve(path: Path) -> tuple[tuple[float, float], ...]:
     return curve
 
 
-def coefficients_for_band(band: dict) -> bytes:
+def coefficients_for_band(band: dict, sample_rate_hz: float = dac.COEFF_FS) -> bytes:
+    if abs(sample_rate_hz - 93750.0) < 1.0:
+        import echo_a
+
+        return echo_a.biquad_coefficients(echo_a.TYPE_TO_CODE[band["type"]], band["freq"], band["gain"], band["q"])
     return dac.biquad_coefficients(dac.TYPE_TO_CODE[band["type"]], band["freq"], band["gain"], band["q"])
 
 
 def response_points(profile: Profile, frequencies) -> list[tuple[float, float]]:
-    bank = profile.coefficients or [coefficients_for_band(band) for band in profile.bands]
+    fs = profile.sample_rate_hz or dac.COEFF_FS
+    bank = profile.coefficients or [coefficients_for_band(band, sample_rate_hz=fs) for band in profile.bands]
     coefficients = [struct.unpack("<5i", payload) for payload in bank]
     points = []
     for frequency in frequencies:
-        angle = -2 * math.pi * frequency / dac.COEFF_FS
+        angle = -2 * math.pi * frequency / fs
         z = complex(math.cos(angle), math.sin(angle))
         z2 = z * z
         level = 0.0
@@ -1467,13 +1518,19 @@ def response_points(profile: Profile, frequencies) -> list[tuple[float, float]]:
 
 
 def profile_from_readback(state: DeviceState) -> Profile | None:
-    if (
-        len(state.coefficients) != dac.BAND_COUNT
-        or len(state.bands) != dac.BAND_COUNT
-        or any(band is None or band["type"] not in dac.TYPE_TO_CODE for band in state.bands)
+    if len(state.bands) != state.band_count or any(
+        band is None or band["type"] not in dac.TYPE_TO_CODE for band in state.bands
     ):
         return None
-    return Profile("Odczyt z DAC-a", state.slot, list(state.bands), state.preamp, coefficients=state.coefficients)
+    has_coeffs = len(state.coefficients) == state.band_count and all(len(c) == 20 for c in state.coefficients)
+    return Profile(
+        "Odczyt z DAC-a",
+        state.slot,
+        list(state.bands),
+        state.preamp,
+        coefficients=state.coefficients if has_coeffs else (),
+        sample_rate_hz=state.sample_rate_hz,
+    )
 
 
 def export_profile_dialog(parent: QWidget, title: str, profile: Profile) -> str | None:

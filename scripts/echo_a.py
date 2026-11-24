@@ -45,7 +45,7 @@ CMD_COMMIT_PREP = 0x17
 TYPE_TO_CODE = {"LSQ": 1, "PK": 2, "HSQ": 3, "LP": 4, "HP": 5}
 CODE_TO_TYPE = {v: k for k, v in TYPE_TO_CODE.items()}
 
-COEFF_FS = 96000.0
+COEFF_FS = 93750.0
 COEFF_SCALE = float(1 << 30)
 
 DELAY_BAND_MS = 25
@@ -128,7 +128,7 @@ class EchoA:
     preamp_range = PREAMP_RANGE
     custom_slot = CUSTOM_SLOT
     slot_names = SLOT_NAMES
-    sample_rate_hz = 93750.0
+    sample_rate_hz = COEFF_FS
     reconnect_on_save = False
 
     def __init__(self, transport: HidrawTransport, timeout_ms: int = REPLY_TIMEOUT_MS):
@@ -153,7 +153,7 @@ class EchoA:
             remaining_ms = int((deadline - time.monotonic()) * 1000)
             if remaining_ms <= 0:
                 return None
-            raw = self.transport.read_report(remaining_ms)
+            raw = self.transport.read_report(remaining_ms, size=PAYLOAD_LEN + 1)
             if raw is None or len(raw) < 4 or raw[0] != REPORT_ID:
                 continue
             payload = raw[1:]
@@ -165,7 +165,7 @@ class EchoA:
 
     def request(self, cmd: int, payload: bytes, index: int | None = None, *, retries: int = 2) -> bytes:
         for attempt in range(retries + 1):
-            self.transport.drain()
+            self.transport.drain(size=PAYLOAD_LEN + 1)
             self._write_frame(payload)
             reply = self._read_reply(cmd, index=index)
             if reply is not None:
@@ -199,15 +199,14 @@ class EchoA:
         freq, q_raw, gain_raw = struct.unpack("<HHh", reply[27:33])
         ftype_code = reply[33]
         if freq == 0xFFFF and q_raw == 0xFFFF and gain_raw == -1:
-            band = {"band": index, "type": "PK", "type_code": 2, "freq": 0, "gain": 0.0, "q": 0.0}
+            band = {"band": index + 1, "freq": 0, "gain": 0.0, "q": 0.0, "type": "PK"}
         else:
             band = {
-                "band": index,
-                "type": CODE_TO_TYPE.get(ftype_code, "PK"),
-                "type_code": ftype_code,
+                "band": index + 1,
                 "freq": int(freq),
                 "gain": round(gain_raw / 256.0, 2),
                 "q": round(q_raw / 256.0, 2),
+                "type": CODE_TO_TYPE.get(ftype_code, "PK"),
             }
         if include_coefficients:
             band["coefficients"] = reply[7:27]
@@ -284,24 +283,23 @@ class EchoA:
         time.sleep(DELAY_FLASH_MS / 1000.0)
         return commit_frame
 
-    def _expected_band(self, band: dict) -> dict:
+    def _expected_band(self, index: int, band: dict) -> dict:
         ftype_code = TYPE_TO_CODE.get(band["type"], 2)
         freq = max(20, min(20000, round(float(band["freq"]))))
         q_raw = max(26, min(2560, round(float(band["q"]) * 256.0)))
         gain_raw = max(-2560, min(2560, round(float(band["gain"]) * 256.0)))
         return {
-            "band": int(band["band"]),
-            "type": CODE_TO_TYPE.get(ftype_code, "PK"),
-            "type_code": ftype_code,
+            "band": index + 1,
             "freq": freq,
             "gain": round(gain_raw / 256.0, 2),
             "q": round(q_raw / 256.0, 2),
+            "type": CODE_TO_TYPE.get(ftype_code, "PK"),
         }
 
     def verify_profile(self, bands: list[dict], slot: int | None = None, preamp: float | None = None) -> None:
         del slot
         for index, band in enumerate(bands):
-            expected = self._expected_band(band)
+            expected = self._expected_band(index, band)
             actual = self.read_band(index)
             if actual != expected:
                 raise HidError(f"ECHO-A pasmo {index + 1}: odczytano {actual}, oczekiwano {expected}.")
@@ -338,13 +336,13 @@ class EchoA:
                 or not 0.1 <= band["q"] <= 10.0
                 or not -10.0 <= band["gain"] <= 10.0
             ):
-                raise HidError(f"Nieprawidłowe parametry pasma {band['band']} dla ECHO-A.")
+                raise HidError(f"Nieprawidłowe parametry pasma {band.get('band', '?')} dla ECHO-A.")
         target_slot = CUSTOM_SLOT if slot is None else slot
         for index, band in enumerate(bands):
             if (
                 previous_bands is not None
                 and index < len(previous_bands)
-                and self._expected_band(band) == self._expected_band(previous_bands[index])
+                and self._expected_band(index, band) == self._expected_band(index, previous_bands[index])
             ):
                 continue
             self.write_band(index, band["type"], band["freq"], band["gain"], band["q"], slot=target_slot)

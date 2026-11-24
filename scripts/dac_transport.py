@@ -165,6 +165,9 @@ class HidrawTransport:
         except OSError as exc:
             raise self._io_error(exc) from exc
 
+    def write_report(self, report: bytes) -> None:
+        self.write(report)
+
     def read(self, size: int, timeout: float | None = None) -> bytes | None:
         fd = self._descriptor()
         try:
@@ -178,6 +181,14 @@ class HidrawTransport:
         if not data:
             raise HidDeviceMissing("DAC został odłączony podczas operacji HID.")
         return data
+
+    def read_report(self, timeout_ms: int, size: int = 64) -> bytes | None:
+        return self.read(size, timeout=max(0.0, timeout_ms / 1000.0))
+
+    def drain(self, max_packets: int = 64, size: int = 64) -> None:
+        for _ in range(max_packets):
+            if self.read(size) is None:
+                return
 
     @staticmethod
     def _io_error(exc: OSError) -> HidError:
