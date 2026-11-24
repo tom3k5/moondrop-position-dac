@@ -127,15 +127,21 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 
 </details>
 
+<br>
+
 ### 2. Built-in AutoEq Catalog (6,800+ Models)
 Filter thousands of IEM and over-ear measurements by **Source**, **Headphone type**, and **Fit range** (`20 Hz–20 kHz` or `6 / 4 / 2 kHz`), or drop your own `.csv` / `.txt` curve onto the window.
 
 ![AutoEq Catalog](docs/screenshots/02-autoeq-catalog.png)
 
+<br>
+
 ### 3. Parametric EQ Editor & Live Preview
 Drag handles directly on the **EQ correction** plot, scroll to adjust Q, and click **Set automatically** for headroom. With a DAC connected, **Live preview** lets you audition tweaks in real time and restores your previous settings if canceled.
 
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
+
+<br>
 
 ### 4. Device Status, Gains & PipeWire UAC2 Quality
 Inspect active ALSA bit depth, set session-wide **PipeWire sample rate** (`44.1–384 kHz`), export/restore DAC backups, and switch between **InnoVibe Dark / Light** themes and **EN / PL** languages.
@@ -148,6 +154,8 @@ Inspect active ALSA bit depth, set session-wide **PipeWire sample rate** (`44.1�
 ![Compact Device view with the full sample-rate label and its Apply and Refresh buttons](docs/screenshots/07-device-compact.png)
 
 </details>
+
+<br>
 
 ### 5. Built-in Guide, Shortcuts & Diagnostics
 In-app walkthroughs, keyboard shortcuts (`Ctrl+F`, `Ctrl+O`, `Ctrl+Q`), 1-click diagnostic copy, and direct support links.

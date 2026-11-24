@@ -127,15 +127,21 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 
 </details>
 
+<br>
+
 ### 2. Wbudowany katalog AutoEq (ponad 6800 modeli)
 Filtruj tysiące pomiarów według **Źródła**, **Typu słuchawek** i **Zakresu obliczeń** (`20 Hz–20 kHz` lub `6 / 4 / 2 kHz`) albo przeciągnij na okno własną krzywą `.csv` / `.txt`.
 
 ![Katalog AutoEq](docs/screenshots/pl/02-autoeq-catalog.png)
 
+<br>
+
 ### 3. Edytor EQ i odsłuch na żywo
 Przeciągaj punkty bezpośrednio na wykresie **Korekcja EQ**, zmieniaj Q kółkiem myszy i użyj **Ustaw automatycznie** do doboru pre-gainu. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie i bezpiecznie przywraca stan po anulowaniu.
 
 ![Edytor EQ](docs/screenshots/pl/04-eq-editor.png)
+
+<br>
 
 ### 4. Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
 Podglądaj aktywny strumień ALSA, ustawiaj **Próbkowanie PipeWire** (`44,1–384 kHz`), eksportuj/przywracaj kopie zapasowe oraz przełączaj motywy (**InnoVibe Ciemny / Jasny**) i języki (**PL / EN**).
@@ -148,6 +154,8 @@ Podglądaj aktywny strumień ALSA, ustawiaj **Próbkowanie PipeWire** (`44,1–3
 ![Kompaktowy widok Urządzenia z pełną etykietą próbkowania i przyciskami Zastosuj oraz Odśwież](docs/screenshots/pl/07-device-compact.png)
 
 </details>
+
+<br>
 
 ### 5. Wbudowany Przewodnik, skróty i diagnostyka
 Instrukcje wewnątrz aplikacji, skróty klawiszowe (`Ctrl+F`, `Ctrl+O`, `Ctrl+Q`), kopiowanie diagnostyki jednym kliknięciem oraz odnośniki do wsparcia.
