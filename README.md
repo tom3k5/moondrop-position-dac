@@ -82,6 +82,8 @@ python3 scripts/dsp_control.py
 ```bash
 flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build pl.innovibe.DspControl.json
 flatpak build-bundle flatpak-repo dsp-control.flatpak pl.innovibe.DspControl
+# Or build a static OSTree Flatpak repository (with .flatpakrepo / .flatpakref):
+./scripts/build_flatpak_repo.sh dist/flatpak-repo
 ```
 
 The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requests `--device=all` (USB `hidraw` DSP access), `--share=network` (user-initiated AutoEq catalog downloads), `--talk-name=org.kde.StatusNotifierWatcher` (system tray icon), and `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (desktop window). For a strictly offline session with local profiles and cached curves, run `flatpak run --unshare=network pl.innovibe.DspControl`.
@@ -102,14 +104,14 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 |---|---|---|
 | Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | `PK / LP / HP` only (shelves disabled on Position) | **Unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), native USB HID `0x4B`, offline** |
 | Interactive EQ Curve & Headroom | Sliders only | **Drag points on plot (Freq / Gain / Wheel Q) + Auto Headroom & Clip Check** |
-| Live Auditioning | Yes | **Yes, auto-enabled with safe state restore on cancel** |
-| Built-in AutoEq Optimizer | Basic presets | **6,800+ offline index + 9 MIT targets + pre-fit preview + fit range + Drag & Drop** |
+| Live Auditioning | Yes | **Yes, auto-enabled + `A/B: Bypass` flat compare + safe restore** |
+| Built-in AutoEq Optimizer | Basic presets | **6,800+ offline index + Bass boost / Tilt / PK-only + fit range + Drag & Drop** |
 | Live DSP Comparison & Interactive Legend | No | **Compare against Current in DSP on both plots, toggle/solo pills, `Hz / dB / Δ dB`** |
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
-| Local Library vs DAC Flash | Limited | **Full local library, Drag & Drop, JSON & Equalizer APO (`.txt`) import/export** |
+| Local Library vs DAC Flash | Limited | **Full local library, headphone auto-sync, Drag & Drop, JSON & Equalizer APO paste/import/export** |
 | PipeWire UAC2 Monitor & Sample Rate | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
 | Readback Verification & Diagnostics | Basic | **Pre/post-flash verification, 1-click Restore previous, rootless `--diagnose`** |
-| Themes, Language & Built-in Guide | Web only | **InnoVibe Dark & Light themes, EN / PL, built-in Guide tab** |
+| Themes, Language, Guide & Updates | Web only | **InnoVibe Dark & Light, EN / PL, built-in Guide, opt-in release update check** |
 
 ---
 
