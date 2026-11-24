@@ -29,6 +29,8 @@ def test_all_device_specs_load_and_match_hardware_capabilities():
 
     pos = specs["moondrop-position"]
     assert pos.form_factor == "integrated_iem"
+    assert pos.headphone_attachment == "integrated"
+    assert pos.allows_headphone_selection is False
     assert pos.dsp.band_count == 8
     assert pos.dsp.sample_rate_hz == 96000.0
     assert pos.dsp.slots.factory == 0
@@ -39,6 +41,9 @@ def test_all_device_specs_load_and_match_hardware_capabilities():
 
     chu2 = specs["moondrop-chu2-dsp"]
     assert chu2.form_factor == "integrated_iem"
+    assert chu2.headphone_attachment == "detachable"
+    assert chu2.allows_headphone_selection is True
+    assert chu2.has_default_headphone is True
     assert chu2.dsp.band_count == 5
     assert chu2.dsp.sample_rate_hz == 48000.0
     assert chu2.dsp.supported_types == ("PK", "LSQ", "HSQ")
@@ -55,6 +60,9 @@ def test_all_device_specs_load_and_match_hardware_capabilities():
 
     echo = specs["moondrop-echo-a"]
     assert echo.form_factor == "dongle_dac"
+    assert echo.headphone_attachment == "standalone"
+    assert echo.allows_headphone_selection is True
+    assert echo.has_default_headphone is False
     assert echo.is_dongle is True
     assert echo.dsp.band_count == 8
     assert echo.dsp.sample_rate_hz == 93750.0
@@ -137,3 +145,100 @@ def test_gui_switches_curves_and_filters_profiles_by_connected_dac(tmp_path: Pat
         window.allow_quit = True
         window.close()
         window.deleteLater()
+
+
+def test_headphone_selection_mvp_for_integrated_detachable_and_standalone(tmp_path: Path):
+    _app()
+    lib = tmp_path / "profiles"
+    lib.mkdir()
+    custom_csv = tmp_path / "Sennheiser HD 600.csv"
+    custom_csv.write_text("frequency,raw\n20,0.0\n1000,2.5\n20000,-4.0\n", encoding="utf-8")
+
+    chu2_spec = device_specs.get_device_spec("moondrop-chu2-dsp")
+    echo_spec = device_specs.get_device_spec("moondrop-echo-a")
+
+    window = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-position")
+    try:
+        # 1. Integrated (Position): headphone bar is hidden
+        assert window.headphone_bar.isVisibleTo(window) is False
+        assert window.response_section.isVisibleTo(window) is True
+
+        # 2. Detachable (CHU II DSP): headphone bar visible, defaults to CHU II, Flat hides acoustic section
+        window.apply_device_spec(chu2_spec)
+        assert window.headphone_bar.isVisibleTo(window) is True
+        assert window.headphone_selection.mode == "default"
+        assert window.response_section.isVisibleTo(window) is True
+        assert window.autoeq_panel.headphone_cta.isVisibleTo(window.autoeq_panel) is False
+
+        window.set_headphone_selection(gui.HeadphoneSelection(mode="flat"))
+        assert window.response_section.isVisibleTo(window) is False
+        assert window.correction_section.isVisibleTo(window) is True
+        assert window.autoeq_panel.headphone_cta.isVisibleTo(window.autoeq_panel) is True
+
+        window.set_headphone_selection(gui.HeadphoneSelection(mode="default"))
+        assert window.response_section.isVisibleTo(window) is True
+        assert len(window.preview_plot.factory_points) == len(chu2_spec.measured_curve())
+
+        # 3. Standalone (ECHO-A): defaults to Flat, selecting local CSV enables acoustic preview + persists
+        window.apply_device_spec(echo_spec)
+        assert window.headphone_bar.isVisibleTo(window) is True
+        assert window.headphone_selection.mode == "flat"
+        assert window.response_section.isVisibleTo(window) is False
+        assert window.correction_section.isVisibleTo(window) is True
+        assert window.autoeq_panel.headphone_cta.isVisibleTo(window.autoeq_panel) is True
+
+        # Editor in Flat mode has no acoustic tab
+        flat_editor = gui.EqualizerDialog(
+            window,
+            None,
+            None,
+            window.factory_profile,
+            device_spec=echo_spec,
+            measurement_curve=window.active_measurement_curve(),
+        )
+        try:
+            assert flat_editor.acoustic_plot.factory_points == []
+        finally:
+            flat_editor.close()
+            flat_editor.deleteLater()
+
+        # Select local headphone CSV
+        window.set_headphone_selection(
+            gui.HeadphoneSelection(
+                mode="file",
+                name="Sennheiser HD 600",
+                source=custom_csv.name,
+                path=str(custom_csv),
+                form="over-ear",
+            )
+        )
+        assert window.response_section.isVisibleTo(window) is True
+        assert window.autoeq_panel.headphone_cta.isVisibleTo(window.autoeq_panel) is False
+        assert len(window.preview_plot.factory_points) == 3
+        assert window.active_headphone_name() == "Sennheiser HD 600"
+
+        # Picker dialog filters model entries and supports Flat button
+        picker = gui.HeadphonePickerDialog(window, echo_spec, window.autoeq_panel.entries)
+        try:
+            assert picker.list_model.rowCount() > 0
+            picker.pick_flat()
+            assert picker.selected_headphone == gui.HeadphoneSelection(mode="flat")
+        finally:
+            picker.close()
+            picker.deleteLater()
+    finally:
+        window.allow_quit = True
+        window.close()
+        window.deleteLater()
+
+    # Re-open window on ECHO-A and verify selection persisted in settings.json
+    reopened = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-echo-a")
+    try:
+        assert reopened.headphone_selection.mode == "file"
+        assert reopened.headphone_selection.name == "Sennheiser HD 600"
+        assert len(reopened.preview_plot.factory_points) == 3
+        assert reopened.response_section.isVisibleTo(reopened) is True
+    finally:
+        reopened.allow_quit = True
+        reopened.close()
+        reopened.deleteLater()

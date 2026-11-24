@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import math
 import os
@@ -474,25 +475,132 @@ def scroll_content(content: QWidget) -> QScrollArea:
     return scroll
 
 
-def load_theme_preference(settings_path: Path) -> str:
+def _read_settings(settings_path: Path) -> dict:
     try:
         data = json.loads(settings_path.read_text(encoding="utf-8"))
-        value = data.get("theme", "auto")
-        return value if value in ("auto", "dark", "light") else "auto"
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError, TypeError):
-        return "auto"
+        return {}
+
+
+def _write_settings(settings_path: Path, data: dict) -> None:
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def load_theme_preference(settings_path: Path) -> str:
+    value = _read_settings(settings_path).get("theme", "auto")
+    return value if value in ("auto", "dark", "light") else "auto"
 
 
 def save_theme_preference(settings_path: Path, theme: str) -> None:
-    try:
-        data = json.loads(settings_path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            data = {}
-    except (OSError, ValueError, TypeError):
-        data = {}
+    data = _read_settings(settings_path)
     data["theme"] = theme if theme in ("auto", "dark", "light") else "auto"
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    _write_settings(settings_path, data)
+
+
+@dataclass(frozen=True)
+class HeadphoneSelection:
+    mode: str  # "default" | "flat" | "autoeq" | "file"
+    name: str = ""
+    source: str = ""
+    path: str = ""
+    revision: str = ""
+    form: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "mode": self.mode,
+            "name": self.name,
+            "source": self.source,
+            "path": self.path,
+            "revision": self.revision,
+            "form": self.form,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: object, default_mode: str) -> HeadphoneSelection:
+        if not isinstance(raw, dict):
+            return cls(mode=default_mode)
+        mode = str(raw.get("mode", default_mode))
+        if mode not in ("default", "flat", "autoeq", "file"):
+            mode = default_mode
+        if mode in ("autoeq", "file") and not str(raw.get("path", "")).strip():
+            mode = default_mode
+        return cls(
+            mode=mode,
+            name=str(raw.get("name", "")),
+            source=str(raw.get("source", "")),
+            path=str(raw.get("path", "")),
+            revision=str(raw.get("revision", "")),
+            form=str(raw.get("form", "")),
+        )
+
+    def key(self) -> tuple[str, str]:
+        return (self.mode, self.path)
+
+
+def load_headphone_selection(settings_path: Path, spec: DeviceSpec) -> HeadphoneSelection:
+    if not spec.allows_headphone_selection:
+        return HeadphoneSelection(mode="default", name=spec.display_name)
+    raw_map = _read_settings(settings_path).get("connected_headphones", {})
+    raw = raw_map.get(spec.model_id) if isinstance(raw_map, dict) else None
+    sel = HeadphoneSelection.from_dict(raw, spec.default_headphone_mode)
+    if sel.mode == "default" and not spec.has_default_headphone:
+        return HeadphoneSelection(mode="flat")
+    return sel
+
+
+def load_recent_headphones(settings_path: Path, spec: DeviceSpec) -> list[HeadphoneSelection]:
+    if not spec.allows_headphone_selection:
+        return []
+    raw_map = _read_settings(settings_path).get("recent_headphones", {})
+    raw_list = raw_map.get(spec.model_id, []) if isinstance(raw_map, dict) else []
+    if not isinstance(raw_list, list):
+        return []
+    items: list[HeadphoneSelection] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in raw_list:
+        sel = HeadphoneSelection.from_dict(entry, "flat")
+        if sel.mode in ("autoeq", "file") and sel.key() not in seen:
+            seen.add(sel.key())
+            items.append(sel)
+    return items[:5]
+
+
+def save_headphone_selection(settings_path: Path, spec: DeviceSpec, selection: HeadphoneSelection) -> None:
+    if not spec.allows_headphone_selection:
+        return
+    data = _read_settings(settings_path)
+    connected = data.get("connected_headphones")
+    if not isinstance(connected, dict):
+        connected = {}
+    connected[spec.model_id] = selection.to_dict()
+    data["connected_headphones"] = connected
+    if selection.mode in ("autoeq", "file") and selection.path:
+        recent_map = data.get("recent_headphones")
+        if not isinstance(recent_map, dict):
+            recent_map = {}
+        existing = [
+            HeadphoneSelection.from_dict(item, "flat")
+            for item in (recent_map.get(spec.model_id) or [])
+            if isinstance(item, dict)
+        ]
+        updated = [selection] + [
+            item for item in existing if item.mode in ("autoeq", "file") and item.key() != selection.key()
+        ]
+        recent_map[spec.model_id] = [item.to_dict() for item in updated[:5]]
+        data["recent_headphones"] = recent_map
+    _write_settings(settings_path, data)
+
+
+@lru_cache(maxsize=16)
+def load_measurement_curve_from_path(path_str: str) -> tuple[tuple[float, float], ...]:
+    try:
+        freqs, dbs = read_squig_txt(Path(path_str))
+    except (OSError, ValueError):
+        return ()
+    return tuple((hz, db) for hz, db in zip(freqs, dbs, strict=False) if 20 <= hz <= 20000 and math.isfinite(db))
 
 
 def paint_innovibe_backdrop(widget: QWidget) -> None:
@@ -754,6 +862,7 @@ class Profile:
     fit_range: tuple[int, int] | None = None
     sample_rate_hz: float = dac.COEFF_FS
     model_id: str | None = None
+    headphone_name: str | None = None
 
     def matches_eq(self, state: DeviceState) -> bool:
         if state.model_name != dac.POSITION_NAME:
@@ -898,6 +1007,7 @@ def load_profile(
     sample_rate = meta.get("sample_rate_hz")
     if not isinstance(sample_rate, (int, float)) or sample_rate <= 0:
         sample_rate = resolved_spec.dsp.sample_rate_hz
+    headphone_name = meta.get("headphone_name")
     return replace(
         profile,
         source=source if isinstance(source, str) else None,
@@ -906,6 +1016,7 @@ def load_profile(
         fit_range=fit_range,
         sample_rate_hz=float(sample_rate),
         model_id=inferred_model or resolved_spec.model_id,
+        headphone_name=headphone_name if isinstance(headphone_name, str) and headphone_name.strip() else None,
     )
 
 
@@ -1442,6 +1553,8 @@ def save_profile(path: str, profile: Profile) -> None:
     }
     if profile.model_id:
         data["model_id"] = profile.model_id
+    if profile.headphone_name:
+        data["headphone_name"] = profile.headphone_name
     if profile.sample_rate_hz:
         data["sample_rate_hz"] = profile.sample_rate_hz
     if profile.source:
@@ -2356,9 +2469,13 @@ class EqualizerDialog(QDialog):
         *,
         device_path: DeviceTarget | None = None,
         device_spec: DeviceSpec | None = None,
+        measurement_curve: list[tuple[float, float]] | None = None,
     ):
         super().__init__(parent)
         self.device_spec = device_spec or getattr(parent, "active_spec", None) or default_device_spec()
+        self.measurement_curve = (
+            list(measurement_curve) if measurement_curve is not None else self.device_spec.measured_curve()
+        )
         self.setWindowTitle(tr("editor.title"))
         self.setStyleSheet(APP_STYLE)
         self.setMinimumSize(625, 460)
@@ -2467,7 +2584,7 @@ class EqualizerDialog(QDialog):
         self.acoustic_plot = ResponsePlot()
         self.acoustic_plot.setMinimumHeight(160)
         self.acoustic_plot.set_measurement_curve(
-            self.device_spec.measured_curve(), factory_slot=self.device_spec.dsp.slots.factory
+            self.measurement_curve, factory_slot=self.device_spec.dsp.slots.factory
         )
         self.acoustic_plot.set_factory(factory if self.device_spec.acoustics.measurement_includes_factory_eq else None)
         self.compare = QCheckBox(tr("editor.compare"))
@@ -2488,18 +2605,21 @@ class EqualizerDialog(QDialog):
         eq_view.addWidget(drag_hint)
         views.addTab(eq_page, tr("plot.view_eq"))
 
-        acoustic_page = QWidget()
-        acoustic_view = QVBoxLayout(acoustic_page)
-        acoustic_view.setContentsMargins(0, 6, 0, 0)
-        acoustic_view.addWidget(self.acoustic_plot)
-        acoustic_view.addWidget(PlotKey(self.acoustic_plot, (*eq_labels, tr("plot.key.measured"))))
-        notes = [tr("plot.measurement_note"), tr("plot.treble_note")]
-        if factory is None:
-            notes.append(tr("plot.neutral_factory"))
-        measurement_note = QLabel(" · ".join(notes))
-        measurement_note.setWordWrap(True)
-        acoustic_view.addWidget(measurement_note)
-        views.addTab(acoustic_page, tr("plot.view_response"))
+        if self.measurement_curve:
+            acoustic_page = QWidget()
+            acoustic_view = QVBoxLayout(acoustic_page)
+            acoustic_view.setContentsMargins(0, 6, 0, 0)
+            acoustic_view.addWidget(self.acoustic_plot)
+            acoustic_view.addWidget(PlotKey(self.acoustic_plot, (*eq_labels, tr("plot.key.measured"))))
+            notes = [tr("plot.measurement_note"), tr("plot.treble_note")]
+            if factory is None:
+                notes.append(tr("plot.neutral_factory"))
+            measurement_note = QLabel(" · ".join(notes))
+            measurement_note.setWordWrap(True)
+            acoustic_view.addWidget(measurement_note)
+            views.addTab(acoustic_page, tr("plot.view_response"))
+        else:
+            views.tabBar().setVisible(False)
         layout.addWidget(views)
         self.plot_timer = QTimer(self, singleShot=True, interval=0)
         self.plot_timer.timeout.connect(self.update_draft)
@@ -2920,6 +3040,163 @@ class CatalogListModel(QAbstractListModel):
         return None
 
 
+class HeadphonePickerDialog(QDialog):
+    """Modalny wybór podłączonych słuchawek z katalogu AutoEq, pliku CSV/TXT lub trybu Flat."""
+
+    def __init__(self, parent: QWidget, spec: DeviceSpec, entries: list[catalog.Entry]):
+        super().__init__(parent)
+        self.spec = spec
+        self.model_entries = [entry for entry in entries if entry.kind == "model"]
+        self.selected_headphone: HeadphoneSelection | None = None
+        self.setWindowTitle(tr("headphone.dialog_title", model=spec.display_name))
+        self.setStyleSheet(APP_STYLE)
+        self.setMinimumSize(520, 440)
+        size_to_screen(self, 680, 560)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 12)
+        layout.setSpacing(10)
+
+        intro = QLabel(
+            tr(
+                "headphone.dialog_intro",
+                model=spec.display_name,
+                bands=spec.dsp.band_count,
+                rate=f"{spec.dsp.sample_rate_hz / 1000:g}",
+            )
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        filters = QHBoxLayout()
+        filters.setSpacing(8)
+        self.source_filter = QComboBox()
+        self.source_filter.setAccessibleName(tr("autoeq.source_a11y"))
+        self.source_filter.addItem(tr("autoeq.source_all"), "")
+        for source in sorted({catalog.measurement_source(e) for e in self.model_entries}, key=str.casefold):
+            self.source_filter.addItem(source, source)
+        self.form_filter = QComboBox()
+        self.form_filter.setAccessibleName(tr("autoeq.mode_a11y"))
+        self.form_filter.addItem(tr("headphone.form_all"), "all")
+        self.form_filter.addItem(tr("autoeq.mode.in_ear"), "in-ear")
+        self.form_filter.addItem(tr("autoeq.mode.over_ear"), "over-ear")
+        filters.addWidget(self.source_filter, 1)
+        filters.addWidget(self.form_filter, 1)
+        layout.addLayout(filters)
+
+        self.search = search_field(tr("headphone.search_placeholder"), tr("headphone.search_a11y"))
+        layout.addWidget(self.search)
+
+        self.list_model = CatalogListModel(self)
+        self.list_view = QListView()
+        self.list_view.setModel(self.list_model)
+        self.list_view.setUniformItemSizes(True)
+        self.list_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list_view.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.list_view.setAccessibleName(tr("headphone.list_a11y"))
+        self.list_view.doubleClicked.connect(lambda _idx: self.accept_catalog_entry())
+        layout.addWidget(self.list_view, 1)
+
+        self.count_label = QLabel()
+        self.count_label.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.count_label)
+
+        actions = QHBoxLayout()
+        actions.setSpacing(8)
+        self.file_btn = QPushButton(tr("headphone.open_file"))
+        self.file_btn.clicked.connect(self.pick_local_file)
+        actions.addWidget(self.file_btn)
+        self.flat_btn = QPushButton(tr("headphone.use_flat"))
+        self.flat_btn.clicked.connect(self.pick_flat)
+        actions.addWidget(self.flat_btn)
+        if spec.has_default_headphone:
+            self.default_btn = QPushButton(tr("headphone.use_default"))
+            self.default_btn.clicked.connect(self.pick_default)
+            actions.addWidget(self.default_btn)
+        actions.addStretch()
+        self.cancel_btn = QPushButton(tr("editor.cancel"))
+        self.cancel_btn.clicked.connect(self.reject)
+        self.choose_btn = QPushButton(tr("headphone.choose_btn"))
+        self.choose_btn.setStyleSheet(PRIMARY_ACTION_STYLE)
+        self.choose_btn.setDefault(True)
+        self.choose_btn.clicked.connect(self.accept_catalog_entry)
+        actions.addWidget(self.cancel_btn)
+        actions.addWidget(self.choose_btn)
+        layout.addLayout(actions)
+
+        self.source_filter.currentIndexChanged.connect(self.refresh_list)
+        self.form_filter.currentIndexChanged.connect(self.refresh_list)
+        self.search.textChanged.connect(self.refresh_list)
+        self.list_view.selectionModel().currentChanged.connect(self._sync_choose_state)
+        self.refresh_list()
+
+    def refresh_list(self) -> None:
+        selected_source = self.source_filter.currentData() or ""
+        form = self.form_filter.currentData() or "all"
+        words = self.search.text().casefold().split()
+        matching = [
+            entry
+            for entry in self.model_entries
+            if (not selected_source or catalog.measurement_source(entry) == selected_source)
+            and (form == "all" or catalog.headphone_form(entry) == form)
+            and all(word in f"{entry.name} {entry.source}".casefold() for word in words)
+        ]
+        self.list_model.set_entries(matching)
+        if matching:
+            self.list_view.setCurrentIndex(self.list_model.index(0, 0))
+        self.count_label.setText(tr("autoeq.results_count", count=len(matching)))
+        self._sync_choose_state()
+
+    def _sync_choose_state(self) -> None:
+        self.choose_btn.setEnabled(self.list_view.currentIndex().isValid())
+
+    def accept_catalog_entry(self) -> None:
+        idx = self.list_view.currentIndex()
+        entry = idx.data(PROFILE_ROLE) if idx.isValid() else None
+        if entry is None:
+            return
+        self.selected_headphone = HeadphoneSelection(
+            mode="autoeq",
+            name=entry.name,
+            source=entry.source,
+            path=entry.path,
+            revision=entry.revision,
+            form=catalog.headphone_form(entry),
+        )
+        self.accept()
+
+    def pick_local_file(self) -> None:
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("headphone.open_file_title"),
+            "",
+            tr("headphone.open_file_filter"),
+        )
+        if not path_str:
+            return
+        curve = load_measurement_curve_from_path(path_str)
+        if not curve:
+            QMessageBox.warning(self, tr("headphone.open_file_title"), tr("headphone.invalid_file"))
+            return
+        file_path = Path(path_str)
+        self.selected_headphone = HeadphoneSelection(
+            mode="file",
+            name=file_path.stem,
+            source=file_path.name,
+            path=str(file_path),
+            form="in-ear",
+        )
+        self.accept()
+
+    def pick_flat(self) -> None:
+        self.selected_headphone = HeadphoneSelection(mode="flat")
+        self.accept()
+
+    def pick_default(self) -> None:
+        self.selected_headphone = HeadphoneSelection(mode="default")
+        self.accept()
+
+
 class AutoEqPanel(QWidget):
     preview_changed = Signal()
 
@@ -3039,6 +3316,10 @@ class AutoEqPanel(QWidget):
         self.fit_status.setTextFormat(Qt.TextFormat.PlainText)
         self.fit_status.setWordWrap(True)
         self.generate = QPushButton(tr("autoeq.compute"))
+        self.headphone_cta = QPushButton(tr("autoeq.choose_headphones_cta"))
+        self.headphone_cta.clicked.connect(lambda: self.window.choose_headphones())
+        self.headphone_cta.hide()
+        layout.addWidget(self.headphone_cta)
         self.cancel = QPushButton(tr("autoeq.cancel"))
         self.cancel.hide()
         self.apply_tooltips()
@@ -3187,6 +3468,7 @@ class AutoEqPanel(QWidget):
         self.search.setPlaceholderText(tr("search.autoeq_placeholder"))
         self.search.setAccessibleName(tr("search.autoeq_a11y"))
         self.refresh_action.setText(tr("autoeq.download_catalog"))
+        self.headphone_cta.setText(tr("autoeq.choose_headphones_cta"))
         self.set_catalog_error(self.catalog_error_detail)
         self.folder_action.setText(tr("autoeq.open_local"))
         self.file_action.setText(tr("autoeq.open_custom"))
@@ -3259,8 +3541,10 @@ class AutoEqPanel(QWidget):
 
     def update_actions(self) -> None:
         busy = self.job is not None or self.fit_active
+        has_measurement = self.window.active_measurement_path() is not None
+        self.headphone_cta.setVisible(not has_measurement and self.window.active_spec.allows_headphone_selection)
         self.update_generate_label()
-        self.generate.setEnabled(not busy and self.current_entry() is not None)
+        self.generate.setEnabled(not busy and self.current_entry() is not None and has_measurement)
         self.generate.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.targets.setEnabled(not busy)
         self.search.setEnabled(not busy)
@@ -3401,7 +3685,7 @@ class AutoEqPanel(QWidget):
             return
         spec = self.window.active_spec
         self.fit_factory = self.window.factory_profile
-        measurement = spec.acoustics.measurement_path
+        measurement = self.window.active_measurement_path()
         if measurement is None:
             self.fit_status.setText(tr("autoeq.dongle_needs_measurement", model=spec.display_name))
             self.finish_fit()
@@ -3413,8 +3697,12 @@ class AutoEqPanel(QWidget):
         try:
             self.temporary = TemporaryDirectory(prefix="dsp-control-autoeq-")
             work = Path(self.temporary.name)
-            if spec.acoustics.measurement_includes_factory_eq and self.fit_factory is not None:
-                measured = spec.measured_curve()
+            if (
+                self.window.headphone_selection.mode == "default"
+                and spec.acoustics.measurement_includes_factory_eq
+                and self.fit_factory is not None
+            ):
+                measured = self.window.active_measurement_curve()
                 offsets = response_points(self.fit_factory, [hz for hz, _ in measured])
                 if measured and len(offsets) == len(measured):
                     measurement = work / f"{spec.model_id}-no-factory.csv"
@@ -3504,8 +3792,8 @@ class AutoEqPanel(QWidget):
         else:
             try:
                 spec = self.window.active_spec
-                short_name = spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
-                name = f"{short_name} → {self.result_entry.name}"
+                hp_label = self.window.active_headphone_label()
+                name = f"{hp_label} → {self.result_entry.name}"
                 loaded = load_profile(self.output, name, pad_bands=True, spec=spec)
                 self.result = replace(
                     loaded,
@@ -3513,6 +3801,7 @@ class AutoEqPanel(QWidget):
                     target_name=self.result_entry.name,
                     target_curve=self.target_curve,
                     fit_range=self.result_range,
+                    headphone_name=self.window.active_headphone_name(),
                 )
             except (OSError, ValueError, dac.HidError) as exc:
                 self.fit_status.setText(tr("autoeq.fit_error", error=exc))
@@ -3641,6 +3930,10 @@ class ProfilesWindow(QWidget):
 
         self.demo = demo
         self.active_spec: DeviceSpec = get_device_spec(demo_model_id)
+        self.headphone_selection: HeadphoneSelection = load_headphone_selection(self.settings_path, self.active_spec)
+        self.resolved_headphone_path: Path | None = None
+        self.headphone_loading = False
+        self.headphone_job: Job | None = None
         self.demo_forced_rate = 0
         self.observed_forced_rate = None
         demo_device = DemoDevice(self.active_spec.model_id) if demo else None
@@ -4005,6 +4298,27 @@ class ProfilesWindow(QWidget):
         preview.addWidget(self.preview_title)
         preview.addWidget(self.profile_info)
         preview.addWidget(self.active_summary)
+        self.headphone_bar = QWidget()
+        hp_row = QHBoxLayout(self.headphone_bar)
+        hp_row.setContentsMargins(0, 2, 0, 2)
+        hp_row.setSpacing(6)
+        self.headphone_label = QLabel(tr("headphone.label"))
+        self.headphone_combo = QComboBox()
+        self.headphone_combo.setAccessibleName(tr("headphone.label"))
+        self.headphone_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.headphone_combo.setMinimumContentsLength(14)
+        self.headphone_combo.currentIndexChanged.connect(self.on_headphone_combo_changed)
+        self.headphone_choose_btn = QPushButton(tr("headphone.change"))
+        self.headphone_choose_btn.clicked.connect(self.choose_headphones)
+        self.headphone_flat_btn = QToolButton()
+        self.headphone_flat_btn.setText(tr("headphone.flat_chip"))
+        self.headphone_flat_btn.setToolTip(tr("headphone.use_flat"))
+        self.headphone_flat_btn.clicked.connect(lambda: self.set_headphone_selection(HeadphoneSelection(mode="flat")))
+        hp_row.addWidget(self.headphone_label)
+        hp_row.addWidget(self.headphone_combo, 1)
+        hp_row.addWidget(self.headphone_choose_btn)
+        hp_row.addWidget(self.headphone_flat_btn)
+        preview.addWidget(self.headphone_bar)
         self.fit_controls = self.autoeq_panel.fit_controls
         self.fit_provenance = self.autoeq_panel.fit_provenance
 
@@ -4032,7 +4346,7 @@ class ProfilesWindow(QWidget):
         response_layout.addWidget(self.fr_title_label)
         self.preview_plot = ResponsePlot()
         self.preview_plot.set_measurement_curve(
-            self.active_spec.measured_curve(), factory_slot=self.active_spec.dsp.slots.factory
+            self.active_measurement_curve(), factory_slot=self.active_spec.dsp.slots.factory
         )
         response_layout.addWidget(self.preview_plot, 1)
         self.correction_plot = ResponsePlot(correction=True)
@@ -4266,6 +4580,8 @@ class ProfilesWindow(QWidget):
 
         self.load_library()
         self.filter_profiles("")
+        self.refresh_headphone_ui()
+        self.update_plot_layout()
         self.profiles.currentItemChanged.connect(self.update_selection)
         self.profile_search.textChanged.connect(self.filter_profiles)
         self.source_group.idClicked.connect(self.switch_source)
@@ -4428,9 +4744,10 @@ class ProfilesWindow(QWidget):
         self.preamp_summary.setAlignment(
             (Qt.AlignmentFlag.AlignLeft if narrow else Qt.AlignmentFlag.AlignRight) | Qt.AlignmentFlag.AlignVCenter
         )
-        self.plot_switcher.setVisible(compact)
-        self.response_section.setVisible(not compact or self.plot_view_group.checkedId() == 0)
-        self.correction_section.setVisible(not compact or self.plot_view_group.checkedId() == 1)
+        has_acoustic = bool(self.active_measurement_curve())
+        self.plot_switcher.setVisible(compact and has_acoustic)
+        self.response_section.setVisible(has_acoustic and (not compact or self.plot_view_group.checkedId() == 0))
+        self.correction_section.setVisible((not has_acoustic) or (not compact or self.plot_view_group.checkedId() == 1))
         footer_w = self.preview_scroll.width()
         min_side_by_side = self.action_status_min_w + self.footer_layout.spacing() + self.action_primary_w
         stack_footer = footer_w > 0 and footer_w < min_side_by_side
@@ -4533,20 +4850,156 @@ class ProfilesWindow(QWidget):
                 initial = item
         return initial
 
+    def active_measurement_path(self) -> Path | None:
+        sel = self.headphone_selection
+        if sel.mode == "default":
+            return self.active_spec.acoustics.measurement_path
+        if sel.mode == "file":
+            p = Path(sel.path)
+            return p if p.is_file() else None
+        if sel.mode == "autoeq":
+            if self.resolved_headphone_path is not None and self.resolved_headphone_path.is_file():
+                return self.resolved_headphone_path
+            cache_dir = self.autoeq_panel.cache_directory / "curves"
+            key = hashlib.sha256(f"{sel.path}\n{sel.revision}".encode()).hexdigest()
+            cached = cache_dir / f"{key}.csv"
+            return cached if cached.is_file() else None
+        return None
+
+    def active_measurement_curve(self) -> list[tuple[float, float]]:
+        sel = self.headphone_selection
+        if sel.mode == "default":
+            return self.active_spec.measured_curve()
+        path = self.active_measurement_path()
+        if path is None:
+            return []
+        return list(load_measurement_curve_from_path(str(path)))
+
+    def active_headphone_name(self) -> str | None:
+        sel = self.headphone_selection
+        if sel.mode in ("autoeq", "file") and sel.name:
+            return sel.name
+        if sel.mode == "default":
+            return self.active_spec.display_name
+        return None
+
+    def active_headphone_label(self) -> str:
+        sel = self.headphone_selection
+        if sel.mode in ("autoeq", "file") and sel.name:
+            return sel.name
+        return self.active_spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+
+    def refresh_headphone_ui(self) -> None:
+        spec = self.active_spec
+        show_bar = spec.allows_headphone_selection
+        self.headphone_bar.setVisible(show_bar)
+        if not show_bar:
+            return
+        sel = self.headphone_selection
+        self.headphone_combo.blockSignals(True)
+        self.headphone_combo.clear()
+        if spec.has_default_headphone:
+            short_name = spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+            self.headphone_combo.addItem(
+                tr("headphone.default_item", model=short_name), HeadphoneSelection(mode="default")
+            )
+        self.headphone_combo.addItem(tr("headphone.flat_item"), HeadphoneSelection(mode="flat"))
+        items = load_recent_headphones(self.settings_path, spec)
+        if sel.mode in ("autoeq", "file") and all(item.key() != sel.key() for item in items):
+            items = [sel, *items]
+        for item in items:
+            label = f"{item.name} ({item.source})" if item.source else item.name
+            self.headphone_combo.addItem(label, item)
+        selected_idx = 0
+        for idx in range(self.headphone_combo.count()):
+            data = self.headphone_combo.itemData(idx)
+            if isinstance(data, HeadphoneSelection) and data.key() == sel.key():
+                selected_idx = idx
+                break
+        self.headphone_combo.setCurrentIndex(selected_idx)
+        self.headphone_combo.setToolTip(self.headphone_combo.currentText())
+        self.headphone_combo.blockSignals(False)
+        self.headphone_flat_btn.setVisible(sel.mode != "flat")
+
+    def on_headphone_combo_changed(self) -> None:
+        sel = self.headphone_combo.currentData()
+        if isinstance(sel, HeadphoneSelection):
+            self.set_headphone_selection(sel)
+
+    def choose_headphones(self) -> None:
+        if not self.active_spec.allows_headphone_selection:
+            return
+        dialog = HeadphonePickerDialog(self, self.active_spec, self.autoeq_panel.entries)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_headphone is not None:
+            self.set_headphone_selection(dialog.selected_headphone)
+
+    def set_headphone_selection(self, selection: HeadphoneSelection) -> None:
+        self.headphone_selection = selection
+        self.resolved_headphone_path = None
+        save_headphone_selection(self.settings_path, self.active_spec, selection)
+        self.refresh_headphone_ui()
+        if selection.mode == "autoeq" and self.active_measurement_path() is None:
+            self.headphone_loading = True
+            self.headphone_combo.setEnabled(False)
+            self.headphone_choose_btn.setEnabled(False)
+            entry = catalog.Entry(
+                name=selection.name,
+                source=selection.source,
+                kind="model",
+                path=selection.path,
+                local=False,
+                revision=selection.revision,
+            )
+            cache_dir = self.autoeq_panel.cache_directory / "curves"
+
+            def done(path, error: str) -> None:
+                self.headphone_loading = False
+                self.headphone_job = None
+                self.headphone_combo.setEnabled(True)
+                self.headphone_choose_btn.setEnabled(True)
+                if error or path is None:
+                    self.feedback.setText(tr("headphone.fetch_error", error=error or "unknown"))
+                    self.set_headphone_selection(HeadphoneSelection(mode="flat"))
+                    return
+                self.resolved_headphone_path = Path(path)
+                self._apply_active_measurement_curve()
+
+            job = Job(lambda: catalog.resolve_curve(entry, cache_dir, bundled_targets=BUNDLED_TARGETS_DIR))
+            self.headphone_job = job
+            job.signals.finished.connect(done)
+            self.pool.start(job)
+            return
+        self._apply_active_measurement_curve()
+
+    def _apply_active_measurement_curve(self) -> None:
+        spec = self.active_spec
+        curve = self.active_measurement_curve()
+        factory_slot = spec.dsp.slots.factory if self.headphone_selection.mode == "default" else None
+        self.preview_plot.set_measurement_curve(curve, factory_slot=factory_slot)
+        self.preview_plot.set_factory(
+            self.factory_profile
+            if (self.headphone_selection.mode == "default" and spec.acoustics.measurement_includes_factory_eq)
+            else None
+        )
+        self.preview_sources = None
+        self.autoeq_panel.update_actions()
+        self.update_plot_layout()
+        self.update_comparison()
+
     def apply_device_spec(self, spec: DeviceSpec) -> None:
         self.active_spec = spec
+        self.headphone_selection = load_headphone_selection(self.settings_path, spec)
+        self.resolved_headphone_path = None
         self.factory_profile = self._default_factory_profile(spec)
-        self.preview_plot.set_measurement_curve(spec.measured_curve(), factory_slot=spec.dsp.slots.factory)
-        self.preview_plot.set_factory(self.factory_profile if spec.acoustics.measurement_includes_factory_eq else None)
+        self.refresh_headphone_ui()
         initial = self.rebuild_builtin_profiles(spec)
         self.autoeq_panel.sync_device_spec(spec)
         self.filter_profiles(self.profile_search.text())
         current = self.profiles.currentItem()
         if (current is None or current.isHidden()) and initial is not None:
             self.profiles.setCurrentItem(initial)
-        self.preview_sources = None
+        self._apply_active_measurement_curve()
         self.update_selection()
-        self.update_comparison()
 
     def filter_profiles(self, query: str) -> None:
         words = query.casefold().split()
@@ -4787,6 +5240,12 @@ class ProfilesWindow(QWidget):
         if self.user_heading is not None:
             self.user_heading.setText(tr("source.my_profiles"))
         self.fr_title_label.setText(tr("plot.fr_title"))
+        self.headphone_label.setText(tr("headphone.label"))
+        self.headphone_combo.setAccessibleName(tr("headphone.label"))
+        self.headphone_choose_btn.setText(tr("headphone.change"))
+        self.headphone_flat_btn.setText(tr("headphone.flat_chip"))
+        self.headphone_flat_btn.setToolTip(tr("headphone.use_flat"))
+        self.refresh_headphone_ui()
         self.correction_title.setText(tr("plot.eq_title"))
         self.preview_plot.setAccessibleName(tr("plot.fr_title"))
         self.correction_plot.setAccessibleName(tr("plot.eq_title"))
@@ -5528,6 +5987,7 @@ class ProfilesWindow(QWidget):
             self.factory_profile,
             device_path=state.target if state is not None else None,
             device_spec=self.active_spec,
+            measurement_curve=self.active_measurement_curve(),
         )
         self.editor_active = True
         self.timer.stop()

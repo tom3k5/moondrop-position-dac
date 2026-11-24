@@ -3,6 +3,7 @@
   "model_id": "moondrop-echo-a",
   "display_name": "MOONDROP ECHO-A",
   "form_factor": "dongle_dac",
+  "headphone_attachment": "standalone",
   "experimental": true,
   "usb": {
     "vendor_id": "0x3302",

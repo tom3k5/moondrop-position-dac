@@ -104,8 +104,8 @@ def check_device_specs() -> bool:
     for spec_path in spec_files:
         try:
             spec = device_specs.parse_device_spec(spec_path)
-            if spec.form_factor == "integrated_iem" and not spec.measured_curve():
-                raise ValueError("integrated_iem musi mieć poprawną lokalną krzywą pomiarową.")
+            if spec.headphone_attachment in ("integrated", "detachable") and not spec.measured_curve():
+                raise ValueError(f"{spec.headphone_attachment} musi mieć poprawną lokalną krzywą pomiarową.")
         except Exception as exc:
             print(f"[BŁĄD] {spec_path.relative_to(ROOT)}: {exc}")
             errors += 1

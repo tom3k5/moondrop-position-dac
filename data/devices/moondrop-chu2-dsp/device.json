@@ -3,6 +3,7 @@
   "model_id": "moondrop-chu2-dsp",
   "display_name": "MOONDROP CHU II DSP",
   "form_factor": "integrated_iem",
+  "headphone_attachment": "detachable",
   "experimental": true,
   "usb": {
     "vendor_id": "0x31b2",
