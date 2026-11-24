@@ -249,3 +249,55 @@ def test_headphone_selection_mvp_for_integrated_detachable_and_standalone(tmp_pa
         reopened.allow_quit = True
         reopened.close()
         reopened.deleteLater()
+
+
+def test_recent_headphones_limited_to_three_and_save_setup_profile(tmp_path: Path):
+    _app()
+    lib = tmp_path / "profiles"
+    lib.mkdir()
+    echo_spec = device_specs.get_device_spec("moondrop-echo-a")
+
+    window = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-echo-a")
+    try:
+        # Select 4 distinct local headphone CSVs -> recent list keeps 3 most recent in MRU order
+        for idx in range(4):
+            csv_file = tmp_path / f"HP-{idx}.csv"
+            csv_file.write_text("frequency,raw\n20,0.0\n1000,1.0\n20000,-2.0\n", encoding="utf-8")
+            window.set_headphone_selection(
+                gui.HeadphoneSelection(mode="file", name=f"HP-{idx}", source=csv_file.name, path=str(csv_file))
+            )
+
+        recent = gui.load_recent_headphones(window.settings_path, echo_spec)
+        assert [item.name for item in recent] == ["HP-3", "HP-2", "HP-1"]
+
+        # Combo box exposes Flat + separator + 3 recent headphones
+        combo_names = [
+            window.headphone_combo.itemData(i).name
+            for i in range(window.headphone_combo.count())
+            if isinstance(window.headphone_combo.itemData(i), gui.HeadphoneSelection)
+            and window.headphone_combo.itemData(i).mode == "file"
+        ]
+        assert combo_names == ["HP-3", "HP-2", "HP-1"]
+
+        # Picker dialog renders the 3 recent headphones as quick-pick buttons
+        picker = gui.HeadphonePickerDialog(window, echo_spec, window.autoeq_panel.entries, recent=recent)
+        try:
+            picker.pick_recent(recent[1])
+            assert picker.selected_headphone == recent[1]
+        finally:
+            picker.close()
+            picker.deleteLater()
+
+        # Build & persist DAC x headphones x settings profile onto My profiles
+        setup_prof = window.build_current_setup_profile("ECHO-A × HP-3")
+        assert setup_prof.model_id == "moondrop-echo-a"
+        assert setup_prof.headphone_name == "HP-3"
+        assert len(setup_prof.bands) == 8
+        assert window.persist_profile(setup_prof) is True
+        assert window.selected_profile() is not None
+        assert window.selected_profile().name == "ECHO-A × HP-3"
+        assert window.selected_profile().headphone_name == "HP-3"
+    finally:
+        window.allow_quit = True
+        window.close()
+        window.deleteLater()

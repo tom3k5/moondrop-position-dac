@@ -551,7 +551,12 @@ def load_headphone_selection(settings_path: Path, spec: DeviceSpec) -> Headphone
     return sel
 
 
-def load_recent_headphones(settings_path: Path, spec: DeviceSpec) -> list[HeadphoneSelection]:
+RECENT_HEADPHONES_LIMIT = 3
+
+
+def load_recent_headphones(
+    settings_path: Path, spec: DeviceSpec, *, limit: int = RECENT_HEADPHONES_LIMIT
+) -> list[HeadphoneSelection]:
     if not spec.allows_headphone_selection:
         return []
     raw_map = _read_settings(settings_path).get("recent_headphones", {})
@@ -565,7 +570,7 @@ def load_recent_headphones(settings_path: Path, spec: DeviceSpec) -> list[Headph
         if sel.mode in ("autoeq", "file") and sel.key() not in seen:
             seen.add(sel.key())
             items.append(sel)
-    return items[:5]
+    return items[:limit]
 
 
 def save_headphone_selection(settings_path: Path, spec: DeviceSpec, selection: HeadphoneSelection) -> None:
@@ -589,7 +594,7 @@ def save_headphone_selection(settings_path: Path, spec: DeviceSpec, selection: H
         updated = [selection] + [
             item for item in existing if item.mode in ("autoeq", "file") and item.key() != selection.key()
         ]
-        recent_map[spec.model_id] = [item.to_dict() for item in updated[:5]]
+        recent_map[spec.model_id] = [item.to_dict() for item in updated[:RECENT_HEADPHONES_LIMIT]]
         data["recent_headphones"] = recent_map
     _write_settings(settings_path, data)
 
@@ -2833,12 +2838,16 @@ class EqualizerDialog(QDialog):
             mic_gain_raw,
             spec=self.device_spec,
         )
+        hp_name = self.reference.headphone_name or (
+            self.device_window.active_headphone_name() if hasattr(self.device_window, "active_headphone_name") else None
+        )
         return replace(
             profile,
             source=self.reference.source,
             target_name=self.reference.target_name,
             target_curve=self.reference.target_curve,
             fit_range=self.reference.fit_range,
+            headphone_name=hp_name,
         )
 
     def select_draft(self) -> None:
@@ -3043,7 +3052,13 @@ class CatalogListModel(QAbstractListModel):
 class HeadphonePickerDialog(QDialog):
     """Modalny wybór podłączonych słuchawek z katalogu AutoEq, pliku CSV/TXT lub trybu Flat."""
 
-    def __init__(self, parent: QWidget, spec: DeviceSpec, entries: list[catalog.Entry]):
+    def __init__(
+        self,
+        parent: QWidget,
+        spec: DeviceSpec,
+        entries: list[catalog.Entry],
+        recent: list[HeadphoneSelection] = (),
+    ):
         super().__init__(parent)
         self.spec = spec
         self.model_entries = [entry for entry in entries if entry.kind == "model"]
@@ -3067,6 +3082,18 @@ class HeadphonePickerDialog(QDialog):
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
+
+        if recent:
+            recent_row = _FlowLayout(spacing=6)
+            recent_row.setContentsMargins(0, 0, 0, 0)
+            recent_label = QLabel(tr("headphone.recent_label"))
+            recent_row.addWidget(recent_label)
+            for item in recent[:RECENT_HEADPHONES_LIMIT]:
+                btn = QPushButton(item.name)
+                btn.setToolTip(f"{item.name} ({item.source})" if item.source else item.name)
+                btn.clicked.connect(lambda _checked=False, sel=item: self.pick_recent(sel))
+                recent_row.addWidget(btn)
+            layout.addLayout(recent_row)
 
         filters = QHBoxLayout()
         filters.setSpacing(8)
@@ -3194,6 +3221,10 @@ class HeadphonePickerDialog(QDialog):
 
     def pick_default(self) -> None:
         self.selected_headphone = HeadphoneSelection(mode="default")
+        self.accept()
+
+    def pick_recent(self, selection: HeadphoneSelection) -> None:
+        self.selected_headphone = selection
         self.accept()
 
 
@@ -4238,6 +4269,8 @@ class ProfilesWindow(QWidget):
         self.add_button.setText(tr("actions.add_profile"))
         self.add_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         add_menu = QMenu(self.add_button)
+        self.save_setup_action = add_menu.addAction(tr("actions.save_setup"), self.save_current_setup)
+        add_menu.addSeparator()
         self.new_profile_action = add_menu.addAction(tr("actions.new_empty"), lambda: self.edit_profile(new=True))
         self.import_profile_action = add_menu.addAction(tr("actions.import_profile"), self.import_profile)
         self.add_button.setMenu(add_menu)
@@ -4907,7 +4940,9 @@ class ProfilesWindow(QWidget):
         self.headphone_combo.addItem(tr("headphone.flat_item"), HeadphoneSelection(mode="flat"))
         items = load_recent_headphones(self.settings_path, spec)
         if sel.mode in ("autoeq", "file") and all(item.key() != sel.key() for item in items):
-            items = [sel, *items]
+            items = [sel, *items[: RECENT_HEADPHONES_LIMIT - 1]]
+        if items:
+            self.headphone_combo.insertSeparator(self.headphone_combo.count())
         for item in items:
             label = f"{item.name} ({item.source})" if item.source else item.name
             self.headphone_combo.addItem(label, item)
@@ -4930,7 +4965,8 @@ class ProfilesWindow(QWidget):
     def choose_headphones(self) -> None:
         if not self.active_spec.allows_headphone_selection:
             return
-        dialog = HeadphonePickerDialog(self, self.active_spec, self.autoeq_panel.entries)
+        recent = load_recent_headphones(self.settings_path, self.active_spec)
+        dialog = HeadphonePickerDialog(self, self.active_spec, self.autoeq_panel.entries, recent=recent)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_headphone is not None:
             self.set_headphone_selection(dialog.selected_headphone)
 
@@ -5257,6 +5293,7 @@ class ProfilesWindow(QWidget):
         self.correction_key.set_labels((tr("plot.key.profile_eq"), tr("plot.key.current_dsp")))
         self.add_button.setText(tr("actions.add_profile"))
         self.new_profile_action.setText(tr("actions.new_empty"))
+        self.save_setup_action.setText(tr("actions.save_setup"))
         self.import_profile_action.setText(tr("actions.import_profile"))
         self.more_button.setText(tr("actions.more"))
         self.duplicate_action.setText(tr("actions.duplicate"))
@@ -5430,13 +5467,13 @@ class ProfilesWindow(QWidget):
             self.preview_title.set_title(tr("tuning.selected_profile", name=shown.name), wrap=False)
             context = (
                 tr("plot.profile_bands", count=len(shown.bands))
-                if shown.slot == dac.CUSTOM_SLOT
+                if shown.slot == self.active_spec.dsp.slots.custom
                 else tr("tuning.factory_slot")
             )
             range_note = ""
             if not using_catalog and shown.fit_range is not None:
                 range_note = panel.fit_range.itemText(panel.fit_range.findData(shown.fit_range))
-            context = " · ".join(filter(None, (context, shown.source, range_note)))
+            context = " · ".join(filter(None, (context, shown.headphone_name, shown.source, range_note)))
             self.profile_info.set_title(context, wrap=False)
         elif using_catalog:
             entry = panel.current_entry()
@@ -5909,6 +5946,63 @@ class ProfilesWindow(QWidget):
                 event.acceptProposedAction()
                 return
         super().dropEvent(event)
+
+    def build_current_setup_profile(self, name: str) -> Profile:
+        spec = self.active_spec
+        source_profile = self.selected_profile()
+        if self.readback_profile is not None and len(self.readback_profile.bands) == spec.dsp.band_count:
+            bands = [dict(b) for b in self.readback_profile.bands]
+            preamp = float(self.readback_profile.preamp or 0.0)
+        elif source_profile is not None and len(source_profile.bands) == spec.dsp.band_count:
+            bands = [dict(b) for b in source_profile.bands]
+            preamp = float(source_profile.preamp or 0.0)
+        else:
+            bands = default_custom_bands(spec)
+            preamp = 0.0
+        min_pre, max_pre = spec.dsp.preamp_range_db
+        preamp = max(min_pre, min(max_pre, preamp))
+        global_gain = self.state.global_gain_db if self.state is not None else None
+        mic_gain = (
+            self.state.mic_gain_raw if self.state is not None and self.state.mic_gain_raw in MIC_GAIN_REQUESTS else None
+        )
+        hp_name = self.active_headphone_name() or tr("headphone.flat_short")
+        dac_short = spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+        profile = custom_profile(
+            name,
+            spec.dsp.slots.custom,
+            bands,
+            preamp,
+            global_gain,
+            mic_gain,
+            spec=spec,
+        )
+        return replace(
+            profile,
+            headphone_name=hp_name,
+            source=tr("headphone.setup_source", model=dac_short, headphone=hp_name),
+        )
+
+    def save_current_setup(self) -> None:
+        spec = self.active_spec
+        dac_short = spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+        hp_label = self.active_headphone_name() or tr("headphone.flat_short")
+        suggested = f"{dac_short} × {hp_label}"
+        name, accepted = QInputDialog.getText(
+            self,
+            tr("actions.save_setup_title"),
+            tr("actions.save_setup_prompt"),
+            text=suggested,
+        )
+        if not accepted or not name.strip():
+            return
+        try:
+            profile = self.build_current_setup_profile(name.strip())
+        except (ValueError, dac.HidError) as exc:
+            self.feedback.setText(str(exc))
+            return
+        if self.persist_profile(profile):
+            self.switch_source(0)
+            self.feedback.setText(tr("actions.saved_library"))
 
     def save_fit(self) -> None:
         profile = self.autoeq_panel.ready_result()
