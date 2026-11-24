@@ -118,6 +118,7 @@
         "install -Dm644 echo_a.py /app/share/dsp-control/scripts/echo_a.py",
         "install -Dm644 dac_devices.py /app/share/dsp-control/scripts/dac_devices.py",
         "install -Dm644 dac_transport.py /app/share/dsp-control/scripts/dac_transport.py",
+        "install -Dm644 device_specs.py /app/share/dsp-control/scripts/device_specs.py",
         "install -Dm644 autoeq_catalog.py /app/share/dsp-control/scripts/autoeq_catalog.py",
         "install -Dm644 i18n.py /app/share/dsp-control/scripts/i18n.py",
         "install -Dm644 measurements.py /app/share/dsp-control/scripts/measurements.py",
@@ -137,6 +138,7 @@
         "install -Dm644 'JM-1 with Harman treble filter.csv' '/app/share/dsp-control/data/targets/JM-1 with Harman treble filter.csv'",
         "install -Dm644 zero.csv /app/share/dsp-control/data/targets/zero.csv",
         "install -Dm644 'Moondrop Position (B&K 5128).csv' '/app/share/dsp-control/data/measurements/Moondrop Position (B&K 5128).csv'",
+        "cp -r devices /app/share/dsp-control/data/devices",
         "install -Dm644 pl.innovibe.DspControl.desktop /app/share/applications/pl.innovibe.DspControl.desktop",
         "install -Dm644 pl.innovibe.DspControl.metainfo.xml /app/share/metainfo/pl.innovibe.DspControl.metainfo.xml",
         "install -Dm644 pl.innovibe.DspControl.svg /app/share/icons/hicolor/scalable/apps/pl.innovibe.DspControl.svg"
@@ -169,6 +171,10 @@
         {
           "type": "file",
           "path": "scripts/dac_transport.py"
+        },
+        {
+          "type": "file",
+          "path": "scripts/device_specs.py"
         },
         {
           "type": "file",
@@ -245,6 +251,11 @@
         {
           "type": "file",
           "path": "data/measurements/Moondrop Position (B&K 5128).csv"
+        },
+        {
+          "type": "dir",
+          "path": "data/devices",
+          "dest": "devices"
         },
         {
           "type": "file",

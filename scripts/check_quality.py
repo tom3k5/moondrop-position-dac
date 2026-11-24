@@ -89,6 +89,32 @@ def check_data_configs() -> bool:
     return ok
 
 
+def check_device_specs() -> bool:
+    """Waliduje modularne definicje urządzeń w data/devices/*/device.json."""
+    print("\n==> Walidacja definicji urządzeń (data/devices/)")
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import device_specs
+
+    devices_dir = ROOT / "data" / "devices"
+    spec_files = sorted(devices_dir.glob("*/device.json"))
+    if not spec_files:
+        print(f"[BŁĄD] Brak definicji urządzeń w {devices_dir}")
+        return False
+    errors = 0
+    for spec_path in spec_files:
+        try:
+            spec = device_specs.parse_device_spec(spec_path)
+            if spec.form_factor == "integrated_iem" and not spec.measured_curve():
+                raise ValueError("integrated_iem musi mieć poprawną lokalną krzywą pomiarową.")
+        except Exception as exc:
+            print(f"[BŁĄD] {spec_path.relative_to(ROOT)}: {exc}")
+            errors += 1
+    if errors:
+        return False
+    print(f"[OK] Zwalidowano {len(spec_files)} definicji urządzeń.")
+    return True
+
+
 def check_version_sync() -> bool:
     """Sprawdza spójność numeru wersji między pyproject.toml, metainfo.xml i APP_VERSION."""
     print("\n==> Spójność wersji aplikacji")
@@ -118,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.tests_only:
         results.append(check_python_syntax())
         results.append(check_data_configs())
+        results.append(check_device_specs())
         results.append(check_version_sync())
 
         ruff = shutil.which("ruff")

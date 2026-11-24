@@ -1,0 +1,64 @@
+{
+  "device": "MOONDROP CHU II DSP",
+  "model_id": "moondrop-chu2-dsp",
+  "usb": "31b2:0113",
+  "sample_rate_hz": 48000.0,
+  "slot": 3,
+  "preamp": 0.0,
+  "bands": [
+    {
+      "band": 1,
+      "freq": 105.0,
+      "gain": -0.807,
+      "q": 0.7,
+      "type": "LSQ"
+    },
+    {
+      "band": 2,
+      "freq": 173.5,
+      "gain": -2.85,
+      "q": 0.8,
+      "type": "PK"
+    },
+    {
+      "band": 3,
+      "freq": 3142.0,
+      "gain": -1.837,
+      "q": 2.003,
+      "type": "PK"
+    },
+    {
+      "band": 4,
+      "freq": 6295.5,
+      "gain": 5.897,
+      "q": 1.89,
+      "type": "PK"
+    },
+    {
+      "band": 5,
+      "freq": 10000.0,
+      "gain": -3.701,
+      "q": 0.7,
+      "type": "HSQ"
+    }
+  ],
+  "meta": {
+    "created": "2026-11-24T09:14:07",
+    "measurement": "measurement.csv",
+    "target": "Harman in-ear 2019.csv",
+    "auto_eq_config": {
+      "fs": 48000.0,
+      "bands": 5,
+      "with_shelves": true,
+      "boost_max": 6.0,
+      "cut_max": -12.0,
+      "eq_max_gain": 6.0,
+      "bass_boost": 0.0,
+      "tilt": 0.0,
+      "concha_interference": false
+    },
+    "predicted_error_rms_db": 0.294,
+    "predicted_error_max_db": 0.799,
+    "pre_eq_error_rms_db": 1.914
+  }
+}
