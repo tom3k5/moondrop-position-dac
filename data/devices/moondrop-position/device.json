@@ -3,7 +3,7 @@
   "model_id": "moondrop-position",
   "display_name": "MOONDROP:Gravity Position",
   "form_factor": "integrated_iem",
-  "headphone_attachment": "integrated",
+  "headphone_attachment": "detachable",
   "experimental": false,
   "usb": {
     "vendor_id": "0x35d8",
