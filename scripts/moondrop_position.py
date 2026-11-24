@@ -622,7 +622,8 @@ def verify_profile(
     dev: MoondropPosition, bands: list[dict], slot: int | None, preamp: float | None, *, allow_half_db: bool = False
 ) -> None:
     if not isinstance(dev, MoondropPosition) and hasattr(dev, "verify_profile"):
-        dev.verify_profile(bands, slot, preamp)
+        target_slot = getattr(dev, "custom_slot", slot) if slot == CUSTOM_SLOT else slot
+        dev.verify_profile(bands, target_slot, preamp)
         return
     actual_slot = dev.slot()
     if slot is not None and actual_slot != slot:
@@ -680,7 +681,8 @@ def write_profile(
     allow_half_db: bool = False,
 ) -> float | None:
     if not isinstance(dev, MoondropPosition) and hasattr(dev, "write_profile"):
-        return dev.write_profile(bands, preamp, slot=slot, persist=persist, previous_bands=previous_bands)
+        target_slot = getattr(dev, "custom_slot", slot) if slot == CUSTOM_SLOT else slot
+        return dev.write_profile(bands, preamp, slot=target_slot, persist=persist, previous_bands=previous_bands)
     validate_profile(bands, slot, preamp)
     if slot != CUSTOM_SLOT:
         raise HidError("Zapis EQ jest dostępny tylko w slocie 7 (Custom).")
@@ -728,10 +730,9 @@ def cmd_verify_eq(args) -> int:
 
 def cmd_write_eq(args) -> int:
     bands, slot, preamp = requested_profile(args)
-    if slot is not None and slot != CUSTOM_SLOT:
-        raise HidError("Zapis EQ jest dostępny tylko w slocie 7 (Custom).")
-
     if args.dry_run:
+        if slot is not None and slot != CUSTOM_SLOT:
+            raise HidError("Zapis EQ jest dostępny tylko w slocie 7 (Custom).")
         print(
             f"DRY-RUN: {len(bands)} pasm, slot={slot if slot is not None else '?'}"
             f", preamp={preamp if preamp is not None else '(bez zmian)'}"
@@ -760,10 +761,10 @@ def cmd_write_eq(args) -> int:
         return 0
 
     with open_device(args) as dev:
-        active_slot = dev.slot()
-        current_slot = active_slot if slot is None else slot
-        if current_slot != CUSTOM_SLOT:
-            raise HidError("Zapis EQ jest dostępny tylko w slocie 7 (Custom).")
+        custom_slot = getattr(dev, "custom_slot", CUSTOM_SLOT)
+        current_slot = custom_slot if slot is None or slot == CUSTOM_SLOT else slot
+        if current_slot != custom_slot:
+            raise HidError(f"Zapis EQ jest dostępny tylko w slocie {custom_slot} (Custom).")
         print(f"Urządzenie: {dev.path}  firmware={dev.version()}  slot docelowy={current_slot}")
         if not args.yes and sys.stdin.isatty():
             answer = input(f"Zapisać {len(bands)} pasm do flash urządzenia? [t/N] ")
@@ -771,9 +772,13 @@ def cmd_write_eq(args) -> int:
                 print("Przerwano.")
                 return 1
         applied_preamp = write_profile(dev, bands, preamp, current_slot, allow_half_db=True)
-    if preamp is not None and not preamp_matches(applied_preamp, preamp):
+        reconnected = bool(getattr(dev, "reconnect_on_save", False))
+    if preamp is not None and applied_preamp is not None and not preamp_matches(applied_preamp, preamp):
         print(f"Pre-gain z odczytu: {applied_preamp:+.2f} dB (profil: {preamp:+.2f} dB).")
-    print(f"Zapis zakończony; odczyt potwierdził zgodność {len(bands)} pasm.")
+    if reconnected:
+        print(f"Zapis zakończony ({len(bands)} pasm). Urządzenie restartuje USB na ok. 1–1,5 s.")
+    else:
+        print(f"Zapis zakończony; odczyt potwierdził zgodność {len(bands)} pasm.")
     return 0
 
 

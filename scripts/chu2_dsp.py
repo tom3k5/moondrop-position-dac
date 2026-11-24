@@ -88,7 +88,7 @@ class Chu2Dsp:
             remaining_ms = int((deadline - time.monotonic()) * 1000)
             if remaining_ms <= 0:
                 return None
-            raw = self.transport.read_report(remaining_ms)
+            raw = self.transport.read_report(remaining_ms, size=PAYLOAD_LEN + 1)
             if raw is None or len(raw) < PAYLOAD_LEN + 1 or raw[0] != REPORT_ID:
                 continue
             payload = raw[1 : 1 + PAYLOAD_LEN]
@@ -100,7 +100,7 @@ class Chu2Dsp:
     ) -> bytes:
         frame = bytes((reg & 0xFF, 0, 0, 0, cmd & 0xFF, 0, v0 & 0xFF, v1 & 0xFF, v2 & 0xFF, v3 & 0xFF))
         for attempt in range(retries + 1):
-            self.transport.drain()
+            self.transport.drain(size=PAYLOAD_LEN + 1)
             self._write_frame(frame)
             reply = self._read_reply(reg, cmd)
             if reply is not None:
@@ -133,12 +133,11 @@ class Chu2Dsp:
         ftype_code = qt[8]
         ftype = CODE_TO_TYPE.get(ftype_code, "PK")
         band = {
-            "band": index,
-            "type": ftype,
-            "type_code": ftype_code,
+            "band": index + 1,
             "freq": int(freq),
             "gain": round(gain_raw / 10.0, 2),
             "q": round(q_raw / 1000.0, 3),
+            "type": ftype,
         }
         if include_coefficients:
             band["coefficients"] = b""
@@ -205,31 +204,34 @@ class Chu2Dsp:
     def save(self) -> bytes:
         # Commit causes CHU II DSP to restart over USB for ~1-1.5 s.
         frame = bytes((REG_COMMIT, 0, 0, 0, CMD_COMMIT, 0, 0, 0, 0, 0))
-        self.transport.drain()
+        self.transport.drain(size=PAYLOAD_LEN + 1)
         self._write_frame(frame)
         reply = self._read_reply(REG_COMMIT, CMD_COMMIT)
         return reply or frame
 
-    def _expected_band(self, band: dict) -> dict:
+    def _expected_band(self, index: int, band: dict) -> dict:
         gain = max(-12.0, min(12.0, float(band["gain"])))
         freq = max(20, min(20000, round(float(band["freq"]))))
         q = max(0.1, min(10.0, float(band["q"])))
         return {
-            "band": int(band["band"]),
-            "type": band["type"],
-            "type_code": TYPE_TO_CODE[band["type"]],
+            "band": index + 1,
             "freq": freq,
             "gain": round(round(gain * 10.0) / 10.0, 2),
             "q": round(round(q * 1000.0) / 1000.0, 3),
+            "type": band["type"],
         }
 
     def verify_profile(self, bands: list[dict], slot: int | None = None, preamp: float | None = None) -> None:
         del preamp
+        if slot is not None and slot not in (OFF_SLOT, CUSTOM_SLOT):
+            raise HidError(
+                f"CHU II DSP obsługuje wyłącznie sloty {OFF_SLOT} (Off) i {CUSTOM_SLOT} (Custom), podano {slot}."
+            )
         actual_slot = self.slot()
         if slot is not None and actual_slot != slot:
             raise HidError(f"CHU II DSP slot: odczytano {actual_slot}, oczekiwano {slot}.")
         for index, band in enumerate(bands):
-            expected = self._expected_band(band)
+            expected = self._expected_band(index, band)
             actual = self.read_band(index)
             if actual != expected:
                 raise HidError(f"CHU II DSP pasmo {index + 1}: odczytano {actual}, oczekiwano {expected}.")
@@ -258,8 +260,12 @@ class Chu2Dsp:
                 or not 0.1 <= band["q"] <= 10.0
                 or not -12.0 <= band["gain"] <= 12.0
             ):
-                raise HidError(f"Nieprawidłowe parametry pasma {band['band']} dla CHU II DSP.")
+                raise HidError(f"Nieprawidłowe parametry pasma {band.get('band', '?')} dla CHU II DSP.")
         target_slot = CUSTOM_SLOT if slot is None else slot
+        if target_slot not in (OFF_SLOT, CUSTOM_SLOT):
+            raise HidError(
+                f"CHU II DSP obsługuje wyłącznie sloty {OFF_SLOT} (Off) i {CUSTOM_SLOT} (Custom), podano {target_slot}."
+            )
         if self.slot() != target_slot:
             self.set_slot(target_slot)
             previous_bands = None
@@ -267,14 +273,15 @@ class Chu2Dsp:
             if (
                 previous_bands is not None
                 and index < len(previous_bands)
-                and self._expected_band(band) == self._expected_band(previous_bands[index])
+                and self._expected_band(index, band) == self._expected_band(index, previous_bands[index])
             ):
                 continue
             self.write_band(index, band["type"], band["freq"], band["gain"], band["q"], slot=target_slot)
         self.verify_profile(bands, target_slot)
         if persist:
-            # Flash commit triggers USB re-enumeration (~1-1.5 s); caller must re-open after reconnect.
+            # Flash commit triggers USB re-enumeration (~1-1.5 s); close old handle cleanly.
             self.save()
+            self.transport.close()
         return None
 
 
