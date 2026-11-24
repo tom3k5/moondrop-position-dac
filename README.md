@@ -137,7 +137,7 @@ Filter thousands of IEM and over-ear measurements by **Source**, **Headphone typ
 <br>
 
 ### 3. Parametric EQ Editor & Live Preview
-Drag handles directly on the **EQ correction** plot, scroll to adjust Q, mute (`On`) or temporarily `Solo` (`S`) individual bands, shape overall tone with the collapsible **Quick tone shaping (Macro)** card (`Bass / Mids / Treble / Tilt`), and click **Set automatically** for headroom. With a DAC connected, **Live preview** lets you audition tweaks in real time, compare against **Flat**, **Initial**, or **Profile B** via **A/B**, and restores your previous settings if canceled.
+Drag handles directly on the **EQ correction** plot, scroll to adjust Q, mute (`On`) or temporarily `Solo` (`S`) individual bands, shape overall tone in the **Quick tone shaping** box (`Bass / Mids / Treble / Tilt`), and click **Set automatically** for headroom. With a DAC connected, **Live preview** lets you audition tweaks in real time, compare against **Flat**, **Initial**, or **Profile B** via **A/B**, and restores your previous settings if canceled.
 
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
