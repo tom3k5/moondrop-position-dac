@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.4.3" date="2026-11-24">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.3</url>
+      <description>
+        <p>DSP Control 0.4.3: adds offline-first release update notifications, AutoEq Bass boost / Tilt / PK-only fit controls, Equalizer APO clipboard paste and live A/B Bypass in the EQ editor, automatic headphone synchronization for saved setups, and static OSTree Flatpak repository configuration for innovibe.pl/flatpak.</p>
+        <p xml:lang="pl">DSP Control 0.4.3: dodaje powiadomienia o aktualizacjach (offline-first), kontrolki AutoEq Bas / Tilt / Tylko PK, wklejanie Equalizer APO ze schowka i przełącznik A/B Bypass w edytorze EQ, automatyczną synchronizację słuchawek dla zapisanych konfiguracji oraz konfigurację statycznego repozytorium OSTree Flatpak dla innovibe.pl/flatpak.</p>
+      </description>
+    </release>
     <release version="0.4.2" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.2</url>
       <description>

@@ -82,6 +82,8 @@ python3 scripts/dsp_control.py
 ```bash
 flatpak-builder --force-clean --disable-rofiles-fuse --repo=flatpak-repo flatpak-build pl.innovibe.DspControl.json
 flatpak build-bundle flatpak-repo dsp-control.flatpak pl.innovibe.DspControl
+# Lub budowa statycznego repozytorium OSTree Flatpak (.flatpakrepo / .flatpakref):
+./scripts/build_flatpak_repo.sh dist/flatpak-repo
 ```
 
 Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `--device=all` (dostęp do `/dev/hidraw*`), `--share=network` (pobieranie katalogu AutoEq na żądanie), `--talk-name=org.kde.StatusNotifierWatcher` (zasobnik systemowy) oraz `--socket=wayland` / `--socket=fallback-x11` / `--share=ipc` (okno aplikacji). Do pracy całkowicie offline użyj `flatpak run --unshare=network pl.innovibe.DspControl`.
@@ -102,14 +104,14 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 |---|---|---|
 | EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tylko `PK / LP / HP` (półki wyłączone na Position) | **Odblokowuje `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), natywny USB HID `0x4B`, offline** |
 | Interaktywny wykres EQ i zapas do przesteru | Tylko suwaki | **Przeciąganie punktów na wykresie (Hz/dB/kółko Q) + automatyczny pre-gain** |
-| Odsłuch na żywo (`Live preview`) | Tak | **Tak — włącza się automatycznie i bezpiecznie przywraca stan po anulowaniu** |
-| Wbudowany optymalizator AutoEq | Podstawowe presety | **Indeks 6800+ offline + 9 targetów MIT + podgląd celu + zakres + Drag & Drop** |
+| Odsłuch na żywo (`Live preview`) | Tak | **Tak — auto-odsłuch + `A/B: Bypass` (płaski 0 dB) + bezpieczne przywracanie** |
+| Wbudowany optymalizator AutoEq | Podstawowe presety | **Indeks 6800+ offline + Bas / Tilt / Tylko PK + zakres + Drag & Drop** |
 | Porównanie z obecnym DSP i interaktywna legenda | Nie | **Krzywa `Obecnie w DSP` na obu wykresach, ukrywanie/solo pigułek, `Hz / dB / Δ dB`** |
 | Wzmocnienie wyjścia (`-18…0 dB`) i mikrofonu | Tak | **Tak, z opcjonalnym zapisem w profilu** |
-| Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka na dysku, Drag & Drop, import/eksport JSON i Equalizer APO (`.txt`)** |
+| Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka, auto-synchronizacja słuchawek, Drag & Drop, wklejanie/import/eksport Equalizer APO** |
 | Monitor strumienia UAC2 i próbkowania PipeWire | Nie | **Tak (`44,1–384 kHz` + odczyt głębi bitowej ALSA)** |
 | Weryfikacja zapisu i diagnostyka | Podstawowa | **Weryfikacja przed/po zapisie flash, Przywróć poprzedni, bezrootowy `--diagnose`** |
-| Motywy, język i wbudowany Przewodnik | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, zakładka Przewodnik** |
+| Motywy, język, Przewodnik i aktualizacje | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, Przewodnik, opcjonalne sprawdzanie wydań** |
 
 ---
 
