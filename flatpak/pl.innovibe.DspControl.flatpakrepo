@@ -1,0 +1,6 @@
+[Flatpak Repo]
+Title=InnoVibe DSP Control
+Url=https://innovibe.pl/flatpak/
+Homepage=https://innovibe.pl/moondrop-position-dac/
+Comment=Static Flatpak repository for DSP Control (MOONDROP USB DAC / DSP)
+DefaultBranch=stable
