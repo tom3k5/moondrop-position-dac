@@ -11,7 +11,7 @@
 
 [Supported Hardware](#supported-hardware) · [Quick Start](#quick-start) · [Why DSP Control?](#why-use-the-native-linux-app) · [Screenshots](#screenshots) · [Docs](#technical-documentation) · [Support](#support-the-project)
 
-![DSP Control Tuning panel with headphone response and EQ correction plots](docs/screenshots/01-tuning-profiles.png)
+![DSP Control Tuning panel showing MOONDROP:Gravity Position paired with KZ ZSN Pro X headphones](docs/screenshots/01-tuning-profiles.png)
 
 ---
 
@@ -96,7 +96,7 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 
 - **Hardware DSP, Zero CPU Load:** Parametric EQ runs directly on the DAC chip (`< 5 ms` latency) and stays active across Steam/Proton games, Discord, and media players — even after closing the app or moving to another PC.
 - **Unlocks `LSQ` & `HSQ` Shelf Filters:** While `hub.moondroplab.tech` disables shelf filters for Position (`PK / LP / HP` only), DSP Control unlocks hardware `LSQ` and `HSQ` shelves verified on firmware `0.5`. AutoEq defaults to `1× LSQ + 1× HSQ + 6× PK`, dropping Harman In-Ear 2019 RMS error from `2.20 dB` down to `0.47 dB`.
-- **Per-DAC Curves, Profiles & Connected Headphones:** Each DAC model loads its own modular definition under [`data/devices/`](data/devices/README.md) (bands, sample rate, filter types, baseline curve), filters *My Profiles* to the active DAC, and lets you select any connected headphones from the AutoEq catalog (e.g. `KZ ZSN Pro X`), a local CSV/TXT curve, or **Flat** mode on detachable/standalone DACs.
+- **Any DAC × Any Headphones (Not Just MOONDROP):** Use a bundled/detachable DAC (like **MOONDROP:Gravity Position** or **CHU II DSP**) or a standalone dongle (**ECHO-A**) with **any headphones or IEMs** — e.g. **KZ ZSN Pro X**, Sennheiser, or custom models — by picking from the 6,800+ AutoEq catalog, loading a local CSV/TXT curve, or choosing **Flat** mode. Each DAC model loads its own modular definition under [`data/devices/`](data/devices/README.md) and filters *My Profiles* to the active DAC.
 - **Safe Offline Workflow:** Browsing, AutoEq fitting, and local profile storage are completely separated from DAC flash. Every write performs pre/post-flash verification, and live preview automatically restores your previous DAC state if you cancel.
 - **System Tray & PipeWire Control:** Minimize to the tray to switch profiles in two clicks, check active ALSA bit depth, and optionally force the PipeWire sample rate (`44.1–384 kHz`).
 
