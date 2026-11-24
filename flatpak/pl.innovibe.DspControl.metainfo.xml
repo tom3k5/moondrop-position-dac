@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.5.1" date="2026-11-24">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.5.1</url>
+      <description>
+        <p>DSP Control 0.5.1: orders plot legend pills logically from permanent baseline curves to conditional overlays (Factory/measured, Predicted result, Target, Current in DSP) without mid-row gaps, and keeps steady compact plot geometry across profiles.</p>
+        <p xml:lang="pl">DSP Control 0.5.1: porządkuje kolejność pigułek legendy wykresów od stałych krzywych bazowych do warunkowych (Fabryczna/pomiar, Przewidywany wynik, Cel, Obecnie w DSP) bez pustych przerw w środku wiersza i z zachowaniem stałej geometrii wykresów.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.5.0</url>
       <description>
