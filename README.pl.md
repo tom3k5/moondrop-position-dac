@@ -137,7 +137,7 @@ Filtruj tysiące pomiarów według **Źródła**, **Typu słuchawek** i **Zakres
 <br>
 
 ### 3. Edytor EQ i odsłuch na żywo
-Przeciągaj punkty bezpośrednio na wykresie **Korekcja EQ**, zmieniaj Q kółkiem myszy, wyciszaj (`Wł.`) lub tymczasowo podsłuchuj (`S`) wybrane pasma, kształtuj brzmienie w zwijanym panelu **Szybka korekta barwy (Makro)** (`Bas / Średnica / Góra / Tilt`) i użyj **Ustaw automatycznie** do doboru pre-gainu. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie, pozwala porównywać przez **A/B** z **Flat**, **Stanem wyjściowym** lub **Profilem B** i bezpiecznie przywraca stan po anulowaniu.
+Przeciągaj punkty bezpośrednio na wykresie **Korekcja EQ**, zmieniaj Q kółkiem myszy, wyciszaj (`Wł.`) lub tymczasowo podsłuchuj (`S`) wybrane pasma, kształtuj brzmienie w sekcji **Szybka korekta barwy** (`Bas / Średnica / Góra / Tilt`) i użyj **Ustaw automatycznie** do doboru pre-gainu. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie, pozwala porównywać przez **A/B** z **Flat**, **Stanem wyjściowym** lub **Profilem B** i bezpiecznie przywraca stan po anulowaniu.
 
 ![Edytor EQ](docs/screenshots/pl/04-eq-editor.png)
 
