@@ -186,11 +186,12 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
     target_freq, target_spl = load_curve(target_path)
     target = FrequencyResponse(name=target_path.stem, frequency=target_freq, raw=target_spl)
 
+    fs = float(getattr(args, "fs", DEVICE_FS))
     fr.compensate(
         target,
         bass_boost_gain=args.bass_boost,
         tilt=args.tilt,
-        fs=DEVICE_FS,
+        fs=fs,
     )
     fr.smoothen()
     fr.equalize(max_gain=args.eq_max_gain, concha_interference=args.concha)
@@ -208,7 +209,7 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
         max_time=args.max_time,
         with_shelves=with_shelves,
     )
-    peqs = fr.optimize_parametric_eq(config, DEVICE_FS)
+    peqs = fr.optimize_parametric_eq(config, fs)
     peq = peqs[0]
     peq.sort_filters()
 
@@ -222,8 +223,10 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
     max_abs = float(np.max(np.abs(residual[mask])))
     pre_eq_rms = float(np.sqrt(np.mean(fr.error_smoothed[mask] ** 2)))
 
+    preamp_min = float(getattr(args, "preamp_min", -128.0))
+    preamp_max = float(getattr(args, "preamp_max", 0.0))
     preamp = -(peq.max_gain + 0.1)
-    preamp = max(-128.0, min(0.0, preamp))
+    preamp = max(preamp_min, min(preamp_max, preamp))
 
     bands = []
     for i, filt in enumerate(peq.filters):
@@ -239,8 +242,10 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
         )
 
     profile = {
-        "device": "MOONDROP:Gravity Position",
-        "usb": "35d8:0123",
+        "device": getattr(args, "device_name", "MOONDROP:Gravity Position"),
+        "model_id": getattr(args, "model_id", "moondrop-position"),
+        "usb": getattr(args, "usb", "35d8:0123"),
+        "sample_rate_hz": fs,
         "slot": args.slot,
         "preamp": round(preamp, 2),
         "bands": bands,
@@ -249,7 +254,7 @@ def fit_eq(measurement_left: Path, measurement_right: Path | None, target_path: 
             "measurement": source,
             "target": target_path.name,
             "auto_eq_config": {
-                "fs": DEVICE_FS,
+                "fs": fs,
                 "bands": args.bands,
                 "with_shelves": with_shelves,
                 "boost_max": args.boost_max,
@@ -365,6 +370,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true", help="zapisz profil do urządzenia przez HID (wymaga udev)")
     parser.add_argument("--device", metavar="PATH", help="/dev/hidrawN")
     parser.add_argument("--bands", type=int, default=8, help="liczba pasm (domyślnie 8)")
+    parser.add_argument("--fs", type=float, default=float(DEVICE_FS), help="częstotliwość próbkowania DSP [Hz]")
+    parser.add_argument("--model-id", default="moondrop-position", help="identyfikator modelu DAC")
+    parser.add_argument("--device-name", default="MOONDROP:Gravity Position", help="nazwa wyświetlana DAC-a")
+    parser.add_argument("--usb", default="35d8:0123", help="identyfikator USB VID:PID")
+    parser.add_argument("--preamp-min", type=float, default=-128.0, help="minimalny pre-gain [dB]")
+    parser.add_argument("--preamp-max", type=float, default=0.0, help="maksymalny pre-gain [dB]")
     parser.add_argument(
         "--no-shelves",
         dest="shelves",

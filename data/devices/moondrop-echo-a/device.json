@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "model_id": "moondrop-echo-a",
+  "display_name": "MOONDROP ECHO-A",
+  "form_factor": "dongle_dac",
+  "experimental": true,
+  "usb": {
+    "vendor_id": "0x3302",
+    "product_id": "0x12c5",
+    "driver": "echo_a",
+    "reports": [
+      { "id": "0x4b", "kind": "input", "length": 63 },
+      { "id": "0x4b", "kind": "output", "length": 63 }
+    ]
+  },
+  "dsp": {
+    "sample_rate_hz": 93750.0,
+    "band_count": 8,
+    "supported_types": ["PK", "LSQ", "HSQ", "LP", "HP"],
+    "freq_range_hz": [20, 20000],
+    "gain_range_db": [-10.0, 10.0],
+    "q_range": [0.1, 10.0],
+    "preamp_range_db": [-30.0, 0.0],
+    "default_frequencies_hz": [20, 54, 144, 386, 1036, 2779, 7455, 20000],
+    "default_q": 0.71,
+    "reconnect_on_save": false,
+    "slots": {
+      "factory": null,
+      "custom": 0,
+      "names": { "0": "Custom" }
+    },
+    "controls": {
+      "global_gain_db": null,
+      "mic_gain": false
+    }
+  },
+  "acoustics": {
+    "bundled_measurement": null,
+    "measurement_rig": null,
+    "measurement_source": null,
+    "measurement_includes_factory_eq": false,
+    "factory_bands": [],
+    "default_autoeq_measurement": null,
+    "default_target": "Harman in-ear 2019.csv",
+    "fit_ranges": [
+      { "id": "full", "max_fc": 20000, "bands": 8 },
+      { "id": "safe", "max_fc": 10000, "bands": 6 }
+    ]
+  },
+  "builtin_profiles": []
+}

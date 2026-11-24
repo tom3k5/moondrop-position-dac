@@ -110,6 +110,7 @@ import i18n
 import moondrop_position as dac
 from dac_devices import AmbiguousDac, DeviceTarget
 from dac_transport import HidDeviceMissing, HidInterface, HidPermissionError
+from device_specs import DEFAULT_MODEL_ID, DeviceSpec, default_device_spec, get_device_spec
 from i18n import tr
 from measurements import FIT_HIGH_HZ, curve_level, fit_to_target, read_squig_txt
 
@@ -541,7 +542,9 @@ POSITION_FACTORY_BANDS = (
 )
 
 
-def default_custom_bands() -> list[dict]:
+def default_custom_bands(spec: DeviceSpec | None = None) -> list[dict]:
+    if spec is not None:
+        return spec.default_custom_bands()
     return [
         {"band": index, "type": "PK", "freq": freq, "gain": 0.0, "q": DEFAULT_EQ_Q}
         for index, freq in enumerate(DEFAULT_EQ_FREQUENCIES, 1)
@@ -750,6 +753,7 @@ class Profile:
     coefficients: tuple[bytes, ...] = ()
     fit_range: tuple[int, int] | None = None
     sample_rate_hz: float = dac.COEFF_FS
+    model_id: str | None = None
 
     def matches_eq(self, state: DeviceState) -> bool:
         if state.model_name != dac.POSITION_NAME:
@@ -810,34 +814,72 @@ class DeviceState:
     custom_slot: int = dac.CUSTOM_SLOT
     slot_names: dict[int, str] | None = None
     sample_rate_hz: float = dac.COEFF_FS
+    model_id: str = DEFAULT_MODEL_ID
 
     @property
     def target(self) -> DeviceTarget:
         return self.interface or self.path
 
 
-def load_profile(path: Path, name: str | None = None, *, pad_bands: bool = False) -> Profile:
+def infer_profile_model_id(meta: dict, bands: list[dict]) -> str | None:
+    explicit = meta.get("model_id")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
+    usb = str(meta.get("usb") or "").strip().lower()
+    if usb == "31b2:0113":
+        return "moondrop-chu2-dsp"
+    if usb == "3302:12c5":
+        return "moondrop-echo-a"
+    if usb == "35d8:0123":
+        return "moondrop-position"
+    device = str(meta.get("device") or "").strip().lower()
+    if "chu" in device:
+        return "moondrop-chu2-dsp"
+    if "echo-a" in device or "echo a" in device:
+        return "moondrop-echo-a"
+    if "position" in device:
+        return "moondrop-position"
+    if len(bands) == 5:
+        return "moondrop-chu2-dsp"
+    return None
+
+
+def load_profile(
+    path: Path, name: str | None = None, *, pad_bands: bool = False, spec: DeviceSpec | None = None
+) -> Profile:
     try:
         bands, meta = dac.load_eq_file(str(path))
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    slot = meta.get("slot", dac.CUSTOM_SLOT)
+    inferred_model = infer_profile_model_id(meta, bands)
+    resolved_spec = spec or (get_device_spec(inferred_model) if inferred_model else default_device_spec())
+    slot = meta.get("slot", resolved_spec.dsp.slots.custom)
     preamp = meta.get("preamp")
-    if pad_bands:
-        neutral = default_custom_bands()
+    if pad_bands and len(bands) < resolved_spec.dsp.band_count:
+        neutral = default_custom_bands(resolved_spec)
         bands.extend(neutral[len(bands) :])
     stored_name = meta.get("name")
     if not isinstance(stored_name, str) or not stored_name.strip():
         stored_name = path.stem
     profile = custom_profile(
-        name or stored_name, slot, bands, preamp, meta.get("global_gain_db"), meta.get("mic_gain_raw")
+        name or stored_name,
+        slot,
+        bands,
+        preamp,
+        meta.get("global_gain_db"),
+        meta.get("mic_gain_raw"),
+        model_id=inferred_model or resolved_spec.model_id,
+        spec=resolved_spec,
     )
     source = meta.get("source")
     target_name = meta.get("target_name")
     target = valid_curve(meta.get("target_curve", ()))
     fit_meta = meta.get("meta")
     stored_range = fit_meta.get("fit_range") if isinstance(fit_meta, dict) else None
-    fit_range = next((limits for _, limits in AUTOEQ_FIT_RANGES if list(limits) == stored_range), None)
+    valid_ranges = [limits for _, limits in AUTOEQ_FIT_RANGES] + [
+        (fr.max_fc, fr.bands) for fr in resolved_spec.acoustics.fit_ranges
+    ]
+    fit_range = next((limits for limits in valid_ranges if list(limits) == stored_range), None)
     if not target and (
         path.resolve() == BUILTIN_PROFILE.resolve()
         or (isinstance(fit_meta, dict) and fit_meta.get("target") == HARMAN_TARGET.name)
@@ -853,12 +895,17 @@ def load_profile(path: Path, name: str | None = None, *, pad_bands: bool = False
             pass
         else:
             target_name = "Harman In-Ear 2019"
+    sample_rate = meta.get("sample_rate_hz")
+    if not isinstance(sample_rate, (int, float)) or sample_rate <= 0:
+        sample_rate = resolved_spec.dsp.sample_rate_hz
     return replace(
         profile,
         source=source if isinstance(source, str) else None,
         target_name=target_name if isinstance(target_name, str) else None,
         target_curve=target,
         fit_range=fit_range,
+        sample_rate_hz=float(sample_rate),
+        model_id=inferred_model or resolved_spec.model_id,
     )
 
 
@@ -869,19 +916,53 @@ def custom_profile(
     preamp: float,
     global_gain_db: int | None = None,
     mic_gain_raw: int | None = None,
+    *,
+    model_id: str | None = None,
+    spec: DeviceSpec | None = None,
 ) -> Profile:
-    dac.validate_profile(bands, slot, preamp)
-    if slot != dac.CUSTOM_SLOT or len(bands) != dac.BAND_COUNT or type(preamp) not in (int, float):
-        raise ValueError("Profil musi zawierać osiem pasm, pre-gain i dotyczyć slotu Custom.")
-    if not -128 <= preamp <= 0 or any(
-        b["type"] not in {"PK", "LSQ", "HSQ", "LP", "HP"} or not -18 <= b["gain"] <= 12 for b in bands
-    ):
-        raise ValueError("Position obsługuje PK, LSQ, HSQ, LP i HP, gain od −18 do +12 dB i pre-gain do 0 dB.")
+    resolved = spec or get_device_spec(model_id)
+    if resolved.model_id == DEFAULT_MODEL_ID:
+        dac.validate_profile(bands, slot, preamp)
+        if slot != dac.CUSTOM_SLOT or len(bands) != dac.BAND_COUNT or type(preamp) not in (int, float):
+            raise ValueError("Profil musi zawierać osiem pasm, pre-gain i dotyczyć slotu Custom.")
+        if not -128 <= preamp <= 0 or any(
+            b["type"] not in {"PK", "LSQ", "HSQ", "LP", "HP"} or not -18 <= b["gain"] <= 12 for b in bands
+        ):
+            raise ValueError("Position obsługuje PK, LSQ, HSQ, LP i HP, gain od −18 do +12 dB i pre-gain do 0 dB.")
+    else:
+        expected_slot = resolved.dsp.slots.custom
+        if slot not in (expected_slot, dac.CUSTOM_SLOT) or len(bands) != resolved.dsp.band_count:
+            raise ValueError(
+                f"Profil dla {resolved.display_name} musi zawierać {resolved.dsp.band_count} pasm "
+                "i dotyczyć slotu Custom."
+            )
+        if type(preamp) not in (int, float):
+            raise ValueError("Profil musi zawierać poprawny pre-gain.")
+        min_pre, max_pre = resolved.dsp.preamp_range_db
+        if not min_pre <= float(preamp) <= max_pre:
+            raise ValueError(f"{resolved.display_name} obsługuje pre-gain w zakresie od {min_pre:g} do {max_pre:g} dB.")
+        min_g, max_g = resolved.dsp.gain_range_db
+        allowed = set(resolved.dsp.supported_types)
+        if any(b.get("type") not in allowed or not min_g <= float(b.get("gain", 0)) <= max_g for b in bands):
+            raise ValueError(
+                f"{resolved.display_name} obsługuje filtry {', '.join(resolved.dsp.supported_types)} "
+                f"oraz gain od {min_g:g} do {max_g:g} dB."
+            )
+        slot = expected_slot
     if global_gain_db is not None and (type(global_gain_db) is not int or not -18 <= global_gain_db <= 0):
         raise ValueError("Global gain w profilu musi być liczbą całkowitą od −18 do 0 dB.")
     if mic_gain_raw is not None and (type(mic_gain_raw) is not int or mic_gain_raw not in MIC_GAIN_REQUESTS):
         raise ValueError("Profil zawiera niepotwierdzony kod wzmocnienia mikrofonu.")
-    return Profile(name, slot, bands, preamp, global_gain_db, mic_gain_raw)
+    return Profile(
+        name,
+        slot,
+        bands,
+        preamp,
+        global_gain_db,
+        mic_gain_raw,
+        sample_rate_hz=resolved.dsp.sample_rate_hz,
+        model_id=resolved.model_id,
+    )
 
 
 def open_dac(target: DeviceTarget | None = None):
@@ -937,6 +1018,7 @@ def read_state(dev) -> DeviceState:
         getattr(dev, "custom_slot", dac.CUSTOM_SLOT),
         dict(getattr(dev, "slot_names", dac.SLOT_NAMES)),
         float(getattr(dev, "sample_rate_hz", dac.COEFF_FS)),
+        str(getattr(dev, "model_id", DEFAULT_MODEL_ID)),
     )
 
 
@@ -1358,6 +1440,10 @@ def save_profile(path: str, profile: Profile) -> None:
         "bands": profile.bands,
         "preamp": profile.preamp,
     }
+    if profile.model_id:
+        data["model_id"] = profile.model_id
+    if profile.sample_rate_hz:
+        data["sample_rate_hz"] = profile.sample_rate_hz
     if profile.source:
         data["source"] = profile.source
     if profile.target_curve:
@@ -1382,16 +1468,28 @@ def save_profile(path: str, profile: Profile) -> None:
 
 class DemoDevice:
     path = "demo"
-    model_name = dac.POSITION_NAME
 
-    def __init__(self):
-        self.active_slot = 0
-        self.custom_bands = default_custom_bands()
-        self.custom_coefficients = [coefficients_for_band(band) for band in self.custom_bands]
+    def __init__(self, model_id: str = DEFAULT_MODEL_ID):
+        self.spec = get_device_spec(model_id)
+        self.model_id = self.spec.model_id
+        self.model_name = self.spec.display_name
+        self.experimental = self.spec.experimental
+        self.band_count = self.spec.dsp.band_count
+        self.custom_slot = self.spec.dsp.slots.custom
+        self.factory_slot = self.spec.dsp.slots.factory
+        self.slot_names = dict(self.spec.dsp.slots.names)
+        self.sample_rate_hz = self.spec.dsp.sample_rate_hz
+        self.reconnect_on_save = self.spec.dsp.reconnect_on_save
+        self.active_slot = self.factory_slot if self.factory_slot is not None else self.custom_slot
+        self.factory_bands = self.spec.factory_bands_copy() or self.spec.default_custom_bands()
+        self.custom_bands = self.spec.default_custom_bands()
+        self.custom_coefficients = [
+            coefficients_for_band(band, sample_rate_hz=self.sample_rate_hz) for band in self.custom_bands
+        ]
         self.custom_preamp = 0.0
         self.default_preamp = 0.0
-        self.output_gain = 0
-        self.microphone_gain = 0
+        self.output_gain = 0 if self.spec.dsp.controls.global_gain_db is not None else None
+        self.microphone_gain = 0 if self.spec.dsp.controls.mic_gain else None
 
     def __enter__(self):
         return self
@@ -1409,30 +1507,38 @@ class DemoDevice:
         self.active_slot = slot
 
     def preamp(self):
-        return self.default_preamp if self.active_slot == 0 else self.custom_preamp
+        return (
+            self.default_preamp
+            if self.factory_slot is not None and self.active_slot == self.factory_slot
+            else self.custom_preamp
+        )
 
     def set_preamp(self, db, *, legacy=True):
-        if self.active_slot == 0:
+        if self.factory_slot is not None and self.active_slot == self.factory_slot:
             self.default_preamp = round(db * 256) / 256
         else:
             self.custom_preamp = round(db * 256) / 256
 
     def global_gain(self):
+        if self.output_gain is None:
+            raise dac.HidError("Ten model nie obsługuje Global Gain.")
         return self.output_gain
 
     def set_global_gain_volatile(self, db):
         self.output_gain = db
 
     def mic_gain_raw(self):
+        if self.microphone_gain is None:
+            raise dac.HidError("Ten model nie obsługuje Mic Gain.")
         return self.microphone_gain
 
     def set_mic_gain_raw(self, value):
         self.microphone_gain = {requested: observed for observed, requested in MIC_GAIN_REQUESTS.items()}[value]
 
     def read_band(self, index, *, include_coefficients=False):
-        if self.active_slot == 0:
-            band = POSITION_FACTORY_BANDS[index]
-            coefficients = coefficients_for_band(band)
+        if self.factory_slot is not None and self.active_slot == self.factory_slot:
+            band = self.factory_bands[index]
+            coefficients = coefficients_for_band(band, sample_rate_hz=self.sample_rate_hz)
         else:
             band = self.custom_bands[index]
             coefficients = self.custom_coefficients[index]
@@ -1554,6 +1660,7 @@ def profile_from_readback(state: DeviceState) -> Profile | None:
         state.preamp,
         coefficients=state.coefficients if has_coeffs else (),
         sample_rate_hz=state.sample_rate_hz,
+        model_id=state.model_id,
     )
 
 
@@ -1589,6 +1696,7 @@ class ResponsePlot(QWidget):
         self.reference_points = []
         self.target_points = []
         self.factory_points = [] if correction else measured_position()
+        self.factory_slot: int | None = 0
         self.factory_filter = None
         self.frequencies = [hz for hz, _ in self.factory_points]
         self.factory_offsets = [0.0] * len(self.frequencies)
@@ -1611,10 +1719,24 @@ class ResponsePlot(QWidget):
         self.curves_changed.emit()
         self.update()
 
+    def set_measurement_curve(self, points: list[tuple[float, float]], *, factory_slot: int | None = 0) -> None:
+        if self.correction:
+            return
+        self.factory_points = list(points)
+        self.factory_slot = factory_slot
+        self.frequencies = [hz for hz, _ in self.factory_points]
+        self.factory_offsets = (
+            [db for _, db in response_points(self.factory_filter, self.frequencies)]
+            if self.factory_filter and self.frequencies
+            else [0.0] * len(self.frequencies)
+        )
+        self.curves_changed.emit()
+        self.update()
+
     def acoustic_points(self, profile: Profile | None) -> list[tuple[float, float]]:
-        if profile is None:
+        if profile is None or not self.factory_points:
             return []
-        if profile.slot == 0:
+        if self.factory_slot is not None and profile.slot == self.factory_slot:
             return self.factory_points
         correction = response_points(profile, self.frequencies)
         return [
@@ -2233,8 +2355,10 @@ class EqualizerDialog(QDialog):
         factory: Profile | None = None,
         *,
         device_path: DeviceTarget | None = None,
+        device_spec: DeviceSpec | None = None,
     ):
         super().__init__(parent)
+        self.device_spec = device_spec or getattr(parent, "active_spec", None) or default_device_spec()
         self.setWindowTitle(tr("editor.title"))
         self.setStyleSheet(APP_STYLE)
         self.setMinimumSize(625, 460)
@@ -2291,7 +2415,10 @@ class EqualizerDialog(QDialog):
         layout.addLayout(name_row)
 
         gain_row = QHBoxLayout()
-        self.preamp = self.decimal(-128, 0, 0.1)
+        pre_min, pre_max = self.device_spec.dsp.preamp_range_db
+        self.preamp = self.decimal(pre_min, pre_max, 0.1)
+        if pre_min == pre_max:
+            self.preamp.setEnabled(False)
         self.preamp.setSuffix(" dB")
         self.preamp.setMinimumWidth(96)
         self.preamp.setAccessibleName(tr("editor.preamp_label"))
@@ -2339,7 +2466,10 @@ class EqualizerDialog(QDialog):
         self.plot.band_q_changed.connect(self.on_plot_band_q_changed)
         self.acoustic_plot = ResponsePlot()
         self.acoustic_plot.setMinimumHeight(160)
-        self.acoustic_plot.set_factory(factory)
+        self.acoustic_plot.set_measurement_curve(
+            self.device_spec.measured_curve(), factory_slot=self.device_spec.dsp.slots.factory
+        )
+        self.acoustic_plot.set_factory(factory if self.device_spec.acoustics.measurement_includes_factory_eq else None)
         self.compare = QCheckBox(tr("editor.compare"))
         self.compare.setToolTip(tr("tooltip.editor_compare"))
         self.compare.toggled.connect(self.update_reference)
@@ -2397,28 +2527,34 @@ class EqualizerDialog(QDialog):
         ):
             grid.addWidget(QLabel(title), 0, column)
         grid.setColumnStretch(3, 1)
-        for number in range(1, dac.BAND_COUNT + 1):
+        type_labels = (
+            (tr("editor.type_pk"), "PK"),
+            (tr("editor.type_lsq"), "LSQ"),
+            (tr("editor.type_hsq"), "HSQ"),
+            (tr("editor.type_lp"), "LP"),
+            (tr("editor.type_hp"), "HP"),
+        )
+        allowed_types = set(self.device_spec.dsp.supported_types)
+        gain_min, gain_max = self.device_spec.dsp.gain_range_db
+        q_min, q_max = self.device_spec.dsp.q_range
+        freq_min, freq_max = self.device_spec.dsp.freq_range_hz
+        for number in range(1, self.device_spec.dsp.band_count + 1):
             kind = QComboBox()
-            for label, code in (
-                (tr("editor.type_pk"), "PK"),
-                (tr("editor.type_lsq"), "LSQ"),
-                (tr("editor.type_hsq"), "HSQ"),
-                (tr("editor.type_lp"), "LP"),
-                (tr("editor.type_hp"), "HP"),
-            ):
-                kind.addItem(label, code)
+            for label, code in type_labels:
+                if code in allowed_types:
+                    kind.addItem(label, code)
             frequency = QSpinBox()
-            frequency.setRange(20, 20000)
+            frequency.setRange(int(freq_min), int(freq_max))
             frequency.setMinimumWidth(88)
-            gain = self.decimal(-18, 12, 0.1)
+            gain = self.decimal(gain_min, gain_max, 0.1)
             gain.setMinimumWidth(78)
             slider = QSlider(Qt.Orientation.Horizontal)
-            slider.setRange(-180, 120)
+            slider.setRange(round(gain_min * 10), round(gain_max * 10))
             slider.setPageStep(10)
             slider.setMinimumWidth(65)
             slider.valueChanged.connect(lambda value, box=gain: box.setValue(value / 10))
             gain.valueChanged.connect(lambda value, control=slider: self.sync_gain_slider(control, value))
-            q = self.decimal(26 / 256, 10, 0.01)
+            q = self.decimal(q_min, q_max, 0.01)
             q.setMinimumWidth(78)
             for control in (kind, frequency, gain, q):
                 control.setMinimumHeight(28)
@@ -2482,7 +2618,14 @@ class EqualizerDialog(QDialog):
             spin_box.lineEdit().setTextMargins(6, 0, 2, 0)
 
         if source is None:
-            source = Profile("Własny EQ", dac.CUSTOM_SLOT, default_custom_bands(), 0)
+            source = Profile(
+                "Własny EQ",
+                self.device_spec.dsp.slots.custom,
+                default_custom_bands(self.device_spec),
+                0.0,
+                sample_rate_hz=self.device_spec.dsp.sample_rate_hz,
+                model_id=self.device_spec.model_id,
+            )
         self.set_profile(source)
         self.ensurePolished()
         outer.activate()
@@ -2562,7 +2705,13 @@ class EqualizerDialog(QDialog):
         global_gain_db = self.global_gain.value() if self.include_global_gain.isChecked() else None
         mic_gain_raw = self.mic_gain.currentData() if self.include_mic_gain.isChecked() else None
         profile = custom_profile(
-            self.name.text().strip() or "Własny EQ", dac.CUSTOM_SLOT, bands, preamp, global_gain_db, mic_gain_raw
+            self.name.text().strip() or "Własny EQ",
+            self.device_spec.dsp.slots.custom,
+            bands,
+            preamp,
+            global_gain_db,
+            mic_gain_raw,
+            spec=self.device_spec,
         )
         return replace(
             profile,
@@ -3004,6 +3153,19 @@ class AutoEqPanel(QWidget):
             compact = str(len(matching))
         self.status.set_title(message, wrap=False, compact=compact)
 
+    def sync_device_spec(self, spec: DeviceSpec) -> None:
+        self.fit_range.blockSignals(True)
+        self.fit_range.clear()
+        for key, (max_fc, bands) in AUTOEQ_FIT_RANGES:
+            clamped_bands = min(bands, spec.dsp.band_count)
+            self.fit_range.addItem(tr(key), (max_fc, clamped_bands))
+        self.fit_range.blockSignals(False)
+        self.result = None
+        self.result_entry = None
+        self.result_range = None
+        self.fit_status.clear()
+        self.update_actions()
+
     def apply_tooltips(self) -> None:
         self.mode.setToolTip(tr("tooltip.autoeq_mode"))
         self.source_filter.setToolTip(tr("tooltip.autoeq_source"))
@@ -3237,8 +3399,13 @@ class AutoEqPanel(QWidget):
             self.fit_status.setText(tr("autoeq.target_error", error=exc))
             self.finish_fit()
             return
+        spec = self.window.active_spec
         self.fit_factory = self.window.factory_profile
-        measurement = DATA_DIR / "measurements" / "Moondrop Position (B&K 5128).csv"
+        measurement = spec.acoustics.measurement_path
+        if measurement is None:
+            self.fit_status.setText(tr("autoeq.dongle_needs_measurement", model=spec.display_name))
+            self.finish_fit()
+            return
         if not measurement.exists():
             self.fit_status.setText(tr("autoeq.missing_measurement"))
             self.finish_fit()
@@ -3246,11 +3413,11 @@ class AutoEqPanel(QWidget):
         try:
             self.temporary = TemporaryDirectory(prefix="dsp-control-autoeq-")
             work = Path(self.temporary.name)
-            if self.fit_factory is not None:
-                measured = measured_position()
+            if spec.acoustics.measurement_includes_factory_eq and self.fit_factory is not None:
+                measured = spec.measured_curve()
                 offsets = response_points(self.fit_factory, [hz for hz, _ in measured])
                 if measured and len(offsets) == len(measured):
-                    measurement = work / "position bez korekty fabrycznej.csv"
+                    measurement = work / f"{spec.model_id}-no-factory.csv"
                     measurement.write_text(
                         "frequency,raw\n"
                         + "".join(
@@ -3265,6 +3432,9 @@ class AutoEqPanel(QWidget):
         self.fit_timer.start()
         python = DATA_DIR.parent / ".venvs/autoeq/bin/python"
         max_fc, fit_bands = self.result_range
+        min_q, max_q = spec.dsp.q_range
+        min_gain, max_gain = spec.dsp.gain_range_db
+        pre_min, pre_max = spec.dsp.preamp_range_db
         self.fit_status.setText(tr("autoeq.calculating", bands=fit_bands))
         self.process.start(
             str(python if python.is_file() else Path(sys.executable)),
@@ -3276,8 +3446,28 @@ class AutoEqPanel(QWidget):
                 str(target),
                 "-o",
                 str(self.output),
+                "--fs",
+                str(spec.dsp.sample_rate_hz),
+                "--slot",
+                str(spec.dsp.slots.custom),
+                "--model-id",
+                spec.model_id,
+                "--device-name",
+                spec.display_name,
+                "--usb",
+                spec.usb_id_str,
                 "--min-q",
-                str(26 / 256),
+                str(min_q),
+                "--max-q",
+                str(max_q),
+                "--cut-max",
+                str(max(min_gain, -12.0)),
+                "--boost-max",
+                str(min(max_gain, 6.0)),
+                "--preamp-min",
+                str(pre_min),
+                "--preamp-max",
+                str(pre_max),
                 "--max-fc",
                 str(max_fc),
                 "--bands",
@@ -3313,8 +3503,10 @@ class AutoEqPanel(QWidget):
             self.fit_status.setText(tr("autoeq.fit_error", error=message))
         else:
             try:
-                name = f"Position → {self.result_entry.name}"
-                loaded = load_profile(self.output, name, pad_bands=True)
+                spec = self.window.active_spec
+                short_name = spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+                name = f"{short_name} → {self.result_entry.name}"
+                loaded = load_profile(self.output, name, pad_bands=True, spec=spec)
                 self.result = replace(
                     loaded,
                     source=f"AutoEq · {self.result_entry.source}",
@@ -3421,7 +3613,7 @@ class ElidingLabel(FeedbackLabel):
 
 
 class ProfilesWindow(QWidget):
-    def __init__(self, demo: bool, library_directory: Path | None = None):
+    def __init__(self, demo: bool, library_directory: Path | None = None, *, demo_model_id: str = DEFAULT_MODEL_ID):
         super().__init__()
         self.setStyleSheet(APP_STYLE)
         self.setAcceptDrops(True)
@@ -3448,9 +3640,10 @@ class ProfilesWindow(QWidget):
             app_instance.styleHints().colorSchemeChanged.connect(self.on_system_scheme_changed)
 
         self.demo = demo
+        self.active_spec: DeviceSpec = get_device_spec(demo_model_id)
         self.demo_forced_rate = 0
         self.observed_forced_rate = None
-        demo_device = DemoDevice() if demo else None
+        demo_device = DemoDevice(self.active_spec.model_id) if demo else None
         self.open_device = (lambda _path=None: demo_device) if demo else open_dac
         self.list_devices = (
             (lambda: [DeviceChoice(demo_device.path, demo_device.model_name)]) if demo else hardware_choices
@@ -3467,7 +3660,8 @@ class ProfilesWindow(QWidget):
         self.last_applied_profile = None
         self.previous_dac_profile = None
         self.readback_profile = None
-        self.factory_profile = Profile("Fabryczny EQ", 0, list(POSITION_FACTORY_BANDS), 0.0)
+        self.factory_profile = self._default_factory_profile(self.active_spec)
+        self.builtin_items: list[QListWidgetItem] = []
         self.preview_sources = None
         self.applying_profile = None
         self.applying_restore = False
@@ -3728,14 +3922,13 @@ class ProfilesWindow(QWidget):
         self.profiles.setMinimumHeight(162)
         self.user_heading = None
         self.builtin_heading = self.add_library_heading(tr("tuning.builtin"))
-        self.factory_item = self.add_profile(Profile(tr("tuning.factory"), 0, [], None))
-        self.flat_item = self.add_profile(
-            Profile(tr("profile.flat_bypass"), dac.CUSTOM_SLOT, default_custom_bands(), 0.0)
-        )
-        initial_profile = self.add_profile(load_profile(BUILTIN_PROFILE, "Harman In-Ear 2019"))
+        self.factory_item: QListWidgetItem | None = None
+        self.flat_item: QListWidgetItem | None = None
+        initial_profile = self.rebuild_builtin_profiles(self.active_spec)
         library_layout.addWidget(self.profiles, 1)
         self.sources.addWidget(library)
         self.autoeq_panel = AutoEqPanel(self, self.library_directory.parent / "autoeq")
+        self.autoeq_panel.sync_device_spec(self.active_spec)
         self.sources.addWidget(self.autoeq_panel)
         source_divider = QWidget()
         source_divider.setFixedHeight(1)
@@ -3838,6 +4031,9 @@ class ProfilesWindow(QWidget):
         self.fr_title_label.setStyleSheet("font-weight: 600;")
         response_layout.addWidget(self.fr_title_label)
         self.preview_plot = ResponsePlot()
+        self.preview_plot.set_measurement_curve(
+            self.active_spec.measured_curve(), factory_slot=self.active_spec.dsp.slots.factory
+        )
         response_layout.addWidget(self.preview_plot, 1)
         self.correction_plot = ResponsePlot(correction=True)
         self.preview_key = PlotKey(
@@ -4069,6 +4265,7 @@ class ProfilesWindow(QWidget):
         self.update_source_labels()
 
         self.load_library()
+        self.filter_profiles("")
         self.profiles.currentItemChanged.connect(self.update_selection)
         self.profile_search.textChanged.connect(self.filter_profiles)
         self.source_group.idClicked.connect(self.switch_source)
@@ -4264,6 +4461,93 @@ class ProfilesWindow(QWidget):
         box.button(QMessageBox.StandardButton.Close).setText(tr("plot.fit_close"))
         box.open()
 
+    @staticmethod
+    def _default_factory_profile(spec: DeviceSpec) -> Profile | None:
+        if spec.has_factory_slot and spec.acoustics.factory_bands:
+            return Profile(
+                "Fabryczny EQ",
+                spec.dsp.slots.factory,
+                spec.factory_bands_copy(),
+                0.0,
+                sample_rate_hz=spec.dsp.sample_rate_hz,
+                model_id=spec.model_id,
+            )
+        return None
+
+    def profile_matches_active_model(self, profile: Profile) -> bool:
+        if profile.model_id is not None:
+            return profile.model_id == self.active_spec.model_id
+        if self.active_spec.has_factory_slot and profile.slot == self.active_spec.dsp.slots.factory:
+            return True
+        return len(profile.bands) == self.active_spec.dsp.band_count
+
+    def rebuild_builtin_profiles(self, spec: DeviceSpec) -> QListWidgetItem | None:
+        for item in self.builtin_items:
+            row = self.profiles.row(item)
+            if row >= 0:
+                self.profiles.takeItem(row)
+        self.builtin_items = []
+        self.factory_item = None
+        self.flat_item = None
+        insert_row = self.profiles.row(self.builtin_heading) + 1
+
+        def insert_builtin(profile: Profile) -> QListWidgetItem:
+            nonlocal insert_row
+            item = QListWidgetItem(profile.name)
+            item.setData(PROFILE_ROLE, profile)
+            item.setToolTip(profile.name)
+            self.profiles.insertItem(insert_row, item)
+            insert_row += 1
+            self.builtin_items.append(item)
+            return item
+
+        if spec.has_factory_slot:
+            self.factory_item = insert_builtin(
+                Profile(
+                    tr("tuning.factory"),
+                    spec.dsp.slots.factory,
+                    [],
+                    None,
+                    sample_rate_hz=spec.dsp.sample_rate_hz,
+                    model_id=spec.model_id,
+                )
+            )
+        self.flat_item = insert_builtin(
+            Profile(
+                tr("profile.flat_bypass"),
+                spec.dsp.slots.custom,
+                default_custom_bands(spec),
+                0.0,
+                sample_rate_hz=spec.dsp.sample_rate_hz,
+                model_id=spec.model_id,
+            )
+        )
+        initial: QListWidgetItem | None = self.flat_item
+        for bp in spec.builtin_profiles:
+            try:
+                loaded = load_profile(bp.path, bp.name, spec=spec)
+            except (OSError, ValueError, dac.HidError):
+                continue
+            item = insert_builtin(loaded)
+            if initial is self.flat_item:
+                initial = item
+        return initial
+
+    def apply_device_spec(self, spec: DeviceSpec) -> None:
+        self.active_spec = spec
+        self.factory_profile = self._default_factory_profile(spec)
+        self.preview_plot.set_measurement_curve(spec.measured_curve(), factory_slot=spec.dsp.slots.factory)
+        self.preview_plot.set_factory(self.factory_profile if spec.acoustics.measurement_includes_factory_eq else None)
+        initial = self.rebuild_builtin_profiles(spec)
+        self.autoeq_panel.sync_device_spec(spec)
+        self.filter_profiles(self.profile_search.text())
+        current = self.profiles.currentItem()
+        if (current is None or current.isHidden()) and initial is not None:
+            self.profiles.setCurrentItem(initial)
+        self.preview_sources = None
+        self.update_selection()
+        self.update_comparison()
+
     def filter_profiles(self, query: str) -> None:
         words = query.casefold().split()
         visible = []
@@ -4275,7 +4559,9 @@ class ProfilesWindow(QWidget):
                 heading = item
                 heading.setHidden(True)
                 continue
-            matches = all(word in profile.name.casefold() for word in words)
+            matches = self.profile_matches_active_model(profile) and all(
+                word in profile.name.casefold() for word in words
+            )
             item.setHidden(not matches)
             if matches and heading is not None:
                 heading.setHidden(False)
@@ -4323,6 +4609,19 @@ class ProfilesWindow(QWidget):
         self.system_dark = scheme == Qt.ColorScheme.Dark
         if self.theme_pref == "auto":
             self.apply_theme("auto")
+
+    def sync_device_spec(self, spec: DeviceSpec) -> None:
+        self.fit_range.blockSignals(True)
+        self.fit_range.clear()
+        for key, (max_fc, bands) in AUTOEQ_FIT_RANGES:
+            clamped_bands = min(bands, spec.dsp.band_count)
+            self.fit_range.addItem(tr(key), (max_fc, clamped_bands))
+        self.fit_range.blockSignals(False)
+        self.result = None
+        self.result_entry = None
+        self.result_range = None
+        self.fit_status.clear()
+        self.update_actions()
 
     def apply_tooltips(self) -> None:
         self.update_source_labels()
@@ -4472,8 +4771,19 @@ class ProfilesWindow(QWidget):
         self.profile_search.setAccessibleName(tr("search.profiles_a11y"))
         self.profiles.setAccessibleName(tr("tuning.library"))
         self.builtin_heading.setText(tr("tuning.builtin"))
-        self.factory_item.setData(PROFILE_ROLE, Profile(tr("tuning.factory"), 0, [], None))
-        self.factory_item.setToolTip(tr("tuning.factory"))
+        if self.factory_item is not None and self.active_spec.has_factory_slot:
+            self.factory_item.setData(
+                PROFILE_ROLE,
+                Profile(
+                    tr("tuning.factory"),
+                    self.active_spec.dsp.slots.factory,
+                    [],
+                    None,
+                    sample_rate_hz=self.active_spec.dsp.sample_rate_hz,
+                    model_id=self.active_spec.model_id,
+                ),
+            )
+            self.factory_item.setToolTip(tr("tuning.factory"))
         if self.user_heading is not None:
             self.user_heading.setText(tr("source.my_profiles"))
         self.fr_title_label.setText(tr("plot.fr_title"))
@@ -4697,7 +5007,9 @@ class ProfilesWindow(QWidget):
             return
         self.preview_sources = sources
 
-        self.preview_plot.set_factory(self.factory_profile)
+        self.preview_plot.set_factory(
+            self.factory_profile if self.active_spec.acoustics.measurement_includes_factory_eq else None
+        )
         self.preview_plot.set_profile(selected)
         self.preview_plot.set_reference(self.readback_profile)
         measured = self.preview_plot.factory_points
@@ -4734,7 +5046,11 @@ class ProfilesWindow(QWidget):
         self.fit_summary.set_title(summary, wrap=False, detail=self.fit_details_text)
         self.fit_detail_button.setEnabled(bool(self.fit_details_text))
 
-        electrical = self.factory_profile if selected and selected.slot == 0 else selected
+        electrical = (
+            self.factory_profile
+            if (selected and self.active_spec.has_factory_slot and selected.slot == self.active_spec.dsp.slots.factory)
+            else selected
+        )
         self.correction_plot.set_primary_points(response_points(electrical, EQ_PLOT_FREQUENCIES) if electrical else [])
         self.correction_plot.set_reference_points(
             response_points(self.readback_profile, EQ_PLOT_FREQUENCIES) if self.readback_profile else []
@@ -4749,10 +5065,17 @@ class ProfilesWindow(QWidget):
         self.preamp_summary.setText(" · ".join(preamp_parts))
 
         notes = []
-        if self.factory_profile is None and selected is not None and selected.slot != 0:
+        if (
+            self.active_spec.acoustics.measurement_includes_factory_eq
+            and self.factory_profile is None
+            and selected is not None
+            and selected.slot != self.active_spec.dsp.slots.factory
+        ):
             notes.append(tr("plot.neutral_factory"))
         if measured:
             notes.append(tr("plot.measurement_note") + " · " + tr("plot.treble_note"))
+        elif self.active_spec.is_dongle:
+            notes.append(tr("plot.dongle_no_curve", model=self.active_spec.display_name))
         self.plot_legend.setText("\n".join(notes))
         plot_description = [*self.preview_key.labels[:3], target_detail, summary, *notes]
         self.preview_plot.setAccessibleDescription("\n".join(filter(None, plot_description)))
@@ -4978,17 +5301,24 @@ class ProfilesWindow(QWidget):
         self.start(lambda: poll_devices(self.list_devices, self.open_device, target), finished, background=True)
 
     def refresh_done(self, state, error: str) -> None:
+        if state is not None and state.model_id != self.active_spec.model_id:
+            self.apply_device_spec(get_device_spec(state.model_id))
         if (
             self.state is None
             or state is None
-            or (self.state.target, self.state.firmware) != (state.target, state.firmware)
+            or (self.state.target, self.state.firmware, self.state.model_id)
+            != (state.target, state.firmware, state.model_id)
         ):
-            self.factory_profile = Profile("Fabryczny EQ", 0, list(POSITION_FACTORY_BANDS), 0.0)
+            self.factory_profile = self._default_factory_profile(self.active_spec)
             self.last_applied_profile = None
             self.previous_dac_profile = None
         self.state = state
         self.readback_profile = profile_from_readback(state) if state is not None else None
-        if self.readback_profile is not None and state.slot == 0:
+        if (
+            self.readback_profile is not None
+            and self.active_spec.has_factory_slot
+            and state.slot == self.active_spec.dsp.slots.factory
+        ):
             self.factory_profile = replace(self.readback_profile, preamp=0)
         self.update_comparison()
         self.render_state(error)
@@ -5180,7 +5510,7 @@ class ProfilesWindow(QWidget):
             source = replace(source, name=tr("actions.profile_copy", name=source.name))
         current = None
         state = self.state
-        if state is not None and state.slot == dac.CUSTOM_SLOT and all(state.bands):
+        if state is not None and state.slot == self.active_spec.dsp.slots.custom and all(state.bands):
             with contextlib.suppress(dac.HidError, ValueError):
                 current = custom_profile(
                     "Aktualny Custom",
@@ -5189,9 +5519,15 @@ class ProfilesWindow(QWidget):
                     state.preamp,
                     state.global_gain_db,
                     state.mic_gain_raw if state.mic_gain_raw in MIC_GAIN_REQUESTS else None,
+                    spec=self.active_spec,
                 )
         editor = EqualizerDialog(
-            self, source, current, self.factory_profile, device_path=state.target if state is not None else None
+            self,
+            source,
+            current,
+            self.factory_profile,
+            device_path=state.target if state is not None else None,
+            device_spec=self.active_spec,
         )
         self.editor_active = True
         self.timer.stop()
@@ -5370,10 +5706,12 @@ class ProfilesWindow(QWidget):
         if error:
             self.feedback.setText(tr("device.reset_failed", error=error))
             return
-        self.last_applied_profile = self.factory_item.data(PROFILE_ROLE)
+        if self.factory_item is not None:
+            self.last_applied_profile = self.factory_item.data(PROFILE_ROLE)
         self.previous_dac_profile = None
         self.profile_search.clear()
-        self.profiles.setCurrentItem(self.factory_item)
+        if self.factory_item is not None:
+            self.profiles.setCurrentItem(self.factory_item)
         self.autoeq_panel.reset_preview()
         self.switch_source(0)
         self.feedback.setText(tr("device.reset_done"))
@@ -5441,6 +5779,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--demo", action="store_true", help="uruchom GUI z symulowanym DAC-em")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL_ID,
+        help="identyfikator modelu dla --demo (np. moondrop-position, moondrop-chu2-dsp, moondrop-echo-a)",
+    )
     mode.add_argument("--diagnose", action="store_true", help="odczytaj stan USB bez uruchamiania GUI")
     mode.add_argument("--diagnose-controls", action="store_true", help="sprawdź odczyt dodatkowych ustawień bez zapisu")
     mode.add_argument(
@@ -5485,7 +5828,7 @@ def main() -> int:
     desktop_id = "pl.innovibe.DspControl"
     if QStandardPaths.locate(QStandardPaths.StandardLocation.GenericDataLocation, f"applications/{desktop_id}.desktop"):
         app.setDesktopFileName(desktop_id)
-    window = ProfilesWindow(args.demo)
+    window = ProfilesWindow(args.demo, demo_model_id=args.model)
     instance_server = start_instance_server(server_name, window.open_window)
     if instance_server is not None:
         app.aboutToQuit.connect(instance_server.close)

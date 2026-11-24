@@ -532,6 +532,10 @@ def load_eq_file(path: str) -> tuple[list[dict], dict]:
             k: data[k]
             for k in (
                 "name",
+                "model_id",
+                "device",
+                "usb",
+                "sample_rate_hz",
                 "source",
                 "slot",
                 "preamp",

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "model_id": "moondrop-position",
+  "display_name": "MOONDROP:Gravity Position",
+  "form_factor": "integrated_iem",
+  "experimental": false,
+  "usb": {
+    "vendor_id": "0x35d8",
+    "product_id": "0x0123",
+    "driver": "moondrop_position",
+    "reports": [
+      { "id": "0x4b", "kind": "input", "length": 63 },
+      { "id": "0x4b", "kind": "output", "length": 63 }
+    ]
+  },
+  "dsp": {
+    "sample_rate_hz": 96000.0,
+    "band_count": 8,
+    "supported_types": ["PK", "LSQ", "HSQ", "LP", "HP"],
+    "freq_range_hz": [20, 20000],
+    "gain_range_db": [-18.0, 12.0],
+    "q_range": [0.1015625, 10.0],
+    "preamp_range_db": [-128.0, 0.0],
+    "default_frequencies_hz": [20, 54, 144, 386, 1036, 2779, 7455, 20000],
+    "default_q": 0.7109375,
+    "reconnect_on_save": false,
+    "slots": {
+      "factory": 0,
+      "custom": 7,
+      "names": { "0": "Default", "7": "Custom" }
+    },
+    "controls": {
+      "global_gain_db": [-18, 0],
+      "mic_gain": true
+    }
+  },
+  "acoustics": {
+    "bundled_measurement": "measurement.csv",
+    "measurement_rig": "B&K 5128",
+    "measurement_source": "Manufacturer specification (POSITION Original, 60 dB @ 500 Hz)",
+    "measurement_includes_factory_eq": true,
+    "factory_bands": [
+      { "band": 1, "freq": 2800, "gain": -3.3984375, "q": 1.0, "type": "HSQ" },
+      { "band": 2, "freq": 30, "gain": -4.0, "q": 0.30078125, "type": "PK" },
+      { "band": 3, "freq": 200, "gain": -2.0, "q": 0.80078125, "type": "PK" },
+      { "band": 4, "freq": 1400, "gain": -2.5, "q": 1.0, "type": "PK" },
+      { "band": 5, "freq": 6200, "gain": 3.0, "q": 2.0, "type": "PK" },
+      { "band": 6, "freq": 9000, "gain": -1.80078125, "q": 3.0, "type": "PK" },
+      { "band": 7, "freq": 2000, "gain": 0.0, "q": 0.75, "type": "PK" },
+      { "band": 8, "freq": 4000, "gain": 0.0, "q": 0.75, "type": "PK" }
+    ],
+    "default_autoeq_measurement": null,
+    "default_target": "Harman in-ear 2019.csv",
+    "fit_ranges": [
+      { "id": "full", "max_fc": 20000, "bands": 8 },
+      { "id": "safe", "max_fc": 10000, "bands": 6 }
+    ]
+  },
+  "builtin_profiles": [
+    {
+      "name": "Harman In-Ear 2019",
+      "file": "profiles/harman-in-ear-2019.json"
+    }
+  ]
+}
