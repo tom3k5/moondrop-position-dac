@@ -1,0 +1,10 @@
+[Flatpak Ref]
+Title=DSP Control
+Name=pl.innovibe.DspControl
+Branch=stable
+Url=https://innovibe.pl/flatpak/
+SuggestRemoteName=innovibe
+RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+IsRuntime=false
+Homepage=https://innovibe.pl/moondrop-position-dac/
+Comment=EQ, AutoEq and HID DSP controller for MOONDROP USB DACs on Linux

@@ -16,6 +16,8 @@ import struct
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -499,6 +501,43 @@ def save_theme_preference(settings_path: Path, theme: str) -> None:
     _write_settings(settings_path, data)
 
 
+RELEASES_LATEST_URL = "https://github.com/tom3k5/moondrop-position-dac/releases/latest"
+
+
+def parse_semver_tuple(version: str) -> tuple[int, ...]:
+    cleaned = version.strip().lstrip("vV")
+    nums = [int(part) for part in re.findall(r"\d+", cleaned.split("-", 1)[0])]
+    return tuple(nums)
+
+
+def is_newer_version(latest: str, current: str = APP_VERSION) -> bool:
+    lat = parse_semver_tuple(latest)
+    cur = parse_semver_tuple(current)
+    return bool(lat and cur and lat > cur)
+
+
+def check_latest_release(url: str = RELEASES_LATEST_URL, timeout: int = 6) -> str | None:
+    """Sprawdza najnowszy tag wydania przez przekierowanie HTTPS bez użycia REST API GitHuba."""
+    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "dsp-control"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            final_url = resp.geturl()
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None
+    tag = final_url.rstrip("/").rsplit("/", 1)[-1]
+    return tag.lstrip("vV") if re.search(r"\d+\.\d+", tag) else None
+
+
+def load_auto_update_check(settings_path: Path) -> bool:
+    return bool(_read_settings(settings_path).get("auto_update_check", False))
+
+
+def save_auto_update_check(settings_path: Path, enabled: bool) -> None:
+    data = _read_settings(settings_path)
+    data["auto_update_check"] = bool(enabled)
+    _write_settings(settings_path, data)
+
+
 @dataclass(frozen=True)
 class HeadphoneSelection:
     mode: str  # "default" | "flat" | "autoeq" | "file"
@@ -868,6 +907,7 @@ class Profile:
     sample_rate_hz: float = dac.COEFF_FS
     model_id: str | None = None
     headphone_name: str | None = None
+    headphone_selection: dict[str, str] | None = None
 
     def matches_eq(self, state: DeviceState) -> bool:
         if state.model_name != dac.POSITION_NAME:
@@ -1013,6 +1053,7 @@ def load_profile(
     if not isinstance(sample_rate, (int, float)) or sample_rate <= 0:
         sample_rate = resolved_spec.dsp.sample_rate_hz
     headphone_name = meta.get("headphone_name")
+    hp_sel = meta.get("headphone_selection")
     return replace(
         profile,
         source=source if isinstance(source, str) else None,
@@ -1022,6 +1063,7 @@ def load_profile(
         sample_rate_hz=float(sample_rate),
         model_id=inferred_model or resolved_spec.model_id,
         headphone_name=headphone_name if isinstance(headphone_name, str) and headphone_name.strip() else None,
+        headphone_selection=dict(hp_sel) if isinstance(hp_sel, dict) else None,
     )
 
 
@@ -1560,6 +1602,8 @@ def save_profile(path: str, profile: Profile) -> None:
         data["model_id"] = profile.model_id
     if profile.headphone_name:
         data["headphone_name"] = profile.headphone_name
+    if profile.headphone_selection:
+        data["headphone_selection"] = profile.headphone_selection
     if profile.sample_rate_hz:
         data["sample_rate_hz"] = profile.sample_rate_hz
     if profile.source:
@@ -2507,6 +2551,12 @@ class EqualizerDialog(QDialog):
         self.live.setToolTip(tr("editor.live_hint"))
         self.live.toggled.connect(self.toggle_live)
         listen_row.addWidget(self.live)
+        self.ab_bypass = QPushButton(tr("editor.ab_bypass"))
+        self.ab_bypass.setCheckable(True)
+        self.ab_bypass.setEnabled(False)
+        self.ab_bypass.setToolTip(tr("tooltip.editor_ab_bypass"))
+        self.ab_bypass.toggled.connect(self.toggle_ab_bypass)
+        listen_row.addWidget(self.ab_bypass)
         self.live_status = QLabel(tr("editor.live_offline" if device_path is None else "editor.live_off"))
         self.live_status.setTextFormat(Qt.TextFormat.PlainText)
         self.live_status.setWordWrap(True)
@@ -2529,6 +2579,10 @@ class EqualizerDialog(QDialog):
         profile_label.setBuddy(self.name)
         name_row.addWidget(profile_label)
         name_row.addWidget(self.name, 1)
+        self.paste_btn = QPushButton(tr("editor.paste_eq"))
+        self.paste_btn.setToolTip(tr("tooltip.editor_paste_eq"))
+        self.paste_btn.clicked.connect(lambda: self.paste_from_clipboard())
+        name_row.addWidget(self.paste_btn)
         if current is not None:
             copy = QPushButton(tr("editor.load_dac"))
             copy.setToolTip(tr("tooltip.editor_load_dac"))
@@ -2848,6 +2902,7 @@ class EqualizerDialog(QDialog):
             target_curve=self.reference.target_curve,
             fit_range=self.reference.fit_range,
             headphone_name=hp_name,
+            headphone_selection=self.reference.headphone_selection,
         )
 
     def select_draft(self) -> None:
@@ -2901,9 +2956,52 @@ class EqualizerDialog(QDialog):
         self.live_status.setText(message)
         self.live_status.setVisible(bool(message))
 
+    def paste_from_clipboard(self, text: str | None = None) -> bool:
+        raw = text if text is not None else QApplication.clipboard().text()
+        if not raw.strip():
+            QMessageBox.information(self, tr("editor.paste_eq_title"), tr("editor.paste_eq_empty"))
+            return False
+        try:
+            bands, preamp = dac.parse_eqapo_text(raw, source_name="clipboard")
+            if len(bands) < self.device_spec.dsp.band_count:
+                neutral = default_custom_bands(self.device_spec)
+                bands.extend(neutral[len(bands) :])
+            elif len(bands) > self.device_spec.dsp.band_count:
+                bands = bands[: self.device_spec.dsp.band_count]
+            pre_min, pre_max = self.device_spec.dsp.preamp_range_db
+            clamped_preamp = max(pre_min, min(pre_max, preamp)) if preamp is not None else self.preamp.value()
+            parsed = custom_profile(
+                self.draft().name,
+                self.device_spec.dsp.slots.custom,
+                bands,
+                clamped_preamp,
+                spec=self.device_spec,
+            )
+        except (ValueError, SystemExit) as exc:
+            QMessageBox.warning(self, tr("editor.paste_eq_title"), tr("editor.paste_eq_error", error=exc))
+            return False
+        profile = replace(
+            self.draft(),
+            bands=parsed.bands,
+            preamp=parsed.preamp,
+            source=tr("editor.paste_eq_source"),
+        )
+        self.set_profile(profile)
+        return True
+
+    def toggle_ab_bypass(self, _bypassed: bool) -> None:
+        if not self.live.isChecked() or self.live_snapshot is None:
+            return
+        self.live_timer.stop()
+        self.send_live()
+
     def toggle_live(self, enabled: bool) -> None:
         if not enabled:
             self.live_timer.stop()
+            was_blocked = self.ab_bypass.blockSignals(True)
+            self.ab_bypass.setChecked(False)
+            self.ab_bypass.blockSignals(was_blocked)
+            self.ab_bypass.setEnabled(False)
             self.plot.set_profile(self.draft())
             self.settle_live()
             return
@@ -2911,6 +3009,7 @@ class EqualizerDialog(QDialog):
             return
         self.live_error = ""
         self.live.setEnabled(False)
+        self.ab_bypass.setEnabled(False)
         self.show_live_status(tr("editor.live_reading"))
         self.run_live(
             lambda: begin_live_eq(self.device_window.open_device, self.device_path),
@@ -2927,19 +3026,30 @@ class EqualizerDialog(QDialog):
         self.live_previous = snapshot.custom
         self.live_preamp = snapshot.custom.preamp
         self.live.setEnabled(self.pending_exit is None)
+        self.ab_bypass.setEnabled(self.pending_exit is None and self.live.isChecked())
         if self.live.isChecked():
             self.send_live()
         else:
             self.settle_live()
 
+    def _bypass_profile(self, profile: Profile) -> Profile:
+        neutral = [
+            {"filter_type": "PK", "fc": 1000.0, "q": 0.707, "gain": 0.0} for _ in range(self.device_spec.dsp.band_count)
+        ]
+        return replace(profile, bands=neutral, preamp=0.0)
+
     def send_live(self) -> None:
         if not self.live.isChecked() or self.live_busy or self.live_snapshot is None:
             return
-        profile = self.draft()
+        draft = self.draft()
+        bypassed = self.ab_bypass.isChecked()
+        profile = self._bypass_profile(draft) if bypassed else draft
         previous = self.live_previous
         if (profile.bands, profile.preamp) == (previous.bands, previous.preamp):
-            self.plot.set_profile(replace(profile, preamp=self.live_preamp))
-            if dac.preamp_matches(self.live_preamp, profile.preamp):
+            self.plot.set_profile(draft if bypassed else replace(profile, preamp=self.live_preamp))
+            if bypassed:
+                self.show_live_status(tr("editor.ab_bypass_active"))
+            elif dac.preamp_matches(self.live_preamp, profile.preamp):
                 self.show_live_status(tr("editor.live_active"))
             else:
                 self.show_live_status(tr("editor.live_preamp", actual=self.live_preamp, requested=profile.preamp))
@@ -3241,6 +3351,7 @@ class AutoEqPanel(QWidget):
         self.result = None
         self.result_entry = None
         self.result_range = None
+        self.result_options = None
         self.fit_active = False
         self.fit_cancelled = False
         self.preview_entry = None
@@ -3282,10 +3393,39 @@ class AutoEqPanel(QWidget):
             combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(9)
         self.fit_controls = self.fit_range
+        self.bass_boost = QDoubleSpinBox()
+        self.bass_boost.setRange(-6.0, 12.0)
+        self.bass_boost.setSingleStep(0.5)
+        self.bass_boost.setDecimals(1)
+        self.bass_boost.setValue(0.0)
+        self.bass_boost.setPrefix(tr("autoeq.bass_prefix"))
+        self.bass_boost.setSuffix(" dB")
+        self.bass_boost.setToolTip(tr("tooltip.autoeq_bass_boost"))
+        self.bass_boost.valueChanged.connect(self.range_changed)
+        self.tilt = QDoubleSpinBox()
+        self.tilt.setRange(-3.0, 3.0)
+        self.tilt.setSingleStep(0.1)
+        self.tilt.setDecimals(1)
+        self.tilt.setValue(0.0)
+        self.tilt.setPrefix(tr("autoeq.tilt_prefix"))
+        self.tilt.setSuffix(" dB")
+        self.tilt.setToolTip(tr("tooltip.autoeq_tilt"))
+        self.tilt.valueChanged.connect(self.range_changed)
+        self.pk_only = QCheckBox(tr("autoeq.pk_only"))
+        self.pk_only.setToolTip(tr("tooltip.autoeq_pk_only"))
+        self.pk_only.toggled.connect(self.range_changed)
+        fit_options = QHBoxLayout()
+        fit_options.setContentsMargins(0, 0, 0, 0)
+        fit_options.setSpacing(6)
+        fit_options.addWidget(self.bass_boost)
+        fit_options.addWidget(self.tilt)
+        fit_options.addWidget(self.pk_only)
+        fit_options.addStretch()
         self.search = search_field(tr("search.autoeq_placeholder"), tr("search.autoeq_a11y"))
         layout.addWidget(self.source_filter)
         layout.addWidget(self.mode)
         layout.addWidget(self.fit_range)
+        layout.addLayout(fit_options)
         layout.addWidget(self.search)
         self.catalog_menu = QMenu(self)
         self.refresh_action = QAction(tr("autoeq.download_catalog"), self)
@@ -3472,9 +3612,16 @@ class AutoEqPanel(QWidget):
             clamped_bands = min(bands, spec.dsp.band_count)
             self.fit_range.addItem(tr(key), (max_fc, clamped_bands))
         self.fit_range.blockSignals(False)
+        supports_shelves = "LSQ" in spec.dsp.supported_types and "HSQ" in spec.dsp.supported_types
+        was_blocked = self.pk_only.blockSignals(True)
+        if not supports_shelves:
+            self.pk_only.setChecked(True)
+        self.pk_only.setEnabled(supports_shelves)
+        self.pk_only.blockSignals(was_blocked)
         self.result = None
         self.result_entry = None
         self.result_range = None
+        self.result_options = None
         self.fit_status.clear()
         self.update_actions()
 
@@ -3484,6 +3631,9 @@ class AutoEqPanel(QWidget):
         self.search.setToolTip(tr("tooltip.autoeq_search"))
         self.catalog_button.setToolTip(tr("tooltip.autoeq_catalog_btn"))
         self.generate.setToolTip(tr("tooltip.autoeq_compute"))
+        self.bass_boost.setToolTip(tr("tooltip.autoeq_bass_boost"))
+        self.tilt.setToolTip(tr("tooltip.autoeq_tilt"))
+        self.pk_only.setToolTip(tr("tooltip.autoeq_pk_only"))
 
     def retranslate_ui(self) -> None:
         for index, key in enumerate(
@@ -3508,6 +3658,9 @@ class AutoEqPanel(QWidget):
         self.fit_range.setToolTip(tr("tooltip.autoeq_fit_range"))
         for index, (key, _) in enumerate(AUTOEQ_FIT_RANGES):
             self.fit_range.setItemText(index, tr(key))
+        self.bass_boost.setPrefix(tr("autoeq.bass_prefix"))
+        self.tilt.setPrefix(tr("autoeq.tilt_prefix"))
+        self.pk_only.setText(tr("autoeq.pk_only"))
         self.targets.setAccessibleName(tr("autoeq.target_list"))
         self.update_generate_label()
         self.cancel.setText(tr("autoeq.cancel"))
@@ -3538,8 +3691,15 @@ class AutoEqPanel(QWidget):
     def update_generate_label(self) -> None:
         self.generate.setText(tr("autoeq.recompute" if self.result is not None else "autoeq.compute"))
 
+    def current_fit_options(self) -> tuple[float, float, bool]:
+        return (round(self.bass_boost.value(), 2), round(self.tilt.value(), 2), self.pk_only.isChecked())
+
     def ready_result(self) -> Profile | None:
-        if self.result_range == self.fit_range.currentData() and self.result_entry == self.current_entry():
+        if (
+            self.result_range == self.fit_range.currentData()
+            and self.result_entry == self.current_entry()
+            and (self.result_options is None or self.result_options == self.current_fit_options())
+        ):
             return self.result
         return None
 
@@ -3692,6 +3852,7 @@ class AutoEqPanel(QWidget):
         self.result = None
         self.result_entry = entry
         self.result_range = self.fit_range.currentData()
+        self.result_options = self.current_fit_options()
         self.fit_active = True
         self.fit_cancelled = False
         self.fit_status.setText(tr("autoeq.reading_target"))
@@ -3755,43 +3916,51 @@ class AutoEqPanel(QWidget):
         min_gain, max_gain = spec.dsp.gain_range_db
         pre_min, pre_max = spec.dsp.preamp_range_db
         self.fit_status.setText(tr("autoeq.calculating", bands=fit_bands))
+        bass_boost, tilt, pk_only = self.result_options or self.current_fit_options()
+        argv = [
+            str(Path(__file__).with_name("eq_fit.py")),
+            "-m",
+            str(measurement),
+            "-t",
+            str(target),
+            "-o",
+            str(self.output),
+            "--fs",
+            str(spec.dsp.sample_rate_hz),
+            "--slot",
+            str(spec.dsp.slots.custom),
+            "--model-id",
+            spec.model_id,
+            "--device-name",
+            spec.display_name,
+            "--usb",
+            spec.usb_id_str,
+            "--min-q",
+            str(min_q),
+            "--max-q",
+            str(max_q),
+            "--cut-max",
+            str(max(min_gain, -12.0)),
+            "--boost-max",
+            str(min(max_gain, 6.0)),
+            "--preamp-min",
+            str(pre_min),
+            "--preamp-max",
+            str(pre_max),
+            "--max-fc",
+            str(max_fc),
+            "--bands",
+            str(fit_bands),
+            "--bass-boost",
+            str(bass_boost),
+            "--tilt",
+            str(tilt),
+        ]
+        if pk_only:
+            argv.append("--no-shelves")
         self.process.start(
             str(python if python.is_file() else Path(sys.executable)),
-            [
-                str(Path(__file__).with_name("eq_fit.py")),
-                "-m",
-                str(measurement),
-                "-t",
-                str(target),
-                "-o",
-                str(self.output),
-                "--fs",
-                str(spec.dsp.sample_rate_hz),
-                "--slot",
-                str(spec.dsp.slots.custom),
-                "--model-id",
-                spec.model_id,
-                "--device-name",
-                spec.display_name,
-                "--usb",
-                spec.usb_id_str,
-                "--min-q",
-                str(min_q),
-                "--max-q",
-                str(max_q),
-                "--cut-max",
-                str(max(min_gain, -12.0)),
-                "--boost-max",
-                str(min(max_gain, 6.0)),
-                "--preamp-min",
-                str(pre_min),
-                "--preamp-max",
-                str(pre_max),
-                "--max-fc",
-                str(max_fc),
-                "--bands",
-                str(fit_bands),
-            ],
+            argv,
         )
         self.update_actions()
         self.preview_changed.emit()
@@ -3833,6 +4002,7 @@ class AutoEqPanel(QWidget):
                     target_curve=self.target_curve,
                     fit_range=self.result_range,
                     headphone_name=self.window.active_headphone_name(),
+                    headphone_selection=self.window.headphone_selection.to_dict(),
                 )
             except (OSError, ValueError, dac.HidError) as exc:
                 self.fit_status.setText(tr("autoeq.fit_error", error=exc))
@@ -4017,6 +4187,26 @@ class ProfilesWindow(QWidget):
         self.connection_problem.setTextFormat(Qt.TextFormat.PlainText)
         self.connection_problem.setWordWrap(True)
         layout.addWidget(self.connection_problem)
+        self.latest_release_url = ""
+        self.update_job = None
+        self.update_banner = QFrame()
+        self.update_banner.setObjectName("updateBanner")
+        self.update_banner.setVisible(False)
+        banner_layout = QHBoxLayout(self.update_banner)
+        banner_layout.setContentsMargins(10, 6, 10, 6)
+        banner_layout.setSpacing(8)
+        self.update_banner_label = QLabel()
+        self.update_banner_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.update_banner_label.setWordWrap(True)
+        banner_layout.addWidget(self.update_banner_label, 1)
+        self.update_open_btn = QPushButton(tr("updates.open_release"))
+        self.update_open_btn.setStyleSheet(PRIMARY_ACTION_STYLE)
+        self.update_open_btn.clicked.connect(self.open_update_release)
+        banner_layout.addWidget(self.update_open_btn)
+        self.update_dismiss_btn = QPushButton(tr("updates.dismiss"))
+        self.update_dismiss_btn.clicked.connect(lambda: self.update_banner.setVisible(False))
+        banner_layout.addWidget(self.update_dismiss_btn)
+        layout.addWidget(self.update_banner)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         layout.addWidget(self.tabs, 1)
@@ -4553,8 +4743,22 @@ class ProfilesWindow(QWidget):
         self.guide_coffee_btn.clicked.connect(lambda: self.open_external_url(tr("footer.coffee_url")))
         support_layout.addWidget(self.guide_coffee_btn, 0, Qt.AlignmentFlag.AlignLeft)
 
+        self.guide_updates_box = QGroupBox(tr("updates.group"))
+        updates_row = QHBoxLayout(self.guide_updates_box)
+        self.auto_update_check = QCheckBox(tr("updates.auto_check"))
+        self.auto_update_check.setChecked(load_auto_update_check(self.settings_path))
+        self.auto_update_check.toggled.connect(self._toggle_auto_update_check)
+        updates_row.addWidget(self.auto_update_check)
+        self.check_update_btn = QPushButton(tr("updates.check_now"))
+        self.check_update_btn.clicked.connect(lambda: self.check_for_updates(manual=True))
+        updates_row.addWidget(self.check_update_btn)
+        self.update_status_label = ElidingLabel()
+        self.update_status_label.set_title(tr("updates.idle", version=APP_VERSION), wrap=False)
+        updates_row.addWidget(self.update_status_label, 1)
+
         guide_layout.addWidget(self.why_box)
         guide_layout.addWidget(self.guide_tips_box)
+        guide_layout.addWidget(self.guide_updates_box)
         guide_layout.addWidget(self.links_box)
         guide_layout.addWidget(self.guide_support_box)
         guide_layout.addStretch()
@@ -4629,6 +4833,8 @@ class ProfilesWindow(QWidget):
         self.global_gain_button.clicked.connect(self.edit_global_gain)
         self.mic_gain_button.clicked.connect(self.edit_mic_gain)
         self.defaults_button.clicked.connect(self.confirm_defaults)
+        if not self.demo and load_auto_update_check(self.settings_path):
+            QTimer.singleShot(1500, lambda: self.check_for_updates(manual=False))
         self.apply_rate_button.clicked.connect(self.apply_playback_rate)
         self.refresh_rate_button.clicked.connect(self.refresh_playback_quality)
         self.refresh_playback_quality()
@@ -4894,7 +5100,9 @@ class ProfilesWindow(QWidget):
         if sel.mode == "autoeq":
             if self.resolved_headphone_path is not None and self.resolved_headphone_path.is_file():
                 return self.resolved_headphone_path
-            cache_dir = self.autoeq_panel.cache_directory / "curves"
+            panel = getattr(self, "autoeq_panel", None)
+            cache_base = panel.cache_directory if panel is not None else (self.library_directory.parent / "autoeq")
+            cache_dir = cache_base / "curves"
             key = hashlib.sha256(f"{sel.path}\n{sel.revision}".encode()).hexdigest()
             cached = cache_dir / f"{key}.csv"
             return cached if cached.is_file() else None
@@ -4987,7 +5195,9 @@ class ProfilesWindow(QWidget):
                 local=False,
                 revision=selection.revision,
             )
-            cache_dir = self.autoeq_panel.cache_directory / "curves"
+            panel = getattr(self, "autoeq_panel", None)
+            cache_base = panel.cache_directory if panel is not None else (self.library_directory.parent / "autoeq")
+            cache_dir = cache_base / "curves"
 
             def done(path, error: str) -> None:
                 self.headphone_loading = False
@@ -5110,6 +5320,7 @@ class ProfilesWindow(QWidget):
         self.result = None
         self.result_entry = None
         self.result_range = None
+        self.result_options = None
         self.fit_status.clear()
         self.update_actions()
 
@@ -5144,6 +5355,42 @@ class ProfilesWindow(QWidget):
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         paint_innovibe_backdrop(self)
+
+    def _toggle_auto_update_check(self, enabled: bool) -> None:
+        save_auto_update_check(self.settings_path, enabled)
+
+    def open_update_release(self) -> None:
+        if self.latest_release_url:
+            self.open_external_url(self.latest_release_url)
+
+    def check_for_updates(self, *, manual: bool = True) -> None:
+        if self.update_job is not None:
+            return
+        self.check_update_btn.setEnabled(False)
+        if manual:
+            self.update_status_label.set_title(tr("updates.checking"), wrap=False)
+        job = Job(check_latest_release)
+        self.update_job = job
+        job.signals.finished.connect(lambda result, error: self._on_update_checked(result, error, manual=manual))
+        QThreadPool.globalInstance().start(job)
+
+    def _on_update_checked(self, result, error: str, *, manual: bool) -> None:
+        self.update_job = None
+        self.check_update_btn.setEnabled(True)
+        if error:
+            if manual:
+                self.update_status_label.set_title(tr("updates.error", error=error), wrap=False)
+            return
+        latest_version = result
+        if latest_version and is_newer_version(latest_version, APP_VERSION):
+            self.latest_release_url = (
+                f"https://github.com/tom3k5/moondrop-position-dac/releases/tag/v{latest_version.lstrip('vV')}"
+            )
+            self.update_banner_label.setText(tr("updates.available_banner", version=latest_version))
+            self.update_banner.setVisible(True)
+            self.update_status_label.set_title(tr("updates.available_banner", version=latest_version), wrap=False)
+        elif manual:
+            self.update_status_label.set_title(tr("updates.up_to_date", version=APP_VERSION), wrap=False)
 
     def diagnostic_summary(self) -> str:
         lines = [
@@ -5212,6 +5459,13 @@ class ProfilesWindow(QWidget):
         self.why_box.setTitle(tr("help.why_group"))
         self.guide_tips_box.setTitle(tr("help.tips_group"))
         self.links_box.setTitle(tr("help.links_group"))
+        self.guide_updates_box.setTitle(tr("updates.group"))
+        self.auto_update_check.setText(tr("updates.auto_check"))
+        self.check_update_btn.setText(tr("updates.check_now"))
+        self.update_open_btn.setText(tr("updates.open_release"))
+        self.update_dismiss_btn.setText(tr("updates.dismiss"))
+        if not self.latest_release_url:
+            self.update_status_label.set_title(tr("updates.idle", version=APP_VERSION), wrap=False)
         self.guide_support_box.setTitle(tr("help.support_group"))
         self.guide_support_text.setText(tr("help.support_body"))
         self.guide_hub_btn.setText(tr("help.open_hub"))
@@ -5440,6 +5694,20 @@ class ProfilesWindow(QWidget):
             if (item := self.profiles.item(index)).data(PROFILE_ROLE) is not None
         ]
 
+    def _sync_headphone_from_profile(self, profile: Profile) -> None:
+        if not self.active_spec.allows_headphone_selection:
+            return
+        target_sel: HeadphoneSelection | None = None
+        if profile.headphone_selection:
+            target_sel = HeadphoneSelection.from_dict(profile.headphone_selection, default_mode="flat")
+        elif profile.headphone_name:
+            for item in self.recent_headphones:
+                if item.display_label(tr) == profile.headphone_name or item.entry_name == profile.headphone_name:
+                    target_sel = item
+                    break
+        if target_sel is not None and target_sel != self.headphone_selection:
+            self.set_headphone_selection(target_sel)
+
     def update_selection(self) -> None:
         using_catalog = self.catalog_selected()
         if (
@@ -5452,6 +5720,22 @@ class ProfilesWindow(QWidget):
             self.autoeq_panel.preview_timer.start()
         panel = self.autoeq_panel
         profile = self.candidate_profile()
+        if using_catalog or profile is None:
+            self._last_synced_profile_key = None
+        elif not getattr(self, "_syncing_headphone", False):
+            profile_key = (
+                profile.name,
+                profile.model_id,
+                tuple(profile.headphone_selection.items()) if profile.headphone_selection else None,
+                profile.headphone_name,
+            )
+            if profile_key != getattr(self, "_last_synced_profile_key", None):
+                self._last_synced_profile_key = profile_key
+                self._syncing_headphone = True
+                try:
+                    self._sync_headphone_from_profile(profile)
+                finally:
+                    self._syncing_headphone = False
         shown = panel.result if using_catalog else profile
         self.apply_error = ""
         self.apply_notice = ""
@@ -5979,6 +6263,7 @@ class ProfilesWindow(QWidget):
         return replace(
             profile,
             headphone_name=hp_name,
+            headphone_selection=self.headphone_selection.to_dict(),
             source=tr("headphone.setup_source", model=dac_short, headphone=hp_name),
         )
 

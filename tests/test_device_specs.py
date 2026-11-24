@@ -301,3 +301,93 @@ def test_recent_headphones_limited_to_three_and_save_setup_profile(tmp_path: Pat
         window.allow_quit = True
         window.close()
         window.deleteLater()
+
+
+def test_semver_and_update_check(monkeypatch):
+    assert gui.parse_semver_tuple("v0.5.0") == (0, 5, 0)
+    assert gui.parse_semver_tuple("0.4.2-beta.1") == (0, 4, 2)
+    assert gui.is_newer_version("v0.5.0", "0.4.2") is True
+    assert gui.is_newer_version("v0.4.2", "0.4.2") is False
+    assert gui.is_newer_version("0.4.1", "0.4.2") is False
+
+    class _FakeResp:
+        def geturl(self):
+            return "https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.5.0"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(gui.urllib.request, "urlopen", lambda req, timeout=6: _FakeResp())
+    latest = gui.check_latest_release()
+    assert latest == "0.5.0"
+    assert gui.is_newer_version(latest, "0.4.2") is True
+
+
+def test_eqapo_clipboard_paste_and_ab_bypass(tmp_path: Path):
+    _app()
+    lib = tmp_path / "profiles"
+    lib.mkdir()
+    window = gui.ProfilesWindow(demo=True, library_directory=lib)
+    try:
+        base = gui.custom_profile("Test", 7, gui.default_custom_bands(window.active_spec), 0.0, spec=window.active_spec)
+        dlg = gui.EqualizerDialog(window, base, None, device_spec=window.active_spec)
+        try:
+            ok = dlg.paste_from_clipboard("Preamp: -4.2 dB\nFilter 1: ON PK Fc 100 Hz Gain 3.5 dB Q 1.2\n")
+            assert ok is True
+            draft = dlg.draft()
+            assert abs(draft.preamp - (-4.2)) < 0.01
+            assert abs(draft.bands[0]["freq"] - 100.0) < 1e-6
+            assert abs(draft.bands[0]["gain"] - 3.5) < 0.05
+
+            bypass = dlg._bypass_profile(draft)
+            assert bypass.preamp == 0.0
+            assert all(b["gain"] == 0.0 for b in bypass.bands)
+        finally:
+            dlg.close()
+            dlg.deleteLater()
+    finally:
+        window.allow_quit = True
+        window.close()
+        window.deleteLater()
+
+
+def test_autoeq_fit_options_and_headphone_autosync(tmp_path: Path):
+    _app()
+    lib = tmp_path / "profiles"
+    lib.mkdir()
+    window = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-echo-a")
+    try:
+        panel = window.autoeq_panel
+        assert panel.pk_only.isEnabled() is True
+        panel.bass_boost.setValue(2.5)
+        panel.tilt.setValue(-0.4)
+        panel.pk_only.setChecked(True)
+        assert panel.current_fit_options() == (2.5, -0.4, True)
+
+        hp_csv = tmp_path / "KZ-ZSN.csv"
+        hp_csv.write_text("frequency,raw\n20,0.0\n1000,1.0\n20000,-1.0\n", encoding="utf-8")
+        sel = gui.HeadphoneSelection(mode="file", name="KZ ZSN Pro X", source=hp_csv.name, path=str(hp_csv))
+        window.set_headphone_selection(sel)
+        setup_prof = window.build_current_setup_profile("ECHO-A × KZ")
+        assert setup_prof.headphone_selection == sel.to_dict()
+        assert window.persist_profile(setup_prof) is True
+
+        # Switch to another profile & Flat headphones, then select the saved profile -> headphones auto-sync back
+        window.profiles.setCurrentRow(0)
+        window.set_headphone_selection(gui.HeadphoneSelection(mode="flat"))
+        assert window.headphone_selection.mode == "flat"
+        for row in range(window.profiles.count()):
+            item = window.profiles.item(row)
+            prof = item.data(gui.PROFILE_ROLE)
+            if prof is not None and prof.name == "ECHO-A × KZ":
+                window.profiles.setCurrentItem(item)
+                break
+        assert window.headphone_selection.mode == "file"
+        assert window.headphone_selection.name == "KZ ZSN Pro X"
+    finally:
+        window.allow_quit = True
+        window.close()
+        window.deleteLater()

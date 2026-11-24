@@ -534,6 +534,7 @@ def load_eq_file(path: str) -> tuple[list[dict], dict]:
                 "name",
                 "model_id",
                 "headphone_name",
+                "headphone_selection",
                 "device",
                 "usb",
                 "sample_rate_hz",
@@ -847,37 +848,42 @@ RE_EQAPO_FILTER = re.compile(
 )
 
 
-def parse_eqapo(path: str) -> tuple[list[dict], float | None]:
-    """Parsuje eksport Equalizer APO (m.in. z autoeq.app) na pasma urządzenia."""
+def parse_eqapo_text(text: str, *, source_name: str = "clipboard") -> tuple[list[dict], float | None]:
+    """Parsuje tekst konfiguracji Equalizer APO (np. z autoeq.app, squig.link lub pliku .txt)."""
     bands: list[dict] = []
     preamp: float | None = None
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            match = RE_EQAPO_PREAMP.search(line)
-            if match:
-                preamp = float(match.group(1))
-                continue
-            match = RE_EQAPO_FILTER.search(line)
-            if not match:
-                continue
-            enabled, raw_type, freq, gain, q = match.groups()
-            if enabled.upper() != "ON":
-                continue
-            ftype = EQAPO_TYPES.get(raw_type.upper())
-            if ftype is None:
-                raise SystemExit(f"Nieznany typ filtra w pliku: {raw_type}")
-            bands.append(
-                {
-                    "band": len(bands) + 1,
-                    "freq": round(float(freq), 1),
-                    "gain": round(float(gain or 0.0), 3),
-                    "q": round(float(q or 0.7071068), 3),
-                    "type": ftype,
-                }
-            )
+    for line in text.splitlines():
+        match = RE_EQAPO_PREAMP.search(line)
+        if match:
+            preamp = float(match.group(1))
+            continue
+        match = RE_EQAPO_FILTER.search(line)
+        if not match:
+            continue
+        enabled, raw_type, freq, gain, q = match.groups()
+        if enabled.upper() != "ON":
+            continue
+        ftype = EQAPO_TYPES.get(raw_type.upper())
+        if ftype is None:
+            raise SystemExit(f"Nieznany typ filtra w pliku: {raw_type}")
+        bands.append(
+            {
+                "band": len(bands) + 1,
+                "freq": round(float(freq), 1),
+                "gain": round(float(gain or 0.0), 3),
+                "q": round(float(q or 0.7071068), 3),
+                "type": ftype,
+            }
+        )
     if not bands:
-        raise SystemExit(f"Nie znaleziono filtrów Equalizer APO w {path}")
+        raise SystemExit(f"Nie znaleziono filtrów Equalizer APO w {source_name}")
     return bands, preamp
+
+
+def parse_eqapo(path: str) -> tuple[list[dict], float | None]:
+    """Parsuje eksport Equalizer APO (m.in. z autoeq.app) na pasma urządzenia."""
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return parse_eqapo_text(fh.read(), source_name=path)
 
 
 def format_eqapo(bands: list[dict], preamp: float | None = None) -> str:
