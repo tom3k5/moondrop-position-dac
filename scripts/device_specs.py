@@ -14,6 +14,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DEVICES_DIR = DATA_DIR / "devices"
 DEFAULT_MODEL_ID = "moondrop-position"
 VALID_FORM_FACTORS = frozenset({"integrated_iem", "dongle_dac"})
+VALID_HEADPHONE_ATTACHMENTS = frozenset({"integrated", "detachable", "standalone"})
 VALID_FILTER_TYPES = frozenset({"PK", "LSQ", "HSQ", "LP", "HP"})
 
 
@@ -76,6 +77,7 @@ class DeviceSpec:
     model_id: str
     display_name: str
     form_factor: str
+    headphone_attachment: str
     experimental: bool
     vendor_id: int
     product_id: int
@@ -92,6 +94,18 @@ class DeviceSpec:
     @property
     def is_dongle(self) -> bool:
         return self.form_factor == "dongle_dac"
+
+    @property
+    def allows_headphone_selection(self) -> bool:
+        return self.headphone_attachment in ("detachable", "standalone")
+
+    @property
+    def has_default_headphone(self) -> bool:
+        return self.headphone_attachment == "detachable" and self.acoustics.measurement_path is not None
+
+    @property
+    def default_headphone_mode(self) -> str:
+        return "default" if self.headphone_attachment in ("integrated", "detachable") else "flat"
 
     @property
     def has_factory_slot(self) -> bool:
@@ -148,6 +162,10 @@ def parse_device_spec(spec_path: Path) -> DeviceSpec:
     form_factor = str(raw["form_factor"])
     if form_factor not in VALID_FORM_FACTORS:
         raise ValueError(f"{spec_path}: invalid form_factor={form_factor!r}")
+
+    headphone_attachment = str(raw.get("headphone_attachment", ""))
+    if headphone_attachment not in VALID_HEADPHONE_ATTACHMENTS:
+        raise ValueError(f"{spec_path}: invalid headphone_attachment={headphone_attachment!r}")
 
     usb = raw["usb"]
     dsp_raw = raw["dsp"]
@@ -229,6 +247,7 @@ def parse_device_spec(spec_path: Path) -> DeviceSpec:
         model_id=model_id,
         display_name=str(raw["display_name"]),
         form_factor=form_factor,
+        headphone_attachment=headphone_attachment,
         experimental=bool(raw.get("experimental", False)),
         vendor_id=_parse_hex_int(usb["vendor_id"]),
         product_id=_parse_hex_int(usb["product_id"]),
