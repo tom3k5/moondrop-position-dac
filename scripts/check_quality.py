@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import py_compile
+import re
 import shutil
 import subprocess
 import sys
@@ -88,6 +89,22 @@ def check_data_configs() -> bool:
     return ok
 
 
+def check_version_sync() -> bool:
+    """Sprawdza spójność numeru wersji między pyproject.toml, metainfo.xml i APP_VERSION."""
+    print("\n==> Spójność wersji aplikacji")
+    pyproject = ROOT / "pyproject.toml"
+    metainfo = ROOT / "flatpak" / "pl.innovibe.DspControl.metainfo.xml"
+    match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject.read_text(encoding="utf-8"), re.MULTILINE)
+    pyproject_ver = match.group(1) if match else ""
+    release = ET.parse(metainfo).find("./releases/release")
+    metainfo_ver = (release.get("version") or "").strip() if release is not None else ""
+    if not pyproject_ver or pyproject_ver != metainfo_ver:
+        print(f"[BŁĄD] Rozbieżność wersji: pyproject.toml={pyproject_ver!r}, metainfo.xml={metainfo_ver!r}")
+        return False
+    print(f"[OK] Spójna wersja {pyproject_ver} (pyproject.toml + metainfo.xml).")
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Kontrola jakości kodu, składni i testów projektu.")
     parser.add_argument("--fix", action="store_true", help="automatycznie napraw proste błędy lintera i formatowania")
@@ -101,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.tests_only:
         results.append(check_python_syntax())
         results.append(check_data_configs())
+        results.append(check_version_sync())
 
         ruff = shutil.which("ruff")
         if ruff is None:

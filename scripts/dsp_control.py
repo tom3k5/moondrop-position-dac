@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+import xml.etree.ElementTree as ET
 from collections import Counter
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -118,7 +119,30 @@ HARMAN_TARGET = DATA_DIR / "targets/Harman in-ear 2019.csv"
 BUNDLED_CATALOG = DATA_DIR / "autoeq-catalog.json"
 BUNDLED_TARGETS_DIR = DATA_DIR / "targets"
 INNOVIBE_ICON = DATA_DIR / "innovibe.svg"
-APP_VERSION = "0.4.1"
+
+
+def _resolve_app_version() -> str:
+    """Odczytuje aktualną wersję z AppStream metainfo (źródła lub Flatpak) albo pyproject.toml."""
+    root = Path(__file__).resolve().parents[1]
+    for metainfo in (
+        root / "flatpak/pl.innovibe.DspControl.metainfo.xml",
+        Path("/app/share/metainfo/pl.innovibe.DspControl.metainfo.xml"),
+    ):
+        if metainfo.is_file():
+            with contextlib.suppress(OSError, ET.ParseError):
+                release = ET.parse(metainfo).find("./releases/release")
+                if release is not None and release.get("version"):
+                    return release.get("version", "").strip()
+    pyproject = root / "pyproject.toml"
+    if pyproject.is_file():
+        with contextlib.suppress(OSError):
+            match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject.read_text(encoding="utf-8"), re.MULTILINE)
+            if match:
+                return match.group(1)
+    return "0.4.1"
+
+
+APP_VERSION = _resolve_app_version()
 APP_STORAGE_NAME = "DSP Control"
 LEGACY_STORAGE_NAME = "MOONDROP:Gravity Position"
 SOURCE_LABELS = (
