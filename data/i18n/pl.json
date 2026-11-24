@@ -364,5 +364,9 @@
   "updates.up_to_date": "Masz najnowszą wersję ({version}).",
   "updates.error": "Nie udało się sprawdzić aktualizacji: {error}",
   "updates.open_release": "Pobierz",
-  "updates.dismiss": "Zamknij"
+  "updates.copy_flatpak_cmd": "Kopiuj komendę Flatpak",
+  "updates.flatpak_cmd_copied": "Skopiowano: flatpak update pl.innovibe.DspControl",
+  "updates.dismiss": "Zamknij",
+  "editor.reset_flat": "Wyzeruj EQ",
+  "tooltip.editor_reset_flat": "Przywróć wszystkie pasma i pre-gain do 0 dB."
 }

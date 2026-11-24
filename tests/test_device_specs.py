@@ -391,3 +391,56 @@ def test_autoeq_fit_options_and_headphone_autosync(tmp_path: Path):
         window.allow_quit = True
         window.close()
         window.deleteLater()
+
+
+def test_v05_zero_eq_and_last_profile_per_dac(tmp_path: Path):
+    _app()
+    lib = tmp_path / "profiles"
+    lib.mkdir()
+    pos_spec = device_specs.get_device_spec("moondrop-position")
+    echo_spec = device_specs.get_device_spec("moondrop-echo-a")
+    gui.save_profile(
+        str(lib / "pos-custom.json"),
+        gui.custom_profile("Pos Saved", 7, pos_spec.default_custom_bands(), -2.0, spec=pos_spec),
+    )
+    gui.save_profile(
+        str(lib / "echo-custom.json"),
+        gui.custom_profile("Echo Saved", 0, echo_spec.default_custom_bands(), -1.5, spec=echo_spec),
+    )
+
+    window = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-position")
+    try:
+        assert window.update_status_label.full_title == ""
+        # Select Pos Saved on Position, switch to ECHO-A and select Echo Saved, then switch back
+        for row in range(window.profiles.count()):
+            p = window.profiles.item(row).data(gui.PROFILE_ROLE)
+            if p is not None and p.name == "Pos Saved":
+                window.profiles.setCurrentRow(row)
+                break
+        assert gui.load_last_profile_for_model(window.settings_path, "moondrop-position") == "Pos Saved"
+
+        window.apply_device_spec(echo_spec)
+        for row in range(window.profiles.count()):
+            p = window.profiles.item(row).data(gui.PROFILE_ROLE)
+            if p is not None and p.name == "Echo Saved":
+                window.profiles.setCurrentRow(row)
+                break
+        assert gui.load_last_profile_for_model(window.settings_path, "moondrop-echo-a") == "Echo Saved"
+
+        window.apply_device_spec(pos_spec)
+        assert window.selected_profile() is not None
+        assert window.selected_profile().name == "Pos Saved"
+
+        dlg = gui.EqualizerDialog(window, window.selected_profile(), None, device_spec=pos_spec)
+        try:
+            dlg.reset_to_flat()
+            draft = dlg.draft()
+            assert draft.preamp == 0.0
+            assert all(b["gain"] == 0.0 for b in draft.bands)
+        finally:
+            dlg.close()
+            dlg.deleteLater()
+    finally:
+        window.allow_quit = True
+        window.close()
+        window.deleteLater()

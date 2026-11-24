@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.5.0" date="2026-11-24">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.5.0</url>
+      <description>
+        <p>DSP Control 0.5.0: anchors the Updates and Version bar at the bottom of the Guide tab with action-first UX, remembers the last selected profile per DAC model, adds 1-click Zero EQ in the editor, and supports copying the Flatpak update command from update notifications.</p>
+        <p xml:lang="pl">DSP Control 0.5.0: przenosi sekcję Aktualizacje i wersję na dół zakładki Przewodnik w układzie akcja → preferencja → status, zapamiętuje ostatni profil osobno dla każdego modelu DAC, dodaje szybkie Wyzeruj EQ w edytorze oraz kopiowanie komendy aktualizacji Flatpak.</p>
+      </description>
+    </release>
     <release version="0.4.3" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.4.3</url>
       <description>

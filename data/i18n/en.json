@@ -364,5 +364,9 @@
   "updates.up_to_date": "You are running the latest version ({version}).",
   "updates.error": "Update check failed: {error}",
   "updates.open_release": "Download",
-  "updates.dismiss": "Dismiss"
+  "updates.copy_flatpak_cmd": "Copy Flatpak command",
+  "updates.flatpak_cmd_copied": "Copied: flatpak update pl.innovibe.DspControl",
+  "updates.dismiss": "Dismiss",
+  "editor.reset_flat": "Zero EQ",
+  "tooltip.editor_reset_flat": "Reset all bands and pre-gain to 0 dB."
 }

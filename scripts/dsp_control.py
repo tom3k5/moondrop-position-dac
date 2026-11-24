@@ -538,6 +538,27 @@ def save_auto_update_check(settings_path: Path, enabled: bool) -> None:
     _write_settings(settings_path, data)
 
 
+def load_last_profile_for_model(settings_path: Path, model_id: str) -> str | None:
+    mapping = _read_settings(settings_path).get("last_profile_by_model")
+    if isinstance(mapping, dict):
+        name = mapping.get(model_id)
+        if isinstance(name, str) and name.strip():
+            return name
+    return None
+
+
+def save_last_profile_for_model(settings_path: Path, model_id: str, profile_name: str) -> None:
+    data = _read_settings(settings_path)
+    mapping = data.get("last_profile_by_model")
+    if not isinstance(mapping, dict):
+        mapping = {}
+    if mapping.get(model_id) == profile_name:
+        return
+    mapping[model_id] = profile_name
+    data["last_profile_by_model"] = mapping
+    _write_settings(settings_path, data)
+
+
 @dataclass(frozen=True)
 class HeadphoneSelection:
     mode: str  # "default" | "flat" | "autoeq" | "file"
@@ -2583,6 +2604,10 @@ class EqualizerDialog(QDialog):
         self.paste_btn.setToolTip(tr("tooltip.editor_paste_eq"))
         self.paste_btn.clicked.connect(lambda: self.paste_from_clipboard())
         name_row.addWidget(self.paste_btn)
+        self.reset_flat_btn = QPushButton(tr("editor.reset_flat"))
+        self.reset_flat_btn.setToolTip(tr("tooltip.editor_reset_flat"))
+        self.reset_flat_btn.clicked.connect(self.reset_to_flat)
+        name_row.addWidget(self.reset_flat_btn)
         if current is not None:
             copy = QPushButton(tr("editor.load_dac"))
             copy.setToolTip(tr("tooltip.editor_load_dac"))
@@ -2988,6 +3013,16 @@ class EqualizerDialog(QDialog):
         )
         self.set_profile(profile)
         return True
+
+    def reset_to_flat(self) -> None:
+        neutral = default_custom_bands(self.device_spec)
+        profile = replace(
+            self.draft(),
+            bands=neutral,
+            preamp=0.0,
+            source=tr("headphone.flat_short"),
+        )
+        self.set_profile(profile)
 
     def toggle_ab_bypass(self, _bypassed: bool) -> None:
         if not self.live.isChecked() or self.live_snapshot is None:
@@ -4203,6 +4238,11 @@ class ProfilesWindow(QWidget):
         self.update_open_btn.setStyleSheet(PRIMARY_ACTION_STYLE)
         self.update_open_btn.clicked.connect(self.open_update_release)
         banner_layout.addWidget(self.update_open_btn)
+        self.update_copy_cmd_btn = QPushButton(tr("updates.copy_flatpak_cmd"))
+        self.update_copy_cmd_btn.setToolTip("flatpak update pl.innovibe.DspControl")
+        self.update_copy_cmd_btn.setVisible(Path("/.flatpak-info").exists())
+        self.update_copy_cmd_btn.clicked.connect(self.copy_flatpak_update_command)
+        banner_layout.addWidget(self.update_copy_cmd_btn)
         self.update_dismiss_btn = QPushButton(tr("updates.dismiss"))
         self.update_dismiss_btn.clicked.connect(lambda: self.update_banner.setVisible(False))
         banner_layout.addWidget(self.update_dismiss_btn)
@@ -4745,28 +4785,29 @@ class ProfilesWindow(QWidget):
 
         self.guide_updates_box = QGroupBox(tr("updates.group"))
         updates_row = QHBoxLayout(self.guide_updates_box)
+        updates_row.setSpacing(12)
+        self.check_update_btn = QPushButton(tr("updates.check_now"))
+        self.check_update_btn.clicked.connect(lambda: self.check_for_updates(manual=True))
+        updates_row.addWidget(self.check_update_btn)
         self.auto_update_check = QCheckBox(tr("updates.auto_check"))
         self.auto_update_check.setChecked(load_auto_update_check(self.settings_path))
         self.auto_update_check.toggled.connect(self._toggle_auto_update_check)
         updates_row.addWidget(self.auto_update_check)
-        self.check_update_btn = QPushButton(tr("updates.check_now"))
-        self.check_update_btn.clicked.connect(lambda: self.check_for_updates(manual=True))
-        updates_row.addWidget(self.check_update_btn)
         self.update_status_label = ElidingLabel()
-        self.update_status_label.set_title(tr("updates.idle", version=APP_VERSION), wrap=False)
+        self.update_status_label.set_title("", wrap=False)
         updates_row.addWidget(self.update_status_label, 1)
+        self.guide_version_label = QLabel(tr("help.version", version=APP_VERSION))
+        self.guide_version_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.guide_version_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.guide_version_label.setStyleSheet("color: palette(placeholder-text);")
+        updates_row.addWidget(self.guide_version_label)
 
         guide_layout.addWidget(self.why_box)
         guide_layout.addWidget(self.guide_tips_box)
-        guide_layout.addWidget(self.guide_updates_box)
         guide_layout.addWidget(self.links_box)
         guide_layout.addWidget(self.guide_support_box)
         guide_layout.addStretch()
-        self.guide_version_label = QLabel(tr("help.version", version=APP_VERSION))
-        self.guide_version_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.guide_version_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
-        self.guide_version_label.setStyleSheet("color: palette(placeholder-text);")
-        guide_layout.addWidget(self.guide_version_label, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        guide_layout.addWidget(self.guide_updates_box)
         self.tabs.addTab(scroll_content(guide_page), tr("tab.guide"))
         self.search_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
         self.search_shortcut.activated.connect(self.focus_search)
@@ -4833,6 +4874,8 @@ class ProfilesWindow(QWidget):
         self.global_gain_button.clicked.connect(self.edit_global_gain)
         self.mic_gain_button.clicked.connect(self.edit_mic_gain)
         self.defaults_button.clicked.connect(self.confirm_defaults)
+        self._restore_last_profile(self.active_spec.model_id)
+        self._ui_ready = True
         if not self.demo and load_auto_update_check(self.settings_path):
             QTimer.singleShot(1500, lambda: self.check_for_updates(manual=False))
         self.apply_rate_button.clicked.connect(self.apply_playback_rate)
@@ -5239,14 +5282,36 @@ class ProfilesWindow(QWidget):
         self.resolved_headphone_path = None
         self.factory_profile = self._default_factory_profile(spec)
         self.refresh_headphone_ui()
-        initial = self.rebuild_builtin_profiles(spec)
-        self.autoeq_panel.sync_device_spec(spec)
-        self.filter_profiles(self.profile_search.text())
-        current = self.profiles.currentItem()
-        if (current is None or current.isHidden()) and initial is not None:
-            self.profiles.setCurrentItem(initial)
+        self._restoring_last_profile = True
+        try:
+            initial = self.rebuild_builtin_profiles(spec)
+            self.autoeq_panel.sync_device_spec(spec)
+            self.filter_profiles(self.profile_search.text())
+            self._restore_last_profile(spec.model_id)
+            current = self.profiles.currentItem()
+            if (current is None or current.isHidden()) and initial is not None:
+                self.profiles.setCurrentItem(initial)
+        finally:
+            self._restoring_last_profile = False
         self._apply_active_measurement_curve()
         self.update_selection()
+
+    def _restore_last_profile(self, model_id: str) -> None:
+        last_name = load_last_profile_for_model(self.settings_path, model_id)
+        if not last_name:
+            return
+        for row in range(self.profiles.count()):
+            item = self.profiles.item(row)
+            if item.isHidden():
+                continue
+            prof = item.data(PROFILE_ROLE)
+            if prof is not None and prof.name == last_name:
+                self._restoring_last_profile = True
+                try:
+                    self.profiles.setCurrentItem(item)
+                finally:
+                    self._restoring_last_profile = False
+                return
 
     def filter_profiles(self, query: str) -> None:
         words = query.casefold().split()
@@ -5363,6 +5428,12 @@ class ProfilesWindow(QWidget):
         if self.latest_release_url:
             self.open_external_url(self.latest_release_url)
 
+    def copy_flatpak_update_command(self) -> None:
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText("flatpak update pl.innovibe.DspControl")
+        self.feedback.setText(tr("updates.flatpak_cmd_copied"))
+
     def check_for_updates(self, *, manual: bool = True) -> None:
         if self.update_job is not None:
             return
@@ -5463,9 +5534,8 @@ class ProfilesWindow(QWidget):
         self.auto_update_check.setText(tr("updates.auto_check"))
         self.check_update_btn.setText(tr("updates.check_now"))
         self.update_open_btn.setText(tr("updates.open_release"))
+        self.update_copy_cmd_btn.setText(tr("updates.copy_flatpak_cmd"))
         self.update_dismiss_btn.setText(tr("updates.dismiss"))
-        if not self.latest_release_url:
-            self.update_status_label.set_title(tr("updates.idle", version=APP_VERSION), wrap=False)
         self.guide_support_box.setTitle(tr("help.support_group"))
         self.guide_support_text.setText(tr("help.support_body"))
         self.guide_hub_btn.setText(tr("help.open_hub"))
@@ -5736,6 +5806,8 @@ class ProfilesWindow(QWidget):
                     self._sync_headphone_from_profile(profile)
                 finally:
                     self._syncing_headphone = False
+            if getattr(self, "_ui_ready", False) and not getattr(self, "_restoring_last_profile", False):
+                save_last_profile_for_model(self.settings_path, self.active_spec.model_id, profile.name)
         shown = panel.result if using_catalog else profile
         self.apply_error = ""
         self.apply_notice = ""
