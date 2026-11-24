@@ -11,7 +11,9 @@
 
 [Najważniejsze możliwości](#najważniejsze-możliwości) · [Szybki start](#szybki-start) · [Obsługiwany sprzęt](#obsługiwany-sprzęt) · [Zrzuty ekranu](#zrzuty-ekranu) · [vs Web Hub](#dsp-control-vs-oficjalny-web-hub) · [Dokumentacja](#dokumentacja-techniczna) · [Wsparcie](#wsparcie-dla-projektu)
 
-![Panel Strojenia DSP Control z porównaniem Profilu A i Profilu B](docs/screenshots/pl/01-tuning-profiles.png)
+<p align="center">
+  <img src="docs/screenshots/pl/01-tuning-profiles.png" alt="Panel Strojenia DSP Control z porównaniem Profilu A i Profilu B">
+</p>
 
 ---
 
@@ -105,7 +107,9 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 <details>
 <summary>Strojenie w małym oknie (640×620)</summary>
 
-![Kompaktowe Strojenie z przełącznikiem charakterystyki i korekcji EQ](docs/screenshots/pl/06-tuning-compact.png)
+<p align="center">
+  <img src="docs/screenshots/pl/06-tuning-compact.png" alt="Kompaktowe Strojenie z przełącznikiem charakterystyki i korekcji EQ">
+</p>
 
 </details>
 
@@ -114,26 +118,34 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 ### 2. Wbudowany katalog AutoEq (ponad 6800 modeli)
 Filtruj tysiące pomiarów według **Źródła**, **Typu słuchawek** i **Zakresu obliczeń** (`20 Hz–20 kHz` lub `6 / 4 / 2 kHz`), dostrój **Bas**, **Tilt** lub **Tylko PK** przed obliczeniem albo przeciągnij na okno własną krzywą `.csv` / `.txt`.
 
-![Katalog AutoEq](docs/screenshots/pl/02-autoeq-catalog.png)
+<p align="center">
+  <img src="docs/screenshots/pl/02-autoeq-catalog.png" alt="Katalog AutoEq">
+</p>
 
 <br>
 
 ### 3. Edytor EQ, Szybka korekta barwy i odsłuch A/B
 Przeciągaj punkty bezpośrednio na wykresie **Korekcja EQ**, zmieniaj Q kółkiem myszy, wyciszaj (`Wł.`) lub tymczasowo podsłuchuj (`S`) wybrane pasma i kształtuj brzmienie w sekcji **Szybka korekta barwy** (**Bas → Średnica → Góra → Tilt**). Przy podłączonym DAC-u **Odsłuch na żywo** pozwala porównywać przez **A/B** z **Flat**, **Stanem wyjściowym** lub **Profilem B** i bezpiecznie przywraca stan po anulowaniu.
 
-![Edytor EQ](docs/screenshots/pl/04-eq-editor.png)
+<p align="center">
+  <img src="docs/screenshots/pl/04-eq-editor.png" alt="Edytor EQ">
+</p>
 
 <br>
 
 ### 4. Stan urządzenia, wzmocnienie i jakość PipeWire UAC2
 Podglądaj aktywny strumień ALSA, ustawiaj **Próbkowanie PipeWire** (`44,1–384 kHz`), eksportuj/przywracaj kopie zapasowe oraz przełączaj motywy (**InnoVibe Ciemny / Jasny**) i języki (**PL / EN**).
 
-![Ustawienia urządzenia z pełną etykietą Automatyczna (PipeWire)](docs/screenshots/pl/03-device-settings.png)
+<p align="center">
+  <img src="docs/screenshots/pl/03-device-settings.png" alt="Ustawienia urządzenia z pełną etykietą Automatyczna (PipeWire)">
+</p>
 
 <details>
 <summary>Urządzenie w małym oknie</summary>
 
-![Kompaktowy widok Urządzenia z pełną etykietą próbkowania i przyciskami Zastosuj oraz Odśwież](docs/screenshots/pl/07-device-compact.png)
+<p align="center">
+  <img src="docs/screenshots/pl/07-device-compact.png" alt="Kompaktowy widok Urządzenia z pełną etykietą próbkowania i przyciskami Zastosuj oraz Odśwież">
+</p>
 
 </details>
 
@@ -142,7 +154,9 @@ Podglądaj aktywny strumień ALSA, ustawiaj **Próbkowanie PipeWire** (`44,1–3
 ### 5. Wbudowany Przewodnik, aktualizacje i diagnostyka
 Instrukcje wewnątrz aplikacji, skróty klawiszowe (`Ctrl+F`, `Ctrl+O`, `Ctrl+Q`), kopiowanie diagnostyki jednym kliknięciem oraz sprawdzanie aktualizacji z kopiowaniem komendy Flatpak.
 
-![Zakładka Przewodnik](docs/screenshots/pl/05-guide-tab.png)
+<p align="center">
+  <img src="docs/screenshots/pl/05-guide-tab.png" alt="Zakładka Przewodnik">
+</p>
 
 ---
 

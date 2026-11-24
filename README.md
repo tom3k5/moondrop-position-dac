@@ -11,7 +11,9 @@
 
 [Key Features](#key-features) · [Quick Start](#quick-start) · [Supported Hardware](#supported-hardware) · [Screenshots](#screenshots) · [vs Web Hub](#dsp-control-vs-official-web-hub) · [Docs](#technical-documentation) · [Support](#support-the-project)
 
-![DSP Control Tuning panel with Profile A vs Profile B comparison](docs/screenshots/01-tuning-profiles.png)
+<p align="center">
+  <img src="docs/screenshots/01-tuning-profiles.png" alt="DSP Control Tuning panel with Profile A vs Profile B comparison">
+</p>
 
 ---
 
@@ -105,7 +107,9 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 <details>
 <summary>Compact Tuning view (640×620)</summary>
 
-![Compact Tuning with a switch between frequency response and EQ correction](docs/screenshots/06-tuning-compact.png)
+<p align="center">
+  <img src="docs/screenshots/06-tuning-compact.png" alt="Compact Tuning with a switch between frequency response and EQ correction">
+</p>
 
 </details>
 
@@ -114,26 +118,34 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 ### 2. Built-in AutoEq Catalog (6,800+ Models)
 Filter thousands of IEM and over-ear measurements by **Source**, **Headphone type**, and **Fit range** (`20 Hz–20 kHz` or `6 / 4 / 2 kHz`), tweak **Bass**, **Tilt**, or **PK only** before computing, or drop your own `.csv` / `.txt` curve onto the window.
 
-![AutoEq Catalog](docs/screenshots/02-autoeq-catalog.png)
+<p align="center">
+  <img src="docs/screenshots/02-autoeq-catalog.png" alt="AutoEq Catalog">
+</p>
 
 <br>
 
 ### 3. Parametric EQ Editor, Quick Tone Shaping & Live A/B
 Drag handles directly on the **EQ correction** plot, scroll to adjust Q, mute (`On`) or temporarily `Solo` (`S`) individual bands, and shape overall tone in the **Quick tone shaping** row (**Bass → Mids → Treble → Tilt**). With a DAC connected, **Live preview** lets you compare against **Flat**, **Initial**, or **Profile B** via **A/B** and safely restores your previous settings if canceled.
 
-![EQ Editor](docs/screenshots/04-eq-editor.png)
+<p align="center">
+  <img src="docs/screenshots/04-eq-editor.png" alt="EQ Editor">
+</p>
 
 <br>
 
 ### 4. Device Status, Gains & PipeWire UAC2 Quality
 Inspect active ALSA bit depth, set session-wide **PipeWire sample rate** (`44.1–384 kHz`), export/restore DAC backups, and switch between **InnoVibe Dark / Light** themes and **EN / PL** languages.
 
-![Device settings with the full Automatic (PipeWire) label](docs/screenshots/03-device-settings.png)
+<p align="center">
+  <img src="docs/screenshots/03-device-settings.png" alt="Device settings with the full Automatic (PipeWire) label">
+</p>
 
 <details>
 <summary>Compact Device view</summary>
 
-![Compact Device view with the full sample-rate label and its Apply and Refresh buttons](docs/screenshots/07-device-compact.png)
+<p align="center">
+  <img src="docs/screenshots/07-device-compact.png" alt="Compact Device view with the full sample-rate label and its Apply and Refresh buttons">
+</p>
 
 </details>
 
@@ -142,7 +154,9 @@ Inspect active ALSA bit depth, set session-wide **PipeWire sample rate** (`44.1�
 ### 5. Built-in Guide, Updates & Diagnostics
 In-app walkthroughs, keyboard shortcuts (`Ctrl+F`, `Ctrl+O`, `Ctrl+Q`), 1-click diagnostic copy, and update checks with 1-click Flatpak update command copy.
 
-![Guide Tab](docs/screenshots/05-guide-tab.png)
+<p align="center">
+  <img src="docs/screenshots/05-guide-tab.png" alt="Guide Tab">
+</p>
 
 ---
 
