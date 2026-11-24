@@ -2680,8 +2680,8 @@ class EqualizerDialog(QDialog):
         self.compare_profile = compare_profile
         self.setWindowTitle(tr("editor.title"))
         self.setStyleSheet(APP_STYLE)
-        self.setMinimumSize(625, 460)
-        size_to_screen(self, 900, 850)
+        self.setMinimumSize(625, 480)
+        size_to_screen(self, 960, 920)
         self.result_profile = None
         self.result_apply = False
         self.device_window = parent
@@ -2881,63 +2881,42 @@ class EqualizerDialog(QDialog):
         self.live_timer.timeout.connect(self.send_live)
         self.preamp.valueChanged.connect(lambda: self.plot_timer.start())
 
-        self.macro_panel = QFrame()
+        self.macro_panel = QGroupBox(tr("editor.macro_toggle"))
         self.macro_panel.setObjectName("macroCard")
-        self.macro_panel.setStyleSheet(
-            "QFrame#macroCard {"
-            " border: 1px solid palette(mid);"
-            " border-radius: 6px;"
-            " background: palette(alternate-base);"
-            "}"
-            "QFrame#macroCard QDoubleSpinBox { padding: 2px 6px; }"
-        )
-        self.macro_panel.setVisible(False)
-        macro_grid = QGridLayout(self.macro_panel)
-        macro_grid.setContentsMargins(10, 8, 10, 8)
-        macro_grid.setHorizontalSpacing(8)
-        macro_grid.setVerticalSpacing(6)
+        self.macro_panel.setStyleSheet("QGroupBox#macroCard QDoubleSpinBox { padding: 2px 6px; }")
+        macro_vbox = QVBoxLayout(self.macro_panel)
+        macro_vbox.setContentsMargins(10, 6, 10, 8)
+        macro_vbox.setSpacing(6)
+        macro_row = QHBoxLayout()
+        macro_row.setContentsMargins(0, 0, 0, 0)
+        macro_row.setSpacing(8)
         self.macro_controls: dict[str, QDoubleSpinBox] = {}
-        for idx, (key, label_key, m_min, m_max, m_step, suffix) in enumerate(
-            (
-                ("bass", "editor.macro_bass", -6.0, 6.0, 0.5, " dB"),
-                ("mid", "editor.macro_mid", -6.0, 6.0, 0.5, " dB"),
-                ("treble", "editor.macro_treble", -6.0, 6.0, 0.5, " dB"),
-                ("tilt", "editor.macro_tilt", -3.0, 3.0, 0.1, " dB/oct"),
-            )
+        for key, label_key, m_min, m_max, m_step, suffix, width in (
+            ("bass", "editor.macro_bass", -6.0, 6.0, 0.5, " dB", 84),
+            ("mid", "editor.macro_mid", -6.0, 6.0, 0.5, " dB", 84),
+            ("treble", "editor.macro_treble", -6.0, 6.0, 0.5, " dB", 84),
+            ("tilt", "editor.macro_tilt", -3.0, 3.0, 0.1, " dB/oct", 96),
         ):
-            r, c = divmod(idx, 2)
             lbl = QLabel(tr(label_key))
             spin = self.decimal(m_min, m_max, m_step)
             spin.setDecimals(1)
             spin.setSuffix(suffix)
-            spin.setFixedWidth(108)
+            spin.setFixedWidth(width)
             spin.setValue(0.0)
             spin.valueChanged.connect(self._on_macro_changed)
-            macro_grid.addWidget(lbl, r, c * 2)
-            macro_grid.addWidget(spin, r, c * 2 + 1)
+            macro_row.addWidget(lbl)
+            macro_row.addWidget(spin)
             self.macro_controls[key] = spin
-        macro_grid.setColumnStretch(4, 1)
-        macro_btns = QVBoxLayout()
-        macro_btns.setContentsMargins(0, 0, 0, 0)
-        macro_btns.setSpacing(6)
-        self.apply_macro_btn = QPushButton(tr("editor.macro_apply"))
+        macro_row.addStretch(1)
+        macro_vbox.addLayout(macro_row)
+        macro_btns = QDialogButtonBox()
+        self.apply_macro_btn = macro_btns.addButton(tr("editor.macro_apply"), QDialogButtonBox.ButtonRole.ApplyRole)
         self.apply_macro_btn.clicked.connect(self.apply_macro)
-        self.revert_macro_btn = QPushButton(tr("editor.macro_revert"))
+        self.revert_macro_btn = macro_btns.addButton(tr("editor.macro_revert"), QDialogButtonBox.ButtonRole.RejectRole)
         self.revert_macro_btn.clicked.connect(self.revert_macro)
-        macro_btns.addWidget(self.apply_macro_btn)
-        macro_btns.addWidget(self.revert_macro_btn)
-        macro_grid.addLayout(macro_btns, 0, 5, 2, 1)
-
-        self.macro_toggle = QToolButton()
-        self.macro_toggle.setText(tr("editor.macro_toggle"))
-        self.macro_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.macro_toggle.setArrowType(Qt.ArrowType.RightArrow)
-        self.macro_toggle.setCheckable(True)
-        self.macro_toggle.toggled.connect(self.macro_panel.setVisible)
-        self.macro_toggle.toggled.connect(
-            lambda open_: self.macro_toggle.setArrowType(Qt.ArrowType.DownArrow if open_ else Qt.ArrowType.RightArrow)
-        )
-        layout.addWidget(self.macro_toggle)
+        for button in macro_btns.buttons():
+            button.setAutoDefault(False)
+        macro_vbox.addWidget(macro_btns)
         layout.addWidget(self.macro_panel)
 
         bands_panel = QWidget()

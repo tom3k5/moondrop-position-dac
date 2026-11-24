@@ -171,10 +171,7 @@ def test_editor_mute_solo_ab_targets_and_macro_panel(tmp_path: Path, monkeypatch
             dialog.ab_bypass.setChecked(False)
             app.processEvents()
 
-            # Macro panel toggle, slider change, revert, apply
-            assert not dialog.macro_panel.isVisible()
-            dialog.macro_toggle.setChecked(True)
-            app.processEvents()
+            # Macro panel always visible, slider change, revert, apply
             assert dialog.macro_panel.isVisible()
             before_band1 = dialog.rows[0][2].value()
             dialog.macro_controls["bass"].setValue(2.0)
