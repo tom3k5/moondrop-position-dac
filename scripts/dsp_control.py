@@ -3133,13 +3133,13 @@ class HeadphonePickerDialog(QDialog):
     def refresh_list(self) -> None:
         selected_source = self.source_filter.currentData() or ""
         form = self.form_filter.currentData() or "all"
-        words = self.search.text().casefold().split()
+        words = re.sub(r"[-_/]+", " ", self.search.text().casefold()).split()
         matching = [
             entry
             for entry in self.model_entries
             if (not selected_source or catalog.measurement_source(entry) == selected_source)
             and (form == "all" or catalog.headphone_form(entry) == form)
-            and all(word in f"{entry.name} {entry.source}".casefold() for word in words)
+            and all(word in re.sub(r"[-_/]+", " ", f"{entry.name} {entry.source}".casefold()) for word in words)
         ]
         self.list_model.set_entries(matching)
         if matching:
@@ -4306,7 +4306,8 @@ class ProfilesWindow(QWidget):
         self.headphone_combo = QComboBox()
         self.headphone_combo.setAccessibleName(tr("headphone.label"))
         self.headphone_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.headphone_combo.setMinimumContentsLength(14)
+        self.headphone_combo.setMinimumContentsLength(4)
+        self.headphone_combo.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.headphone_combo.currentIndexChanged.connect(self.on_headphone_combo_changed)
         self.headphone_choose_btn = QPushButton(tr("headphone.change"))
         self.headphone_choose_btn.clicked.connect(self.choose_headphones)

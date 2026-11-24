@@ -29,8 +29,9 @@ def test_all_device_specs_load_and_match_hardware_capabilities():
 
     pos = specs["moondrop-position"]
     assert pos.form_factor == "integrated_iem"
-    assert pos.headphone_attachment == "integrated"
-    assert pos.allows_headphone_selection is False
+    assert pos.headphone_attachment == "detachable"
+    assert pos.allows_headphone_selection is True
+    assert pos.has_default_headphone is True
     assert pos.dsp.band_count == 8
     assert pos.dsp.sample_rate_hz == 96000.0
     assert pos.dsp.slots.factory == 0
@@ -159,8 +160,9 @@ def test_headphone_selection_mvp_for_integrated_detachable_and_standalone(tmp_pa
 
     window = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-position")
     try:
-        # 1. Integrated (Position): headphone bar is hidden
-        assert window.headphone_bar.isVisibleTo(window) is False
+        # 1. Detachable (Position): headphone bar is visible, defaults to Position curve
+        assert window.headphone_bar.isVisibleTo(window) is True
+        assert window.headphone_selection.mode == "default"
         assert window.response_section.isVisibleTo(window) is True
 
         # 2. Detachable (CHU II DSP): headphone bar visible, defaults to CHU II, Flat hides acoustic section
@@ -217,10 +219,15 @@ def test_headphone_selection_mvp_for_integrated_detachable_and_standalone(tmp_pa
         assert len(window.preview_plot.factory_points) == 3
         assert window.active_headphone_name() == "Sennheiser HD 600"
 
-        # Picker dialog filters model entries and supports Flat button
+        # Picker dialog filters model entries (including hyphenated queries like "kz-zsn pro x") and supports Flat
         picker = gui.HeadphonePickerDialog(window, echo_spec, window.autoeq_panel.entries)
         try:
             assert picker.list_model.rowCount() > 0
+            picker.search.setText("kz-zsn pro x")
+            assert picker.list_model.rowCount() >= 1
+            first_entry = picker.list_model.index(0, 0).data(gui.PROFILE_ROLE)
+            assert first_entry is not None
+            assert "KZ ZSN Pro X" in first_entry.name
             picker.pick_flat()
             assert picker.selected_headphone == gui.HeadphoneSelection(mode="flat")
         finally:
