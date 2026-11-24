@@ -23,8 +23,8 @@
     <release version="0.5.0" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.5.0</url>
       <description>
-        <p>DSP Control 0.5.0: anchors the Updates and Version bar at the bottom of the Guide tab with action-first UX, remembers the last selected profile per DAC model, adds 1-click Zero EQ in the editor, and supports copying the Flatpak update command from update notifications.</p>
-        <p xml:lang="pl">DSP Control 0.5.0: przenosi sekcję Aktualizacje i wersję na dół zakładki Przewodnik w układzie akcja → preferencja → status, zapamiętuje ostatni profil osobno dla każdego modelu DAC, dodaje szybkie Wyzeruj EQ w edytorze oraz kopiowanie komendy aktualizacji Flatpak.</p>
+        <p>DSP Control 0.5.0: action-first Updates and Version footer in the Guide tab with opt-in startup release checks and 1-click Flatpak update command copy, Bass boost / Tilt / PK-only AutoEq controls, Equalizer APO / Squiglink clipboard paste and 1-click Zero EQ in the editor, live A/B Bypass auditioning, per-DAC last profile memory, and automatic headphone synchronization for saved setups.</p>
+        <p xml:lang="pl">DSP Control 0.5.0: stopka Aktualizacje i wersja na dole Przewodnika z opcjonalnym sprawdzaniem przy starcie i kopiowaniem komendy aktualizacji Flatpak, kontrolki AutoEq Bas / Tilt / Tylko PK, wklejanie Equalizer APO / Squiglink ze schowka i 1-klikowe Wyzeruj EQ w edytorze, odsłuch A/B Bypass, pamięć ostatniego profilu per DAC oraz automatyczna synchronizacja słuchawek dla zapisanych konfiguracji.</p>
       </description>
     </release>
     <release version="0.4.3" date="2026-11-24">

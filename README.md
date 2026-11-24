@@ -103,15 +103,15 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 | Feature | Official Web Hub | DSP Control |
 |---|---|---|
 | Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | `PK / LP / HP` only (shelves disabled on Position) | **Unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), native USB HID `0x4B`, offline** |
-| Interactive EQ Curve & Headroom | Sliders only | **Drag points on plot (Freq / Gain / Wheel Q) + Auto Headroom & Clip Check** |
+| Interactive EQ Curve & Headroom | Sliders only | **Drag points on plot (Freq / Gain / Wheel Q) + Auto Headroom & 1-click Zero EQ** |
 | Live Auditioning | Yes | **Yes, auto-enabled + `A/B: Bypass` flat compare + safe restore** |
 | Built-in AutoEq Optimizer | Basic presets | **6,800+ offline index + Bass boost / Tilt / PK-only + fit range + Drag & Drop** |
 | Live DSP Comparison & Interactive Legend | No | **Compare against Current in DSP on both plots, toggle/solo pills, `Hz / dB / Δ dB`** |
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
-| Local Library vs DAC Flash | Limited | **Full local library, headphone auto-sync, Drag & Drop, JSON & Equalizer APO paste/import/export** |
+| Local Library vs DAC Flash | Limited | **Full local library, per-DAC last profile & headphone auto-sync, Equalizer APO paste/import/export** |
 | PipeWire UAC2 Monitor & Sample Rate | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
 | Readback Verification & Diagnostics | Basic | **Pre/post-flash verification, 1-click Restore previous, rootless `--diagnose`** |
-| Themes, Language, Guide & Updates | Web only | **InnoVibe Dark & Light, EN / PL, built-in Guide, opt-in release update check** |
+| Themes, Language, Guide & Updates | Web only | **InnoVibe Dark & Light, EN / PL, Guide footer with update check & Flatpak command copy** |
 
 ---
 
