@@ -458,10 +458,10 @@ def test_app_version_matches_release_metadata_and_translates(tmp_path: Path) -> 
         window.show()
         window.tabs.setCurrentIndex(2)
         QTest.qWait(40)
-        assert (
-            window.guide_version_label.geometry().bottom() == window.guide_version_label.parentWidget().rect().bottom()
-        )
-        assert window.guide_version_label.geometry().right() == window.guide_version_label.parentWidget().rect().right()
+        assert window.guide_updates_box.geometry().bottom() == window.guide_updates_box.parentWidget().rect().bottom()
+        assert window.check_update_btn.x() < window.auto_update_check.x() < window.guide_version_label.x()
+        assert window.guide_updates_box.geometry().right() == window.guide_updates_box.parentWidget().rect().right()
+        assert window.guide_version_label.geometry().right() > window.auto_update_check.geometry().right()
         window.language_combo.setCurrentIndex(window.language_combo.findData("pl"))
         QTest.qWait(30)
         assert window.guide_version_label.text() == f"Wersja {gui.APP_VERSION} · Licencja MIT"
