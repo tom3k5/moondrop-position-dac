@@ -103,12 +103,12 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 | Funkcja | Oficjalny Web Hub | DSP Control |
 |---|---|---|
 | EQ parametryczny (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | Tylko `PK / LP / HP` (półki wyłączone na Position) | **Odblokowuje `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), natywny USB HID `0x4B`, offline** |
-| Interaktywny wykres EQ i zapas do przesteru | Tylko suwaki | **Przeciąganie punktów na wykresie (Hz/dB/kółko Q) + auto pre-gain + Wyzeruj EQ** |
-| Odsłuch na żywo (`Live preview`) | Tak | **Tak — auto-odsłuch + `A/B: Bypass` (płaski 0 dB) + bezpieczne przywracanie** |
+| Interaktywny wykres EQ i zapas do przesteru | Tylko suwaki | **Przeciąganie punktów na wykresie (Hz/dB/kółko Q), Mute/Solo pasm, szybkie Makro barwy (`Bas / Średnica / Góra / Tilt`), auto pre-gain + Wyzeruj EQ** |
+| Odsłuch na żywo (`Live preview`) | Tak | **Tak — auto-odsłuch + wybór celu `A/B` (`Flat 0 dB` / `Stan wyjściowy` / `Profil B`) + bezpieczne przywracanie** |
 | Wbudowany optymalizator AutoEq | Podstawowe presety | **Indeks 6800+ offline + Bas / Tilt / Tylko PK + zakres + Drag & Drop** |
-| Porównanie z obecnym DSP i interaktywna legenda | Nie | **Krzywa `Obecnie w DSP` na obu wykresach, ukrywanie/solo pigułek, `Hz / dB / Δ dB`** |
+| Porównanie z obecnym DSP i Profilem B | Nie | **Krzywa `Obecnie w DSP` lub dowolny `Profil B` na obu wykresach, ukrywanie/solo pigułek, `Hz / dB / Δ dB`** |
 | Wzmocnienie wyjścia (`-18…0 dB`) i mikrofonu | Tak | **Tak, z opcjonalnym zapisem w profilu** |
-| Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka, pamięć profilu per DAC, auto-sync słuchawek, wklejanie/import Equalizer APO** |
+| Biblioteka lokalna vs flash DAC-a | Ograniczone | **Pełna biblioteka, eksport/import paczek `.zip` (również Drag & Drop), pamięć profilu per DAC, auto-sync słuchawek, wklejanie/import Equalizer APO** |
 | Monitor strumienia UAC2 i próbkowania PipeWire | Nie | **Tak (`44,1–384 kHz` + odczyt głębi bitowej ALSA)** |
 | Weryfikacja zapisu i diagnostyka | Podstawowa | **Weryfikacja przed/po zapisie flash, Przywróć poprzedni, bezrootowy `--diagnose`** |
 | Motywy, język, Przewodnik i aktualizacje | Tylko web | **Motywy InnoVibe Ciemny i Jasny, PL / EN, stopka aktualizacji i kopiowanie komendy Flatpak** |
@@ -118,7 +118,7 @@ Manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) używa `
 ## Zrzuty ekranu
 
 ### 1. Strojenie i podgląd charakterystyki
-**Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (po zapisie przycisk zamienia się w **Przywróć poprzedni**). **Charakterystyka słuchawek** porównuje krzywą **Fabryczną (B&K 5128)**, **Cel**, **Przewidywany wynik** oraz **Obecnie w DSP**, a **Korekcja EQ** pokazuje odpowiedź filtrów przy `96 kHz`.
+**Wybrany profil** i **Aktywny w DAC-u** są wyraźnie rozdzielone, dopóki nie klikniesz **Wgraj do DAC-a** (po zapisie przycisk zamienia się w **Przywróć poprzedni**). **Charakterystyka słuchawek** porównuje krzywą **Fabryczną (B&K 5128)**, **Cel**, **Przewidywany wynik** oraz **Obecnie w DSP** (lub dowolny **Profil B** wybrany z paska **Porównaj (B)** albo z menu kontekstowego listy), a **Korekcja EQ** pokazuje odpowiedź filtrów przy `96 kHz`. Przez **Dodaj ▾ / Więcej ▾** (lub przeciągnięcie pliku `.zip`) wyeksportujesz i zaimportujesz całą bibliotekę profili.
 
 <details>
 <summary>Strojenie w małym oknie (640×620)</summary>
@@ -137,7 +137,7 @@ Filtruj tysiące pomiarów według **Źródła**, **Typu słuchawek** i **Zakres
 <br>
 
 ### 3. Edytor EQ i odsłuch na żywo
-Przeciągaj punkty bezpośrednio na wykresie **Korekcja EQ**, zmieniaj Q kółkiem myszy i użyj **Ustaw automatycznie** do doboru pre-gainu. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie i bezpiecznie przywraca stan po anulowaniu.
+Przeciągaj punkty bezpośrednio na wykresie **Korekcja EQ**, zmieniaj Q kółkiem myszy, wyciszaj (`Wł.`) lub tymczasowo podsłuchuj (`S`) wybrane pasma, kształtuj brzmienie w zwijanym panelu **Szybka korekta barwy (Makro)** (`Bas / Średnica / Góra / Tilt`) i użyj **Ustaw automatycznie** do doboru pre-gainu. Przy podłączonym DAC-u **Odsłuch na żywo** uruchamia się automatycznie, pozwala porównywać przez **A/B** z **Flat**, **Stanem wyjściowym** lub **Profilem B** i bezpiecznie przywraca stan po anulowaniu.
 
 ![Edytor EQ](docs/screenshots/pl/04-eq-editor.png)
 

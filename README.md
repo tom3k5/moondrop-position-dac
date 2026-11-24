@@ -103,12 +103,12 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 | Feature | Official Web Hub | DSP Control |
 |---|---|---|
 | Parametric EQ (`PK / LSQ / HSQ / LP / HP`) + Pre-gain | `PK / LP / HP` only (shelves disabled on Position) | **Unlocks `LSQ / HSQ` (`1× LSQ + 1× HSQ + 6× PK`), native USB HID `0x4B`, offline** |
-| Interactive EQ Curve & Headroom | Sliders only | **Drag points on plot (Freq / Gain / Wheel Q) + Auto Headroom & 1-click Zero EQ** |
-| Live Auditioning | Yes | **Yes, auto-enabled + `A/B: Bypass` flat compare + safe restore** |
+| Interactive EQ Curve & Headroom | Sliders only | **Drag points on plot (Freq / Gain / Wheel Q), band Mute/Solo, Quick Macro tone shaping (`Bass / Mids / Treble / Tilt`), Auto Headroom & 1-click Zero EQ** |
+| Live Auditioning | Yes | **Yes, auto-enabled + `A/B` target selector (`Flat 0 dB` / `Initial` / `Profile B`) + safe restore** |
 | Built-in AutoEq Optimizer | Basic presets | **6,800+ offline index + Bass boost / Tilt / PK-only + fit range + Drag & Drop** |
-| Live DSP Comparison & Interactive Legend | No | **Compare against Current in DSP on both plots, toggle/solo pills, `Hz / dB / Δ dB`** |
+| Live DSP & Profile Comparison | No | **Compare against Current in DSP or any Profile B on both plots, toggle/solo pills, `Hz / dB / Δ dB`** |
 | Output Gain (`-18…0 dB`) & Mic Gain | Yes | **Yes, optional per-profile bundling** |
-| Local Library vs DAC Flash | Limited | **Full local library, per-DAC last profile & headphone auto-sync, Equalizer APO paste/import/export** |
+| Local Library vs DAC Flash | Limited | **Full local library, `.zip` bundle export/import (with Drag & Drop), per-DAC last profile & headphone auto-sync, Equalizer APO paste/import/export** |
 | PipeWire UAC2 Monitor & Sample Rate | No | **Yes (`44.1–384 kHz` + ALSA bit-depth readout)** |
 | Readback Verification & Diagnostics | Basic | **Pre/post-flash verification, 1-click Restore previous, rootless `--diagnose`** |
 | Themes, Language, Guide & Updates | Web only | **InnoVibe Dark & Light, EN / PL, Guide footer with update check & Flatpak command copy** |
@@ -118,7 +118,7 @@ The manifest ([`pl.innovibe.DspControl.json`](pl.innovibe.DspControl.json)) requ
 ## Screenshots
 
 ### 1. Tuning & Frequency Response Preview
-**Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which becomes **Restore previous** after flashing). **Headphone response** compares **Factory (B&K 5128)**, **Target**, **Predicted result**, and **Current in DSP**; **EQ correction** shows the electrical filter curve at `96 kHz` with interactive toggle/solo legend pills and `Hz / dB / Δ dB` hover readouts.
+**Selected profile** and **Active on DAC** stay clearly separated until you click **Apply to DAC** (which becomes **Restore previous** after flashing). **Headphone response** compares **Factory (B&K 5128)**, **Target**, **Predicted result**, and **Current in DSP** (or any **Compare (B)** profile selected via the dropdown or right-click menu); **EQ correction** shows the electrical filter curve at `96 kHz` with interactive toggle/solo legend pills and `Hz / dB / Δ dB` hover readouts. Use **Add ▾ / More ▾** (or drop a `.zip` file) to export and import full profile bundles.
 
 <details>
 <summary>Compact Tuning view (640×620)</summary>
@@ -137,7 +137,7 @@ Filter thousands of IEM and over-ear measurements by **Source**, **Headphone typ
 <br>
 
 ### 3. Parametric EQ Editor & Live Preview
-Drag handles directly on the **EQ correction** plot, scroll to adjust Q, and click **Set automatically** for headroom. With a DAC connected, **Live preview** lets you audition tweaks in real time and restores your previous settings if canceled.
+Drag handles directly on the **EQ correction** plot, scroll to adjust Q, mute (`On`) or temporarily `Solo` (`S`) individual bands, shape overall tone with the collapsible **Quick tone shaping (Macro)** card (`Bass / Mids / Treble / Tilt`), and click **Set automatically** for headroom. With a DAC connected, **Live preview** lets you audition tweaks in real time, compare against **Flat**, **Initial**, or **Profile B** via **A/B**, and restores your previous settings if canceled.
 
 ![EQ Editor](docs/screenshots/04-eq-editor.png)
 
