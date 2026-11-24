@@ -2715,8 +2715,15 @@ class EqualizerDialog(QDialog):
         self.ab_bypass.toggled.connect(self.toggle_ab_bypass)
         listen_row.addWidget(self.ab_bypass)
         self.ab_target_btn = QToolButton()
-        self.ab_target_btn.setArrowType(Qt.ArrowType.DownArrow)
+        self.ab_target_btn.setObjectName("abTargetButton")
+        self.ab_target_btn.setText("▾")
         self.ab_target_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.ab_target_btn.setEnabled(False)
+        self.ab_target_btn.setFixedWidth(28)
+        self.ab_target_btn.setStyleSheet(
+            "QToolButton#abTargetButton { padding: 3px 4px; }"
+            "QToolButton#abTargetButton::menu-indicator { image: none; }"
+        )
         self.ab_target_btn.setToolTip(tr("tooltip.editor_ab_target"))
         self.ab_target_menu = QMenu(self.ab_target_btn)
         self.ab_target_group = QActionGroup(self.ab_target_menu)
@@ -2874,12 +2881,21 @@ class EqualizerDialog(QDialog):
         self.live_timer.timeout.connect(self.send_live)
         self.preamp.valueChanged.connect(lambda: self.plot_timer.start())
 
-        self.macro_panel = QWidget()
+        self.macro_panel = QFrame()
+        self.macro_panel.setObjectName("macroCard")
+        self.macro_panel.setStyleSheet(
+            "QFrame#macroCard {"
+            " border: 1px solid palette(mid);"
+            " border-radius: 6px;"
+            " background: palette(alternate-base);"
+            "}"
+            "QFrame#macroCard QDoubleSpinBox { padding: 2px 6px; }"
+        )
         self.macro_panel.setVisible(False)
         macro_grid = QGridLayout(self.macro_panel)
-        macro_grid.setContentsMargins(8, 6, 8, 6)
-        macro_grid.setHorizontalSpacing(10)
-        macro_grid.setVerticalSpacing(4)
+        macro_grid.setContentsMargins(10, 8, 10, 8)
+        macro_grid.setHorizontalSpacing(8)
+        macro_grid.setVerticalSpacing(6)
         self.macro_controls: dict[str, QDoubleSpinBox] = {}
         for idx, (key, label_key, m_min, m_max, m_step, suffix) in enumerate(
             (
@@ -2894,21 +2910,23 @@ class EqualizerDialog(QDialog):
             spin = self.decimal(m_min, m_max, m_step)
             spin.setDecimals(1)
             spin.setSuffix(suffix)
+            spin.setFixedWidth(108)
             spin.setValue(0.0)
             spin.valueChanged.connect(self._on_macro_changed)
             macro_grid.addWidget(lbl, r, c * 2)
             macro_grid.addWidget(spin, r, c * 2 + 1)
             self.macro_controls[key] = spin
-        macro_btns = QHBoxLayout()
+        macro_grid.setColumnStretch(4, 1)
+        macro_btns = QVBoxLayout()
         macro_btns.setContentsMargins(0, 0, 0, 0)
+        macro_btns.setSpacing(6)
         self.apply_macro_btn = QPushButton(tr("editor.macro_apply"))
         self.apply_macro_btn.clicked.connect(self.apply_macro)
         self.revert_macro_btn = QPushButton(tr("editor.macro_revert"))
         self.revert_macro_btn.clicked.connect(self.revert_macro)
-        macro_btns.addStretch()
         macro_btns.addWidget(self.apply_macro_btn)
         macro_btns.addWidget(self.revert_macro_btn)
-        macro_grid.addLayout(macro_btns, 2, 0, 1, 4)
+        macro_grid.addLayout(macro_btns, 0, 5, 2, 1)
 
         self.macro_toggle = QToolButton()
         self.macro_toggle.setText(tr("editor.macro_toggle"))
@@ -2926,6 +2944,12 @@ class EqualizerDialog(QDialog):
         bands_panel.setObjectName("editorBands")
         bands_panel.setStyleSheet(
             "QWidget#editorBands QSpinBox, QWidget#editorBands QDoubleSpinBox { padding: 2px 8px; }"
+            "QWidget#editorBands QPushButton#soloButton {"
+            " padding: 0px; min-width: 26px; max-width: 26px; font-weight: 600;"
+            "}"
+            "QWidget#editorBands QPushButton#soloButton:checked {"
+            " background: #e86200; color: #ffffff; border-color: #c75200;"
+            "}"
         )
         grid = QGridLayout(bands_panel)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -2962,8 +2986,9 @@ class EqualizerDialog(QDialog):
             enabled_cb.setToolTip(tr("tooltip.editor_band_mute", band=number))
             enabled_cb.setAccessibleName(tr("editor.band_field", label=tr("editor.col_on"), band=number))
             solo_btn = QPushButton("S")
+            solo_btn.setObjectName("soloButton")
             solo_btn.setCheckable(True)
-            solo_btn.setFixedWidth(26)
+            solo_btn.setFixedSize(26, 26)
             solo_btn.setToolTip(tr("tooltip.editor_band_solo", band=number))
             solo_btn.setAccessibleName(tr("editor.band_field", label=tr("editor.col_solo"), band=number))
             kind = QComboBox()
@@ -3255,11 +3280,19 @@ class EqualizerDialog(QDialog):
                     "q": q.value(),
                 }
             )
+            neutral_type = "PK" if raw_band["type"] in ("LP", "HP") else raw_band["type"]
+            neutral_band = {
+                "band": index,
+                "type": neutral_type,
+                "freq": raw_band["freq"],
+                "gain": 0.0,
+                "q": raw_band["q"],
+            }
             if not enabled_cb.isChecked():
                 muted_bands[str(index)] = raw_band
-                bands.append({"band": index, "type": "PK", "freq": 1000, "gain": 0.0, "q": 0.71})
+                bands.append(neutral_band)
             elif any_solo and not solo_btn.isChecked():
-                bands.append({"band": index, "type": "PK", "freq": 1000, "gain": 0.0, "q": 0.71})
+                bands.append(neutral_band)
             else:
                 bands.append(raw_band)
         preamp = dac.clamp_i16(self.preamp.value() * 256) / 256
@@ -3395,6 +3428,7 @@ class EqualizerDialog(QDialog):
             self.ab_bypass.setChecked(False)
             self.ab_bypass.blockSignals(was_blocked)
             self.ab_bypass.setEnabled(False)
+            self.ab_target_btn.setEnabled(False)
             self.plot.set_profile(self.draft())
             self.settle_live()
             return
@@ -3403,6 +3437,7 @@ class EqualizerDialog(QDialog):
         self.live_error = ""
         self.live.setEnabled(False)
         self.ab_bypass.setEnabled(False)
+        self.ab_target_btn.setEnabled(False)
         self.show_live_status(tr("editor.live_reading"))
         self.run_live(
             lambda: begin_live_eq(self.device_window.open_device, self.device_path),
@@ -3419,7 +3454,9 @@ class EqualizerDialog(QDialog):
         self.live_previous = snapshot.custom
         self.live_preamp = snapshot.custom.preamp
         self.live.setEnabled(self.pending_exit is None)
-        self.ab_bypass.setEnabled(self.pending_exit is None and self.live.isChecked())
+        ab_enabled = self.pending_exit is None and self.live.isChecked()
+        self.ab_bypass.setEnabled(ab_enabled)
+        self.ab_target_btn.setEnabled(ab_enabled)
         if self.live.isChecked():
             self.send_live()
         else:
@@ -6034,6 +6071,12 @@ class ProfilesWindow(QWidget):
         self.autoeq_panel.retranslate_ui()
         self.size_preview_actions()
         self.apply_tooltips()
+        factory_profile = self.factory_item.data(PROFILE_ROLE) if hasattr(self, "factory_item") else None
+        if factory_profile is not None:
+            factory_name = tr("tuning.factory")
+            self.factory_item.setData(PROFILE_ROLE, replace(factory_profile, name=factory_name))
+            self.factory_item.setText(factory_name)
+            self.factory_item.setToolTip(factory_name)
         flat_profile = self.flat_item.data(PROFILE_ROLE)
         if flat_profile is not None:
             self.flat_item.setData(PROFILE_ROLE, replace(flat_profile, name=tr("profile.flat_bypass")))
