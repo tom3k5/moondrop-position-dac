@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.6.0" date="2026-11-24">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.6.0</url>
+      <description>
+        <p>DSP Control 0.6.0: adds per-band Mute (On) and temporary Solo (S) in the EQ editor, extended A/B comparison targets (Flat 0 dB, Initial state, Profile B), an always-open single-row Quick tone shaping box (Bass, Mids, Treble, Tilt), Profile A vs Profile B comparison across both Tuning plots, and .zip profile library export/import with Drag &amp; Drop.</p>
+        <p xml:lang="pl">DSP Control 0.6.0: dodaje wyciszanie (Wł.) i tymczasowy odsłuch Solo (S) pojedynczych pasm w edytorze EQ, rozszerzone cele porównania A/B (Flat 0 dB, Stan wyjściowy, Profil B), zawsze otwartą sekcję Szybka korekta barwy w jednym rzędzie (Bas, Średnica, Góra, Tilt), porównywanie Profilu A z Profilem B na obu wykresach Strojenia oraz eksport i import biblioteki profili .zip (również przez Drag &amp; Drop).</p>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.5.1</url>
       <description>
