@@ -1,6 +1,6 @@
 [project]
 name = "dsp-control"
-version = "0.5.1"
+version = "0.6.0"
 description = "Linux desktop GUI and CLI for USB-C DAC/AMP hardware DSP/EQ (MOONDROP:Gravity Position and compatible devices)"
 readme = "README.md"
 license = { file = "LICENSE" }
