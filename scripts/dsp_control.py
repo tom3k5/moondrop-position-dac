@@ -5100,7 +5100,9 @@ class ProfilesWindow(QWidget):
         if sel.mode == "autoeq":
             if self.resolved_headphone_path is not None and self.resolved_headphone_path.is_file():
                 return self.resolved_headphone_path
-            cache_dir = self.autoeq_panel.cache_directory / "curves"
+            panel = getattr(self, "autoeq_panel", None)
+            cache_base = panel.cache_directory if panel is not None else (self.library_directory.parent / "autoeq")
+            cache_dir = cache_base / "curves"
             key = hashlib.sha256(f"{sel.path}\n{sel.revision}".encode()).hexdigest()
             cached = cache_dir / f"{key}.csv"
             return cached if cached.is_file() else None
@@ -5193,7 +5195,9 @@ class ProfilesWindow(QWidget):
                 local=False,
                 revision=selection.revision,
             )
-            cache_dir = self.autoeq_panel.cache_directory / "curves"
+            panel = getattr(self, "autoeq_panel", None)
+            cache_base = panel.cache_directory if panel is not None else (self.library_directory.parent / "autoeq")
+            cache_dir = cache_base / "curves"
 
             def done(path, error: str) -> None:
                 self.headphone_loading = False
