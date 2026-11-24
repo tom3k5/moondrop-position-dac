@@ -20,6 +20,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 import xml.etree.ElementTree as ET
+import zipfile
 from collections import Counter
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -53,6 +54,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QAction,
+    QActionGroup,
     QColor,
     QDesktopServices,
     QIcon,
@@ -929,6 +931,7 @@ class Profile:
     model_id: str | None = None
     headphone_name: str | None = None
     headphone_selection: dict[str, str] | None = None
+    muted_bands: dict[str, dict] | None = None
 
     def matches_eq(self, state: DeviceState) -> bool:
         if state.model_name != dac.POSITION_NAME:
@@ -1075,6 +1078,10 @@ def load_profile(
         sample_rate = resolved_spec.dsp.sample_rate_hz
     headphone_name = meta.get("headphone_name")
     hp_sel = meta.get("headphone_selection")
+    muted_raw = meta.get("muted_bands")
+    muted_bands = (
+        {str(k): dict(v) for k, v in muted_raw.items() if isinstance(v, dict)} if isinstance(muted_raw, dict) else None
+    )
     return replace(
         profile,
         source=source if isinstance(source, str) else None,
@@ -1085,6 +1092,7 @@ def load_profile(
         model_id=inferred_model or resolved_spec.model_id,
         headphone_name=headphone_name if isinstance(headphone_name, str) and headphone_name.strip() else None,
         headphone_selection=dict(hp_sel) if isinstance(hp_sel, dict) else None,
+        muted_bands=muted_bands or None,
     )
 
 
@@ -1625,6 +1633,8 @@ def save_profile(path: str, profile: Profile) -> None:
         data["headphone_name"] = profile.headphone_name
     if profile.headphone_selection:
         data["headphone_selection"] = profile.headphone_selection
+    if profile.muted_bands:
+        data["muted_bands"] = profile.muted_bands
     if profile.sample_rate_hz:
         data["sample_rate_hz"] = profile.sample_rate_hz
     if profile.source:
@@ -1647,6 +1657,126 @@ def save_profile(path: str, profile: Profile) -> None:
         raise OSError(file.errorString())
     if not file.commit():
         raise OSError(file.errorString())
+
+
+def apply_macro_tone(
+    bands: list[dict],
+    *,
+    bass_db: float = 0.0,
+    mid_db: float = 0.0,
+    treble_db: float = 0.0,
+    tilt_db_per_oct: float = 0.0,
+    spec: DeviceSpec | None = None,
+) -> list[dict]:
+    """Deterministycznie modyfikuje pasma EQ o korekty makro (Bas, Średnica, Góra, Tilt)."""
+    resolved = spec or default_device_spec()
+    gain_min, gain_max = resolved.dsp.gain_range_db
+    allowed = set(resolved.dsp.supported_types)
+    updated = [dict(band) for band in bands]
+
+    if abs(bass_db) < 1e-6 and abs(mid_db) < 1e-6 and abs(treble_db) < 1e-6 and abs(tilt_db_per_oct) < 1e-6:
+        return updated
+
+    # Jeśli brak pasma basowego/wysokotonowego przy niezerowym Bas/Góra, wykorzystaj neutralne pasmo 0 dB.
+    def _activate_neutral(target_freq: float, prefer_type: str) -> None:
+        if any(
+            (target_freq <= 250.0 and b.get("freq", 1000) <= 250.0 and abs(float(b.get("gain", 0.0))) > 1e-6)
+            or (target_freq >= 3500.0 and b.get("freq", 1000) >= 3500.0 and abs(float(b.get("gain", 0.0))) > 1e-6)
+            for b in updated
+        ):
+            return
+        for b in updated:
+            if abs(float(b.get("gain", 0.0))) < 1e-6 and b.get("type", "PK") not in ("LP", "HP"):
+                b["type"] = prefer_type if prefer_type in allowed else "PK"
+                b["freq"] = round(target_freq)
+                b["q"] = 0.71
+                return
+
+    if abs(bass_db) >= 1e-6:
+        _activate_neutral(105.0, "LSQ")
+    if abs(treble_db) >= 1e-6:
+        _activate_neutral(6000.0, "HSQ")
+
+    for b in updated:
+        ftype = b.get("type", "PK")
+        if ftype in ("LP", "HP"):
+            continue
+        freq = max(20.0, min(20000.0, float(b.get("freq", 1000.0))))
+        delta = 0.0
+        if abs(bass_db) >= 1e-6:
+            if ftype == "LSQ":
+                delta += bass_db
+            elif freq <= 250.0:
+                delta += bass_db * math.exp(-0.5 * (math.log2(freq / 80.0) / 1.1) ** 2)
+        if abs(mid_db) >= 1e-6 and ftype == "PK" and 250.0 <= freq <= 3500.0:
+            delta += mid_db * math.exp(-0.5 * (math.log2(freq / 1000.0) / 0.9) ** 2)
+        if abs(treble_db) >= 1e-6:
+            if ftype == "HSQ":
+                delta += treble_db
+            elif freq >= 3500.0:
+                delta += treble_db * math.exp(-0.5 * (math.log2(freq / 8000.0) / 1.1) ** 2)
+        if abs(tilt_db_per_oct) >= 1e-6:
+            delta += tilt_db_per_oct * math.log2(freq / 1000.0)
+        new_gain = max(gain_min, min(gain_max, float(b.get("gain", 0.0)) + delta))
+        b["gain"] = round(new_gain, 2)
+    return updated
+
+
+def export_library_zip(library_dir: Path, dest_zip: Path) -> int:
+    """Eksportuje wszystkie profile użytkownika (*.json) z biblioteki do archiwum .zip."""
+    files = sorted(p for p in library_dir.glob("*.json") if p.is_file())
+    manifest = {
+        "format": "dsp-control-library",
+        "version": 1,
+        "app_version": APP_VERSION,
+        "count": len(files),
+        "files": [p.name for p in files],
+    }
+    dest_zip.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(dest_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+        for p in files:
+            zf.write(p, arcname=f"profiles/{p.name}")
+    return len(files)
+
+
+def import_library_zip(src_zip: Path, library_dir: Path, *, conflict: str = "copy") -> tuple[int, int]:
+    """Importuje profile z archiwum .zip do biblioteki. Zwraca (zaimportowane, pominięte)."""
+    if conflict not in ("copy", "skip", "overwrite"):
+        raise ValueError(f"Unsupported conflict strategy: {conflict}")
+    library_dir.mkdir(parents=True, exist_ok=True)
+    imported = 0
+    skipped = 0
+    with zipfile.ZipFile(src_zip, "r") as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            rel = Path(info.filename)
+            if rel.is_absolute() or ".." in rel.parts or rel.name == "manifest.json" or rel.suffix.lower() != ".json":
+                continue
+            raw = zf.read(info)
+            try:
+                data = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                skipped += 1
+                continue
+            if not isinstance(data, dict) or not isinstance(data.get("bands"), list):
+                skipped += 1
+                continue
+            target = library_dir / rel.name
+            if target.exists():
+                if conflict == "skip":
+                    skipped += 1
+                    continue
+                if conflict == "copy":
+                    stem = rel.stem
+                    idx = 2
+                    while (library_dir / f"{stem}-{idx}.json").exists():
+                        idx += 1
+                    target = library_dir / f"{stem}-{idx}.json"
+            target.write_bytes(raw)
+            imported += 1
+    return imported, skipped
 
 
 class DemoDevice:
@@ -2540,12 +2670,14 @@ class EqualizerDialog(QDialog):
         device_path: DeviceTarget | None = None,
         device_spec: DeviceSpec | None = None,
         measurement_curve: list[tuple[float, float]] | None = None,
+        compare_profile: Profile | None = None,
     ):
         super().__init__(parent)
         self.device_spec = device_spec or getattr(parent, "active_spec", None) or default_device_spec()
         self.measurement_curve = (
             list(measurement_curve) if measurement_curve is not None else self.device_spec.measured_curve()
         )
+        self.compare_profile = compare_profile
         self.setWindowTitle(tr("editor.title"))
         self.setStyleSheet(APP_STYLE)
         self.setMinimumSize(625, 460)
@@ -2562,6 +2694,10 @@ class EqualizerDialog(QDialog):
         self.pending_exit = None
         self.live_error = ""
         self.rows = []
+        self.band_mute_solo: list[tuple[QCheckBox, QPushButton, QSlider]] = []
+        self.macro_base_bands: list[dict] | None = None
+        self._applying_macro = False
+        self.ab_target_mode = "flat"
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, 12, 16, 12)
         outer.setSpacing(8)
@@ -2578,6 +2714,33 @@ class EqualizerDialog(QDialog):
         self.ab_bypass.setToolTip(tr("tooltip.editor_ab_bypass"))
         self.ab_bypass.toggled.connect(self.toggle_ab_bypass)
         listen_row.addWidget(self.ab_bypass)
+        self.ab_target_btn = QToolButton()
+        self.ab_target_btn.setArrowType(Qt.ArrowType.DownArrow)
+        self.ab_target_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.ab_target_btn.setToolTip(tr("tooltip.editor_ab_target"))
+        self.ab_target_menu = QMenu(self.ab_target_btn)
+        self.ab_target_group = QActionGroup(self.ab_target_menu)
+        self.ab_target_group.setExclusive(True)
+        for mode, label_key in (
+            ("flat", "editor.ab_target_flat"),
+            ("initial", "editor.ab_target_initial"),
+            ("compare", "editor.ab_target_compare"),
+        ):
+            act = self.ab_target_menu.addAction(tr(label_key))
+            act.setCheckable(True)
+            act.setData(mode)
+            if mode == "flat":
+                act.setChecked(True)
+            if mode == "compare" and self.compare_profile is None:
+                act.setEnabled(False)
+            act.triggered.connect(lambda _checked=False, m=mode: self._set_ab_target_mode(m))
+            self.ab_target_group.addAction(act)
+        self.ab_target_btn.setMenu(self.ab_target_menu)
+        listen_row.addWidget(self.ab_target_btn)
+        self.solo_clear_btn = QPushButton(tr("editor.clear_solo"))
+        self.solo_clear_btn.setVisible(False)
+        self.solo_clear_btn.clicked.connect(self.clear_solo)
+        listen_row.addWidget(self.solo_clear_btn)
         self.live_status = QLabel(tr("editor.live_offline" if device_path is None else "editor.live_off"))
         self.live_status.setTextFormat(Qt.TextFormat.PlainText)
         self.live_status.setWordWrap(True)
@@ -2710,6 +2873,55 @@ class EqualizerDialog(QDialog):
         self.live_timer = QTimer(self, singleShot=True, interval=140)
         self.live_timer.timeout.connect(self.send_live)
         self.preamp.valueChanged.connect(lambda: self.plot_timer.start())
+
+        self.macro_panel = QWidget()
+        self.macro_panel.setVisible(False)
+        macro_grid = QGridLayout(self.macro_panel)
+        macro_grid.setContentsMargins(8, 6, 8, 6)
+        macro_grid.setHorizontalSpacing(10)
+        macro_grid.setVerticalSpacing(4)
+        self.macro_controls: dict[str, QDoubleSpinBox] = {}
+        for idx, (key, label_key, m_min, m_max, m_step, suffix) in enumerate(
+            (
+                ("bass", "editor.macro_bass", -6.0, 6.0, 0.5, " dB"),
+                ("mid", "editor.macro_mid", -6.0, 6.0, 0.5, " dB"),
+                ("treble", "editor.macro_treble", -6.0, 6.0, 0.5, " dB"),
+                ("tilt", "editor.macro_tilt", -3.0, 3.0, 0.1, " dB/oct"),
+            )
+        ):
+            r, c = divmod(idx, 2)
+            lbl = QLabel(tr(label_key))
+            spin = self.decimal(m_min, m_max, m_step)
+            spin.setDecimals(1)
+            spin.setSuffix(suffix)
+            spin.setValue(0.0)
+            spin.valueChanged.connect(self._on_macro_changed)
+            macro_grid.addWidget(lbl, r, c * 2)
+            macro_grid.addWidget(spin, r, c * 2 + 1)
+            self.macro_controls[key] = spin
+        macro_btns = QHBoxLayout()
+        macro_btns.setContentsMargins(0, 0, 0, 0)
+        self.apply_macro_btn = QPushButton(tr("editor.macro_apply"))
+        self.apply_macro_btn.clicked.connect(self.apply_macro)
+        self.revert_macro_btn = QPushButton(tr("editor.macro_revert"))
+        self.revert_macro_btn.clicked.connect(self.revert_macro)
+        macro_btns.addStretch()
+        macro_btns.addWidget(self.apply_macro_btn)
+        macro_btns.addWidget(self.revert_macro_btn)
+        macro_grid.addLayout(macro_btns, 2, 0, 1, 4)
+
+        self.macro_toggle = QToolButton()
+        self.macro_toggle.setText(tr("editor.macro_toggle"))
+        self.macro_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.macro_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.macro_toggle.setCheckable(True)
+        self.macro_toggle.toggled.connect(self.macro_panel.setVisible)
+        self.macro_toggle.toggled.connect(
+            lambda open_: self.macro_toggle.setArrowType(Qt.ArrowType.DownArrow if open_ else Qt.ArrowType.RightArrow)
+        )
+        layout.addWidget(self.macro_toggle)
+        layout.addWidget(self.macro_panel)
+
         bands_panel = QWidget()
         bands_panel.setObjectName("editorBands")
         bands_panel.setStyleSheet(
@@ -2722,6 +2934,8 @@ class EqualizerDialog(QDialog):
         for column, title in enumerate(
             (
                 tr("editor.col_band"),
+                tr("editor.col_on"),
+                tr("editor.col_solo"),
                 tr("editor.col_type"),
                 tr("editor.col_freq"),
                 tr("editor.col_gain"),
@@ -2730,7 +2944,7 @@ class EqualizerDialog(QDialog):
             )
         ):
             grid.addWidget(QLabel(title), 0, column)
-        grid.setColumnStretch(3, 1)
+        grid.setColumnStretch(5, 1)
         type_labels = (
             (tr("editor.type_pk"), "PK"),
             (tr("editor.type_lsq"), "LSQ"),
@@ -2743,6 +2957,15 @@ class EqualizerDialog(QDialog):
         q_min, q_max = self.device_spec.dsp.q_range
         freq_min, freq_max = self.device_spec.dsp.freq_range_hz
         for number in range(1, self.device_spec.dsp.band_count + 1):
+            enabled_cb = QCheckBox()
+            enabled_cb.setChecked(True)
+            enabled_cb.setToolTip(tr("tooltip.editor_band_mute", band=number))
+            enabled_cb.setAccessibleName(tr("editor.band_field", label=tr("editor.col_on"), band=number))
+            solo_btn = QPushButton("S")
+            solo_btn.setCheckable(True)
+            solo_btn.setFixedWidth(26)
+            solo_btn.setToolTip(tr("tooltip.editor_band_solo", band=number))
+            solo_btn.setAccessibleName(tr("editor.band_field", label=tr("editor.col_solo"), band=number))
             kind = QComboBox()
             for label, code in type_labels:
                 if code in allowed_types:
@@ -2764,21 +2987,26 @@ class EqualizerDialog(QDialog):
                 control.setMinimumHeight(28)
                 control.setSizePolicy(control.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Expanding)
             grid.addWidget(QLabel(str(number)), number, 0)
+            grid.addWidget(enabled_cb, number, 1, Qt.AlignmentFlag.AlignCenter)
+            grid.addWidget(solo_btn, number, 2)
             for column, key, widget in (
-                (1, "editor.col_type", kind),
-                (2, "editor.col_freq", frequency),
-                (3, "editor.gain_slider", slider),
-                (4, "editor.col_gain", gain),
-                (5, "editor.col_q", q),
+                (3, "editor.col_type", kind),
+                (4, "editor.col_freq", frequency),
+                (5, "editor.gain_slider", slider),
+                (6, "editor.col_gain", gain),
+                (7, "editor.col_q", q),
             ):
                 widget.setAccessibleName(tr("editor.band_field", label=tr(key), band=number))
                 grid.addWidget(widget, number, column)
             self.rows.append((kind, frequency, gain, q))
+            self.band_mute_solo.append((enabled_cb, solo_btn, slider))
+            enabled_cb.toggled.connect(lambda _on, idx=number - 1: self._on_band_mute_solo_changed(idx))
+            solo_btn.toggled.connect(lambda _on, idx=number - 1: self._on_band_mute_solo_changed(idx))
             kind.currentIndexChanged.connect(
                 lambda _index, box=kind, control=slider, value=gain: self.filter_type_changed(box, control, value)
             )
             for control in (frequency, gain, q):
-                control.valueChanged.connect(lambda: self.plot_timer.start())
+                control.valueChanged.connect(self._on_manual_band_edited)
         layout.addWidget(bands_panel)
         self.gain_options = QToolButton()
         self.gain_options.setText(tr("editor.gain_options"))
@@ -2877,12 +3105,34 @@ class EqualizerDialog(QDialog):
         self.include_mic_gain.setChecked(include_mic)
         self.mic_gain.setEnabled(include_mic)
         self.mic_gain.setCurrentIndex(self.mic_gain.findData(profile.mic_gain_raw if include_mic else 0))
-        for band, (kind, frequency, gain, q) in zip(profile.bands, self.rows, strict=False):
-            band = dac.quantized_band(band)
-            kind.setCurrentIndex(kind.findData(band["type"]))
-            frequency.setValue(band["freq"])
-            gain.setValue(band["gain"])
-            q.setValue(band["q"])
+        self._applying_macro = True
+        try:
+            muted_map = profile.muted_bands or {}
+            for idx, (band, (kind, frequency, gain, q), (enabled_cb, solo_btn, _slider)) in enumerate(
+                zip(profile.bands, self.rows, self.band_mute_solo, strict=False), 1
+            ):
+                muted_entry = muted_map.get(str(idx))
+                is_muted = isinstance(muted_entry, dict)
+                source_band = dac.quantized_band(muted_entry if is_muted else band)
+                for w in (kind, frequency, gain, q, enabled_cb, solo_btn):
+                    w.blockSignals(True)
+                kind.setCurrentIndex(kind.findData(source_band["type"]))
+                frequency.setValue(source_band["freq"])
+                gain.setValue(source_band["gain"])
+                q.setValue(source_band["q"])
+                enabled_cb.setChecked(not is_muted)
+                solo_btn.setChecked(False)
+                for w in (kind, frequency, gain, q, enabled_cb, solo_btn):
+                    w.blockSignals(False)
+                self._apply_band_row_style(idx - 1)
+            self.macro_base_bands = None
+            for spin in self.macro_controls.values():
+                spin.blockSignals(True)
+                spin.setValue(0.0)
+                spin.blockSignals(False)
+            self.solo_clear_btn.setVisible(False)
+        finally:
+            self._applying_macro = False
         self.plot_timer.start()
         self.update_reference()
         self.message.clear()
@@ -2892,9 +3142,111 @@ class EqualizerDialog(QDialog):
         self.plot.set_reference(reference)
         self.acoustic_plot.set_reference(reference)
 
-    def draft(self) -> Profile:
-        bands = [
-            dac.quantized_band(
+    def _apply_band_row_style(self, index: int) -> None:
+        enabled_cb, _solo_btn, slider = self.band_mute_solo[index]
+        active = enabled_cb.isChecked()
+        for w in (*self.rows[index], slider):
+            w.setEnabled(active)
+
+    def _on_band_mute_solo_changed(self, index: int) -> None:
+        self._apply_band_row_style(index)
+        any_solo = any(s.isChecked() for _, s, _ in self.band_mute_solo)
+        self.solo_clear_btn.setVisible(any_solo)
+        self.plot_timer.start()
+
+    def clear_solo(self) -> None:
+        for _, solo_btn, _ in self.band_mute_solo:
+            solo_btn.blockSignals(True)
+            solo_btn.setChecked(False)
+            solo_btn.blockSignals(False)
+        self.solo_clear_btn.setVisible(False)
+        self.plot_timer.start()
+
+    def _on_manual_band_edited(self) -> None:
+        if not self._applying_macro and self.macro_base_bands is not None:
+            self.macro_base_bands = None
+            for spin in self.macro_controls.values():
+                spin.blockSignals(True)
+                spin.setValue(0.0)
+                spin.blockSignals(False)
+        self.plot_timer.start()
+
+    def _on_macro_changed(self) -> None:
+        if self._applying_macro:
+            return
+        if self.macro_base_bands is None:
+            self.macro_base_bands = [
+                dac.quantized_band(
+                    {
+                        "band": index,
+                        "type": kind.currentData(),
+                        "freq": frequency.value(),
+                        "gain": gain.value(),
+                        "q": q.value(),
+                    }
+                )
+                for index, (kind, frequency, gain, q) in enumerate(self.rows, 1)
+            ]
+        updated = apply_macro_tone(
+            self.macro_base_bands,
+            bass_db=self.macro_controls["bass"].value(),
+            mid_db=self.macro_controls["mid"].value(),
+            treble_db=self.macro_controls["treble"].value(),
+            tilt_db_per_oct=self.macro_controls["tilt"].value(),
+            spec=self.device_spec,
+        )
+        self._applying_macro = True
+        try:
+            for band, (kind, frequency, gain, q) in zip(updated, self.rows, strict=False):
+                for w in (kind, frequency, gain, q):
+                    w.blockSignals(True)
+                kind.setCurrentIndex(kind.findData(band["type"]))
+                frequency.setValue(round(band["freq"]))
+                gain.setValue(float(band["gain"]))
+                q.setValue(float(band["q"]))
+                for w in (kind, frequency, gain, q):
+                    w.blockSignals(False)
+        finally:
+            self._applying_macro = False
+        self.plot_timer.start()
+
+    def apply_macro(self) -> None:
+        self.macro_base_bands = None
+        for spin in self.macro_controls.values():
+            spin.blockSignals(True)
+            spin.setValue(0.0)
+            spin.blockSignals(False)
+
+    def revert_macro(self) -> None:
+        if self.macro_base_bands is not None:
+            self._applying_macro = True
+            try:
+                for band, (kind, frequency, gain, q) in zip(self.macro_base_bands, self.rows, strict=False):
+                    for w in (kind, frequency, gain, q):
+                        w.blockSignals(True)
+                    kind.setCurrentIndex(kind.findData(band["type"]))
+                    frequency.setValue(round(band["freq"]))
+                    gain.setValue(float(band["gain"]))
+                    q.setValue(float(band["q"]))
+                    for w in (kind, frequency, gain, q):
+                        w.blockSignals(False)
+            finally:
+                self._applying_macro = False
+            self.macro_base_bands = None
+        for spin in self.macro_controls.values():
+            spin.blockSignals(True)
+            spin.setValue(0.0)
+            spin.blockSignals(False)
+        self.plot_timer.start()
+
+    def draft(self, *, include_solo: bool = True) -> Profile:
+        any_solo = include_solo and any(s.isChecked() for _, s, _ in self.band_mute_solo)
+        bands: list[dict] = []
+        muted_bands: dict[str, dict] = {}
+        for index, ((kind, frequency, gain, q), (enabled_cb, solo_btn, _)) in enumerate(
+            zip(self.rows, self.band_mute_solo, strict=False), 1
+        ):
+            raw_band = dac.quantized_band(
                 {
                     "band": index,
                     "type": kind.currentData(),
@@ -2903,8 +3255,13 @@ class EqualizerDialog(QDialog):
                     "q": q.value(),
                 }
             )
-            for index, (kind, frequency, gain, q) in enumerate(self.rows, 1)
-        ]
+            if not enabled_cb.isChecked():
+                muted_bands[str(index)] = raw_band
+                bands.append({"band": index, "type": "PK", "freq": 1000, "gain": 0.0, "q": 0.71})
+            elif any_solo and not solo_btn.isChecked():
+                bands.append({"band": index, "type": "PK", "freq": 1000, "gain": 0.0, "q": 0.71})
+            else:
+                bands.append(raw_band)
         preamp = dac.clamp_i16(self.preamp.value() * 256) / 256
         global_gain_db = self.global_gain.value() if self.include_global_gain.isChecked() else None
         mic_gain_raw = self.mic_gain.currentData() if self.include_mic_gain.isChecked() else None
@@ -2928,15 +3285,16 @@ class EqualizerDialog(QDialog):
             fit_range=self.reference.fit_range,
             headphone_name=hp_name,
             headphone_selection=self.reference.headphone_selection,
+            muted_bands=muted_bands or None,
         )
 
     def select_draft(self) -> None:
-        self.result_profile = self.draft()
+        self.result_profile = self.draft(include_solo=False)
         self.result_apply = False
         self.accept()
 
     def apply_draft(self) -> None:
-        self.result_profile = self.draft()
+        self.result_profile = self.draft(include_solo=False)
         self.result_apply = True
         self.accept()
 
@@ -3067,11 +3425,24 @@ class EqualizerDialog(QDialog):
         else:
             self.settle_live()
 
+    def _set_ab_target_mode(self, mode: str) -> None:
+        self.ab_target_mode = mode
+        label_key = {
+            "flat": "editor.ab_bypass",
+            "initial": "editor.ab_bypass_initial",
+            "compare": "editor.ab_bypass_compare",
+        }.get(mode, "editor.ab_bypass")
+        self.ab_bypass.setText(tr(label_key))
+        if self.ab_bypass.isChecked() and self.live.isChecked() and self.live_snapshot is not None:
+            self.live_timer.stop()
+            self.send_live()
+
     def _bypass_profile(self, profile: Profile) -> Profile:
-        neutral = [
-            {"filter_type": "PK", "fc": 1000.0, "q": 0.707, "gain": 0.0} for _ in range(self.device_spec.dsp.band_count)
-        ]
-        return replace(profile, bands=neutral, preamp=0.0)
+        if self.ab_target_mode == "initial" and self.reference is not None:
+            return replace(self.reference, preamp=float(self.reference.preamp or 0.0))
+        if self.ab_target_mode == "compare" and self.compare_profile is not None:
+            return replace(self.compare_profile, preamp=float(self.compare_profile.preamp or 0.0))
+        return replace(profile, bands=default_custom_bands(self.device_spec), preamp=0.0)
 
     def send_live(self) -> None:
         if not self.live.isChecked() or self.live_busy or self.live_snapshot is None:
@@ -4503,6 +4874,7 @@ class ProfilesWindow(QWidget):
         add_menu.addSeparator()
         self.new_profile_action = add_menu.addAction(tr("actions.new_empty"), lambda: self.edit_profile(new=True))
         self.import_profile_action = add_menu.addAction(tr("actions.import_profile"), self.import_profile)
+        self.import_bundle_action = add_menu.addAction(tr("actions.import_bundle"), self.import_library_bundle)
         self.add_button.setMenu(add_menu)
         self.more_button = QToolButton()
         self.more_button.setText(tr("actions.more"))
@@ -4510,6 +4882,7 @@ class ProfilesWindow(QWidget):
         more_menu = QMenu(self.more_button)
         self.duplicate_action = more_menu.addAction(tr("actions.duplicate"), lambda: self.edit_profile(duplicate=True))
         self.export_action = more_menu.addAction(tr("actions.export_selected"), self.export_selected)
+        self.export_bundle_action = more_menu.addAction(tr("actions.export_bundle"), self.export_library_bundle)
         more_menu.addSeparator()
         self.delete_action = more_menu.addAction(tr("actions.delete_profile"), self.delete_selected)
         self.more_button.setMenu(more_menu)
@@ -4583,6 +4956,29 @@ class ProfilesWindow(QWidget):
         hp_row.addWidget(self.headphone_choose_btn)
         hp_row.addWidget(self.headphone_flat_btn)
         preview.addWidget(self.headphone_bar)
+
+        self.compare_profile: Profile | None = None
+        self.compare_bar = QWidget()
+        cmp_row = QHBoxLayout(self.compare_bar)
+        cmp_row.setContentsMargins(0, 0, 0, 0)
+        cmp_row.setSpacing(6)
+        self.compare_label = QLabel(tr("compare.label"))
+        self.compare_combo = QComboBox()
+        self.compare_combo.setAccessibleName(tr("compare.label"))
+        self.compare_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.compare_combo.setMinimumContentsLength(4)
+        self.compare_combo.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.compare_combo.addItem(tr("compare.dsp_default"), None)
+        self.compare_combo.currentIndexChanged.connect(self._on_compare_combo_changed)
+        self.compare_clear_btn = QToolButton()
+        self.compare_clear_btn.setText("×")
+        self.compare_clear_btn.setToolTip(tr("compare.clear_tooltip"))
+        self.compare_clear_btn.setEnabled(False)
+        self.compare_clear_btn.clicked.connect(self.clear_compare_profile)
+        cmp_row.addWidget(self.compare_label)
+        cmp_row.addWidget(self.compare_combo, 1)
+        cmp_row.addWidget(self.compare_clear_btn)
+        preview.addWidget(self.compare_bar)
         self.fit_controls = self.autoeq_panel.fit_controls
         self.fit_provenance = self.autoeq_panel.fit_provenance
 
@@ -4863,6 +5259,9 @@ class ProfilesWindow(QWidget):
         self.refresh_headphone_ui()
         self.update_plot_layout()
         self.profiles.currentItemChanged.connect(self.update_selection)
+        self.profiles.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.profiles.customContextMenuRequested.connect(self._show_profile_context_menu)
+        self._refresh_compare_combo()
         self.profile_search.textChanged.connect(self.filter_profiles)
         self.source_group.idClicked.connect(self.switch_source)
         self.sources.currentChanged.connect(self.update_selection)
@@ -5618,6 +6017,13 @@ class ProfilesWindow(QWidget):
         self.correction_key.set_labels((tr("plot.key.profile_eq"), tr("plot.key.current_dsp")))
         self.add_button.setText(tr("actions.add_profile"))
         self.new_profile_action.setText(tr("actions.new_empty"))
+        self.import_profile_action.setText(tr("actions.import_profile"))
+        self.import_bundle_action.setText(tr("actions.import_bundle"))
+        self.export_bundle_action.setText(tr("actions.export_bundle"))
+        self.compare_label.setText(tr("compare.label"))
+        self.compare_combo.setAccessibleName(tr("compare.label"))
+        self.compare_combo.setItemText(0, tr("compare.dsp_default"))
+        self.compare_clear_btn.setToolTip(tr("compare.clear_tooltip"))
         self.save_setup_action.setText(tr("actions.save_setup"))
         self.import_profile_action.setText(tr("actions.import_profile"))
         self.more_button.setText(tr("actions.more"))
@@ -5856,7 +6262,15 @@ class ProfilesWindow(QWidget):
         waiting_for_fit = self.catalog_selected() and selected is None
         preview_entry = self.autoeq_panel.preview_entry if waiting_for_fit else None
         preview_curve = self.autoeq_panel.preview_curve if waiting_for_fit else []
-        sources = (selected, self.readback_profile, self.factory_profile, waiting_for_fit, preview_entry, preview_curve)
+        reference = self.compare_profile if self.compare_profile is not None else self.readback_profile
+        sources = (
+            selected,
+            reference,
+            self.factory_profile,
+            waiting_for_fit,
+            preview_entry,
+            preview_curve,
+        )
         if sources == self.preview_sources:
             return
         self.preview_sources = sources
@@ -5865,7 +6279,7 @@ class ProfilesWindow(QWidget):
             self.factory_profile if self.active_spec.acoustics.measurement_includes_factory_eq else None
         )
         self.preview_plot.set_profile(selected)
-        self.preview_plot.set_reference(self.readback_profile)
+        self.preview_plot.set_reference(reference)
         measured = self.preview_plot.factory_points
         predicted = self.preview_plot.points
         raw_target = selected.target_curve if selected and selected.target_curve else preview_curve
@@ -5877,15 +6291,24 @@ class ProfilesWindow(QWidget):
             else (preview_entry.name if preview_entry is not None else tr("plot.key.target_default"))
         )
         target_detail = tr("plot.key.target", name=target_label) if target_points else ""
+        ref_short = (
+            tr("plot.key.compare_short", name=self.compare_profile.name)
+            if self.compare_profile is not None
+            else tr("plot.key.current_dsp")
+        )
+        ref_detail = (
+            tr("plot.key.compare_detail", name=self.compare_profile.name) if self.compare_profile is not None else ""
+        )
         self.preview_key.set_labels(
             (
                 tr("plot.key.selected"),
-                tr("plot.key.current_dsp"),
+                ref_short,
                 tr("plot.key.measured"),
                 tr("plot.key.target_short"),
             ),
-            {3: target_detail},
+            {1: ref_detail, 3: target_detail},
         )
+        self.correction_key.set_labels((tr("plot.key.profile_eq"), ref_short), {1: ref_detail})
         self.preview_plot.set_target_points(target_points)
         summary = tr("plot.fit_not_available")
         if selected is not None and not raw_target:
@@ -5906,9 +6329,7 @@ class ProfilesWindow(QWidget):
             else selected
         )
         self.correction_plot.set_primary_points(response_points(electrical, EQ_PLOT_FREQUENCIES) if electrical else [])
-        self.correction_plot.set_reference_points(
-            response_points(self.readback_profile, EQ_PLOT_FREQUENCIES) if self.readback_profile else []
-        )
+        self.correction_plot.set_reference_points(response_points(reference, EQ_PLOT_FREQUENCIES) if reference else [])
         preamp_parts = []
         if selected is not None and selected.preamp is not None:
             preamp_parts.append(tr("plot.preamp_profile", value=selected.preamp))
@@ -6262,7 +6683,8 @@ class ProfilesWindow(QWidget):
     def dragEnterEvent(self, event) -> None:
         urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
         if any(
-            url.isLocalFile() and Path(url.toLocalFile()).suffix.casefold() in (".json", ".txt", ".csv") for url in urls
+            url.isLocalFile() and Path(url.toLocalFile()).suffix.casefold() in (".json", ".txt", ".csv", ".zip")
+            for url in urls
         ):
             event.acceptProposedAction()
             return
@@ -6275,6 +6697,10 @@ class ProfilesWindow(QWidget):
                 continue
             path = Path(url.toLocalFile())
             suffix = path.suffix.casefold()
+            if suffix == ".zip":
+                self.import_library_bundle(path)
+                event.acceptProposedAction()
+                return
             if suffix == ".json":
                 if self.import_profile_from_path(path):
                     self.feedback.setText(tr("drop.loaded_profile", name=path.name))
@@ -6367,6 +6793,120 @@ class ProfilesWindow(QWidget):
         if self.save_fit_button.isEnabled() and profile is not None and self.persist_profile(profile):
             self.feedback.setText(tr("actions.saved_library"))
 
+    def _refresh_compare_combo(self) -> None:
+        if not hasattr(self, "compare_combo"):
+            return
+        current_name = self.compare_profile.name if self.compare_profile is not None else None
+        self.compare_combo.blockSignals(True)
+        try:
+            self.compare_combo.clear()
+            self.compare_combo.addItem(tr("compare.dsp_default"), None)
+            restored_idx = 0
+            for item in self.profile_items():
+                prof = item.data(PROFILE_ROLE)
+                if prof is None or not self.profile_matches_active_model(prof):
+                    continue
+                self.compare_combo.addItem(prof.name, prof)
+                if current_name is not None and prof.name == current_name:
+                    restored_idx = self.compare_combo.count() - 1
+            self.compare_combo.setCurrentIndex(restored_idx)
+            if restored_idx == 0:
+                self.compare_profile = None
+                self.compare_clear_btn.setEnabled(False)
+        finally:
+            self.compare_combo.blockSignals(False)
+
+    def _on_compare_combo_changed(self, index: int) -> None:
+        prof = self.compare_combo.itemData(index) if index >= 0 else None
+        self.compare_profile = prof if isinstance(prof, Profile) else None
+        self.compare_clear_btn.setEnabled(self.compare_profile is not None)
+        self.update_comparison()
+
+    def set_compare_profile(self, profile: Profile | None) -> None:
+        if profile is None:
+            self.clear_compare_profile()
+            return
+        self._refresh_compare_combo()
+        for idx in range(1, self.compare_combo.count()):
+            p = self.compare_combo.itemData(idx)
+            if isinstance(p, Profile) and p.name == profile.name:
+                self.compare_combo.setCurrentIndex(idx)
+                return
+        self.compare_combo.addItem(profile.name, profile)
+        self.compare_combo.setCurrentIndex(self.compare_combo.count() - 1)
+
+    def clear_compare_profile(self) -> None:
+        self.compare_profile = None
+        self.compare_combo.setCurrentIndex(0)
+        self.compare_clear_btn.setEnabled(False)
+        self.update_comparison()
+
+    def _show_profile_context_menu(self, pos) -> None:
+        item = self.profiles.itemAt(pos)
+        prof = item.data(PROFILE_ROLE) if item is not None else None
+        if prof is None:
+            return
+        menu = QMenu(self)
+        menu.addAction(tr("compare.set_as_b"), lambda: self.set_compare_profile(prof))
+        menu.exec(self.profiles.viewport().mapToGlobal(pos))
+
+    def export_library_bundle(self, dest_zip: Path | None = None) -> bool:
+        if dest_zip is None:
+            chosen, _ = QFileDialog.getSaveFileName(
+                self,
+                tr("actions.export_bundle_title"),
+                str(Path.home() / "dsp-control-profiles.zip"),
+                "ZIP (*.zip)",
+            )
+            if not chosen:
+                return False
+            dest_zip = Path(chosen)
+            if dest_zip.suffix.casefold() != ".zip":
+                dest_zip = dest_zip.with_suffix(".zip")
+        try:
+            count = export_library_zip(self.library_directory, dest_zip)
+        except OSError as exc:
+            self.feedback.setText(tr("actions.export_bundle_error", error=exc))
+            return False
+        self.feedback.setText(tr("actions.export_bundle_done", count=count))
+        return True
+
+    def import_library_bundle(self, src_zip: Path | None = None, *, conflict: str | None = None) -> bool:
+        if src_zip is None:
+            chosen, _ = QFileDialog.getOpenFileName(
+                self,
+                tr("actions.import_bundle_title"),
+                str(Path.home()),
+                "ZIP (*.zip)",
+            )
+            if not chosen:
+                return False
+            src_zip = Path(chosen)
+        if conflict is None:
+            box = QMessageBox(self)
+            box.setWindowTitle(tr("actions.import_bundle_title"))
+            box.setText(tr("actions.import_bundle_conflict"))
+            copy_btn = box.addButton(tr("actions.conflict_copy"), QMessageBox.ButtonRole.AcceptRole)
+            skip_btn = box.addButton(tr("actions.conflict_skip"), QMessageBox.ButtonRole.ActionRole)
+            overwrite_btn = box.addButton(tr("actions.conflict_overwrite"), QMessageBox.ButtonRole.DestructiveRole)
+            cancel_btn = box.addButton(tr("editor.cancel"), QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(copy_btn)
+            box.exec()
+            clicked = box.clickedButton()
+            if clicked is cancel_btn:
+                return False
+            conflict = "overwrite" if clicked is overwrite_btn else ("skip" if clicked is skip_btn else "copy")
+        try:
+            imported, skipped = import_library_zip(src_zip, self.library_directory, conflict=conflict)
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
+            self.feedback.setText(tr("actions.import_bundle_error", error=exc))
+            return False
+        self.load_library()
+        self.filter_profiles(self.profile_search.text())
+        self._refresh_compare_combo()
+        self.feedback.setText(tr("actions.import_bundle_done", imported=imported, skipped=skipped))
+        return True
+
     def export_selected(self) -> None:
         profile = self.selected_profile()
         if profile is None or profile.slot != dac.CUSTOM_SLOT:
@@ -6441,6 +6981,7 @@ class ProfilesWindow(QWidget):
             device_path=state.target if state is not None else None,
             device_spec=self.active_spec,
             measurement_curve=self.active_measurement_curve(),
+            compare_profile=self.compare_profile,
         )
         self.editor_active = True
         self.timer.stop()

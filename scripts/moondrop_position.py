@@ -535,6 +535,7 @@ def load_eq_file(path: str) -> tuple[list[dict], dict]:
                 "model_id",
                 "headphone_name",
                 "headphone_selection",
+                "muted_bands",
                 "device",
                 "usb",
                 "sample_rate_hz",
