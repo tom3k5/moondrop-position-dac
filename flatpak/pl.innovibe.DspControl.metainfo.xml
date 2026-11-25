@@ -20,6 +20,13 @@
   <url type="homepage">https://innovibe.pl/dsp-control/</url>
   <url type="bugtracker">https://github.com/tom3k5/moondrop-position-dac/issues</url>
   <releases>
+    <release version="0.6.1" date="2026-11-25">
+      <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.6.1</url>
+      <description>
+        <p>DSP Control 0.6.1: adds automatic and manual EQ profile conversion to the selected DAC (including 10-band Equalizer APO exports from graph.hangout.audio and cross-DAC JSON profiles) using a pure-Python Levenberg–Marquardt biquad fitter, plus clipboard conversion in the EQ editor.</p>
+        <p xml:lang="pl">DSP Control 0.6.1: dodaje automatyczną i ręczną konwersję profili EQ do wybranego DAC-a (w tym 10-pasmowych eksportów Equalizer APO z graph.hangout.audio oraz profili JSON między różnymi DAC-ami) w oparciu o wbudowany optymalizator Levenberga–Marquardta oraz konwersję przy wklejaniu ze schowka w edytorze EQ.</p>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-24">
       <url type="details">https://github.com/tom3k5/moondrop-position-dac/releases/tag/v0.6.0</url>
       <description>
