@@ -444,3 +444,90 @@ def test_v05_zero_eq_and_last_profile_per_dac(tmp_path: Path):
         window.allow_quit = True
         window.close()
         window.deleteLater()
+
+
+_HANGOUT_10_BAND_APO = """Preamp: -3.6 dB
+Filter 1: ON PK Fc 34 Hz Gain 0.4 dB Q 1.300
+Filter 2: ON PK Fc 150 Hz Gain -4.7 dB Q 1.000
+Filter 3: ON PK Fc 560 Hz Gain 3.1 dB Q 0.900
+Filter 4: ON PK Fc 890 Hz Gain 1.6 dB Q 2.000
+Filter 5: ON PK Fc 2200 Hz Gain -2.9 dB Q 1.500
+Filter 6: ON PK Fc 3400 Hz Gain 4.5 dB Q 1.900
+Filter 7: ON PK Fc 3600 Hz Gain 3.4 dB Q 1.500
+Filter 8: ON PK Fc 4900 Hz Gain -5.9 dB Q 2.000
+Filter 9: ON PK Fc 9000 Hz Gain 6.2 dB Q 2.000
+Filter 10: ON PK Fc 11000 Hz Gain -7.4 dB Q 0.500
+"""
+
+
+def test_convert_10_band_eqapo_to_all_dacs(tmp_path: Path):
+    bands, preamp = gui.dac.parse_eqapo_text(_HANGOUT_10_BAND_APO, source_name="hangout")
+    assert len(bands) == 10
+
+    pos_spec = device_specs.get_device_spec("moondrop-position")
+    pos_conv = gui.convert_bands_to_spec(bands, preamp, pos_spec, source_sample_rate_hz=48000.0)
+    assert pos_conv.approximated is True
+    assert len(pos_conv.bands) == 8
+    assert pos_conv.rms_db < 0.25
+    assert pos_spec.dsp.preamp_range_db[0] <= pos_conv.preamp <= pos_spec.dsp.preamp_range_db[1]
+
+    chu2_spec = device_specs.get_device_spec("moondrop-chu2-dsp")
+    chu2_conv = gui.convert_bands_to_spec(bands, preamp, chu2_spec, source_sample_rate_hz=48000.0)
+    assert chu2_conv.approximated is True
+    assert len(chu2_conv.bands) == 5
+    assert chu2_conv.preamp == 0.0
+    assert chu2_conv.rms_db < 0.75
+    assert all(chu2_spec.dsp.gain_range_db[0] <= b["gain"] <= chu2_spec.dsp.gain_range_db[1] for b in chu2_conv.bands)
+
+    echo_spec = device_specs.get_device_spec("moondrop-echo-a")
+    echo_conv = gui.convert_bands_to_spec(bands, preamp, echo_spec, source_sample_rate_hz=48000.0)
+    assert echo_conv.approximated is True
+    assert len(echo_conv.bands) == 8
+    assert all(echo_spec.dsp.gain_range_db[0] <= b["gain"] <= echo_spec.dsp.gain_range_db[1] for b in echo_conv.bands)
+
+
+def test_import_and_paste_convert_to_selected_dac(tmp_path: Path):
+    _app()
+    lib = tmp_path / "profiles"
+    lib.mkdir()
+    apo_file = tmp_path / "ZSN_Pro_X_IEF_2025.txt"
+    apo_file.write_text(_HANGOUT_10_BAND_APO, encoding="utf-8")
+
+    # 1. Import 10-band APO file on Position (8 bands)
+    window = gui.ProfilesWindow(demo=True, library_directory=lib, demo_model_id="moondrop-position")
+    try:
+        assert window.import_profile_from_path(apo_file) is True
+        selected = window.selected_profile()
+        assert selected is not None
+        assert selected.model_id == "moondrop-position"
+        assert len(selected.bands) == 8
+
+        # 2. Paste 10-band APO into EqualizerDialog
+        dlg = gui.EqualizerDialog(window, selected, None, device_spec=window.active_spec)
+        try:
+            assert dlg.paste_from_clipboard(_HANGOUT_10_BAND_APO) is True
+            assert len(dlg.draft().bands) == 8
+        finally:
+            dlg.close()
+            dlg.deleteLater()
+
+        # 3. Switch to CHU II DSP (5 bands) and import the same 10-band APO + Position JSON
+        chu2_spec = device_specs.get_device_spec("moondrop-chu2-dsp")
+        window.apply_device_spec(chu2_spec)
+        assert window.import_profile_from_path(apo_file) is True
+        chu2_prof = window.selected_profile()
+        assert chu2_prof is not None
+        assert chu2_prof.model_id == "moondrop-chu2-dsp"
+        assert len(chu2_prof.bands) == 5
+
+        pos_json = tmp_path / "pos_profile.json"
+        gui.save_profile(str(pos_json), selected)
+        assert window.import_profile_from_path(pos_json) is True
+        converted_json = window.selected_profile()
+        assert converted_json is not None
+        assert converted_json.model_id == "moondrop-chu2-dsp"
+        assert len(converted_json.bands) == 5
+    finally:
+        window.allow_quit = True
+        window.close()
+        window.deleteLater()

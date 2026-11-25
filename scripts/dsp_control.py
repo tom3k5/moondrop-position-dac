@@ -1960,6 +1960,429 @@ def response_points(profile: Profile, frequencies) -> list[tuple[float, float]]:
     return points
 
 
+@dataclass(frozen=True)
+class ConversionResult:
+    bands: list[dict]
+    preamp: float
+    approximated: bool
+    rms_db: float
+    max_error_db: float
+    source_bands: int
+
+
+def _rbj_biquad_coeffs(
+    ftype: str, fc: float, gain: float, q: float, fs: float
+) -> tuple[float, float, float, float, float]:
+    w0 = 2.0 * math.pi * max(1.0, min(fc, fs * 0.495)) / fs
+    cw = math.cos(w0)
+    sw = math.sin(w0)
+    q_safe = max(0.05, q)
+    alpha = sw / (2.0 * q_safe)
+    kind = ftype.upper()
+    if kind == "LSQ":
+        amp = 10.0 ** (gain / 40.0)
+        sq = 2.0 * math.sqrt(amp) * alpha
+        b0 = amp * ((amp + 1.0) - (amp - 1.0) * cw + sq)
+        b1 = 2.0 * amp * ((amp - 1.0) - (amp + 1.0) * cw)
+        b2 = amp * ((amp + 1.0) - (amp - 1.0) * cw - sq)
+        a0 = (amp + 1.0) + (amp - 1.0) * cw + sq
+        a1 = -2.0 * ((amp - 1.0) + (amp + 1.0) * cw)
+        a2 = (amp + 1.0) + (amp - 1.0) * cw - sq
+    elif kind == "HSQ":
+        amp = 10.0 ** (gain / 40.0)
+        sq = 2.0 * math.sqrt(amp) * alpha
+        b0 = amp * ((amp + 1.0) + (amp - 1.0) * cw + sq)
+        b1 = -2.0 * amp * ((amp - 1.0) + (amp + 1.0) * cw)
+        b2 = amp * ((amp + 1.0) + (amp - 1.0) * cw - sq)
+        a0 = (amp + 1.0) - (amp - 1.0) * cw + sq
+        a1 = 2.0 * ((amp - 1.0) - (amp + 1.0) * cw)
+        a2 = (amp + 1.0) - (amp - 1.0) * cw - sq
+    elif kind == "LP":
+        b0 = (1.0 - cw) * 0.5
+        b1 = 1.0 - cw
+        b2 = (1.0 - cw) * 0.5
+        a0 = 1.0 + alpha
+        a1 = -2.0 * cw
+        a2 = 1.0 - alpha
+    elif kind == "HP":
+        b0 = (1.0 + cw) * 0.5
+        b1 = -(1.0 + cw)
+        b2 = (1.0 + cw) * 0.5
+        a0 = 1.0 + alpha
+        a1 = -2.0 * cw
+        a2 = 1.0 - alpha
+    else:
+        amp = 10.0 ** (gain / 40.0)
+        b0 = 1.0 + alpha * amp
+        b1 = -2.0 * cw
+        b2 = 1.0 - alpha * amp
+        a0 = 1.0 + alpha / amp
+        a1 = -2.0 * cw
+        a2 = 1.0 - alpha / amp
+    inv_a0 = 1.0 / a0
+    return (b0 * inv_a0, b1 * inv_a0, b2 * inv_a0, a1 * inv_a0, a2 * inv_a0)
+
+
+def _eval_biquad_curve(bands: list[dict], freqs: list[float], fs: float) -> list[float]:
+    coeffs = [
+        _rbj_biquad_coeffs(
+            str(b.get("type", "PK")),
+            float(b.get("freq", 1000.0)),
+            float(b.get("gain", 0.0)),
+            float(b.get("q", 0.7071068)),
+            fs,
+        )
+        for b in bands
+    ]
+    out: list[float] = []
+    for freq in freqs:
+        w = -2.0 * math.pi * freq / fs
+        cr = math.cos(w)
+        ci = math.sin(w)
+        c2r = cr * cr - ci * ci
+        c2i = 2.0 * cr * ci
+        db = 0.0
+        for b0, b1, b2, a1, a2 in coeffs:
+            nr = b0 + b1 * cr + b2 * c2r
+            ni = b1 * ci + b2 * c2i
+            dr = 1.0 + a1 * cr + a2 * c2r
+            di = a1 * ci + a2 * c2i
+            num = nr * nr + ni * ni
+            den = dr * dr + di * di
+            db += 10.0 * math.log10(max(num, 1e-24) / max(den, 1e-24))
+        out.append(db)
+    return out
+
+
+def _solve_linear_system(matrix: list[list[float]], rhs: list[float]) -> list[float]:
+    n = len(rhs)
+    aug = [[*row, rhs[i]] for i, row in enumerate(matrix)]
+    for col in range(n):
+        piv = max(range(col, n), key=lambda r: abs(aug[r][col]))
+        aug[col], aug[piv] = aug[piv], aug[col]
+        if abs(aug[col][col]) < 1e-12:
+            continue
+        inv = 1.0 / aug[col][col]
+        for j in range(col, n + 1):
+            aug[col][j] *= inv
+        for r in range(n):
+            if r != col and aug[r][col] != 0.0:
+                fac = aug[r][col]
+                for j in range(col, n + 1):
+                    aug[r][j] -= fac * aug[col][j]
+    return [aug[i][n] for i in range(n)]
+
+
+def _lm_fit_bands(
+    init_bands: list[dict],
+    target: list[float],
+    freqs: list[float],
+    fs: float,
+    fc_bounds: tuple[float, float],
+    gain_bounds: tuple[float, float],
+    q_bounds: tuple[float, float],
+    max_iter: int = 24,
+) -> tuple[list[dict], float]:
+    min_fc, max_fc = fc_bounds
+    min_g, max_g = gain_bounds
+    min_q, max_q = q_bounds
+    min_lfc, max_lfc = math.log(min_fc), math.log(max_fc)
+    min_lq, max_lq = math.log(min_q), math.log(max_q)
+    n_b = len(init_bands)
+    types = [str(b["type"]).upper() for b in init_bands]
+    vec: list[float] = []
+    for b in init_bands:
+        vec.extend(
+            [
+                math.log(max(min_fc, min(max_fc, float(b["freq"])))),
+                max(min_g, min(max_g, float(b["gain"]))),
+                math.log(max(min_q, min(max_q, float(b["q"])))),
+            ]
+        )
+    m = len(freqs)
+    n_p = len(vec)
+
+    def to_bands(v: list[float]) -> list[dict]:
+        return [
+            {
+                "type": types[i],
+                "freq": math.exp(v[3 * i]),
+                "gain": v[3 * i + 1],
+                "q": math.exp(v[3 * i + 2]),
+            }
+            for i in range(n_b)
+        ]
+
+    def clamp_vec(v: list[float]) -> list[float]:
+        out = v[:]
+        for i in range(n_b):
+            out[3 * i] = max(min_lfc, min(max_lfc, out[3 * i]))
+            out[3 * i + 1] = max(min_g, min(max_g, out[3 * i + 1]))
+            out[3 * i + 2] = max(min_lq, min(max_lq, out[3 * i + 2]))
+        return out
+
+    cur_curve = _eval_biquad_curve(to_bands(vec), freqs, fs)
+    res = [cur_curve[k] - target[k] for k in range(m)]
+    cost = sum(r * r for r in res)
+    lam = 1e-2
+    eps = 1e-4
+
+    for _ in range(max_iter):
+        cur_bands = to_bands(vec)
+        base_singles = [_eval_biquad_curve([cur_bands[i]], freqs, fs) for i in range(n_b)]
+        jac = [[0.0] * n_p for _ in range(m)]
+        inv_eps = 1.0 / eps
+        for i in range(n_b):
+            for j in range(3):
+                idx = 3 * i + j
+                v_pert = vec[:]
+                v_pert[idx] += eps
+                b_pert = {
+                    "type": types[i],
+                    "freq": math.exp(v_pert[3 * i]),
+                    "gain": v_pert[3 * i + 1],
+                    "q": math.exp(v_pert[3 * i + 2]),
+                }
+                c_pert = _eval_biquad_curve([b_pert], freqs, fs)
+                for k in range(m):
+                    jac[k][idx] = (c_pert[k] - base_singles[i][k]) * inv_eps
+        jtj = [[0.0] * n_p for _ in range(n_p)]
+        jtr = [0.0] * n_p
+        for i in range(n_p):
+            jtr[i] = -sum(jac[k][i] * res[k] for k in range(m))
+            for j in range(i, n_p):
+                val = sum(jac[k][i] * jac[k][j] for k in range(m))
+                jtj[i][j] = val
+                jtj[j][i] = val
+        accepted = False
+        for _ in range(6):
+            mat = [row[:] for row in jtj]
+            for i in range(n_p):
+                mat[i][i] += lam * max(1.0, mat[i][i])
+            step = _solve_linear_system(mat, jtr)
+            vec_new = clamp_vec([vec[i] + step[i] for i in range(n_p)])
+            c_new = _eval_biquad_curve(to_bands(vec_new), freqs, fs)
+            r_new = [c_new[k] - target[k] for k in range(m)]
+            cost_new = sum(r * r for r in r_new)
+            if cost_new < cost:
+                rel = (cost - cost_new) / max(cost, 1e-12)
+                vec, res, cost = vec_new, r_new, cost_new
+                lam = max(1e-6, lam * 0.3)
+                accepted = True
+                if rel < 1e-5:
+                    return to_bands(vec), math.sqrt(cost / m)
+                break
+            lam *= 5.0
+        if not accepted:
+            break
+    return to_bands(vec), math.sqrt(cost / m)
+
+
+def convert_bands_to_spec(
+    bands: list[dict],
+    preamp: float | None,
+    target_spec: DeviceSpec,
+    *,
+    source_sample_rate_hz: float | None = None,
+) -> ConversionResult:
+    """Konwertuje dowolną listę pasm EQ (np. 10-pasmową z Equalizer APO lub z innego DAC-a)
+    na parametry docelowego urządzenia, w razie potrzeby dopasowując krzywą metodą Levenberga–Marquardta."""
+    if not bands:
+        raise ValueError("Profil nie zawiera żadnych pasm EQ.")
+
+    dsp = target_spec.dsp
+    target_count = dsp.band_count
+    supported = set(dsp.supported_types)
+    min_fc, max_fc = dsp.freq_range_hz
+    min_g, max_g = dsp.gain_range_db
+    min_q, max_q = dsp.q_range
+    min_pre, max_pre = dsp.preamp_range_db
+    target_fs = float(dsp.sample_rate_hz)
+    src_fs = float(source_sample_rate_hz) if source_sample_rate_hz and source_sample_rate_hz > 0 else 48000.0
+
+    pre_val = 0.0 if preamp is None else float(preamp)
+    active_src = [
+        b for b in bands if abs(float(b.get("gain", 0.0))) > 1e-6 or str(b.get("type", "PK")).upper() in ("LP", "HP")
+    ]
+    effective = active_src if len(bands) > target_count else bands
+
+    def _band_fits(band: dict) -> bool:
+        btype = str(band.get("type", "PK")).upper()
+        freq = float(band.get("freq", 1000.0))
+        gain = float(band.get("gain", 0.0))
+        q = float(band.get("q", dsp.default_q))
+        return btype in supported and min_fc <= freq <= max_fc and min_g <= gain <= max_g and min_q <= q <= max_q
+
+    max_active_fc = max(
+        (float(b.get("freq", 0.0)) for b in effective if abs(float(b.get("gain", 0.0))) > 0.05),
+        default=0.0,
+    )
+    fs_compatible = abs(src_fs - target_fs) < 1.0 or max_active_fc <= 0.25 * min(src_fs, target_fs)
+    if (
+        len(effective) <= target_count
+        and min_pre <= pre_val <= max_pre
+        and all(_band_fits(b) for b in effective)
+        and fs_compatible
+    ):
+        out_bands = [
+            {
+                "band": idx,
+                "freq": round(float(b["freq"]), 1),
+                "gain": round(float(b["gain"]), 3),
+                "q": round(float(b.get("q", dsp.default_q)), 3),
+                "type": str(b.get("type", "PK")).upper(),
+            }
+            for idx, b in enumerate(effective, 1)
+        ]
+        if len(out_bands) < target_count:
+            neutral = default_custom_bands(target_spec)
+            for idx in range(len(out_bands), target_count):
+                out_bands.append({**neutral[idx], "band": idx + 1})
+        return ConversionResult(
+            bands=out_bands,
+            preamp=round(pre_val, 2),
+            approximated=False,
+            rms_db=0.0,
+            max_error_db=0.0,
+            source_bands=len(bands),
+        )
+
+    freqs = [20.0 * (1000.0 ** (i / 119.0)) for i in range(120)]
+    target_curve = _eval_biquad_curve(bands, freqs, src_fs)
+    if max(abs(val) for val in target_curve) < 1e-4:
+        return ConversionResult(
+            bands=default_custom_bands(target_spec),
+            preamp=round(max(min_pre, min(max_pre, 0.0)), 2),
+            approximated=False,
+            rms_db=0.0,
+            max_error_db=0.0,
+            source_bands=len(bands),
+        )
+
+    def _clamp_band(b: dict) -> dict:
+        btype = str(b.get("type", "PK")).upper()
+        if btype not in supported:
+            btype = "PK" if "PK" in supported else dsp.supported_types[0]
+        return {
+            "type": btype,
+            "freq": max(min_fc, min(max_fc, float(b.get("freq", 1000.0)))),
+            "gain": max(min_g, min(max_g, float(b.get("gain", 0.0)))),
+            "q": max(min_q, min(max_q, float(b.get("q", dsp.default_q)))),
+        }
+
+    def _greedy_fill(seed: list[dict], count: int) -> list[dict]:
+        chosen = list(seed)
+        cur = _eval_biquad_curve(chosen, freqs, target_fs) if chosen else [0.0] * len(freqs)
+        pk_type = "PK" if "PK" in supported else dsp.supported_types[0]
+        while len(chosen) < count:
+            rem = [target_curve[k] - cur[k] for k in range(len(freqs))]
+            idx = max(range(len(freqs)), key=lambda k: abs(rem[k]))
+            gain = max(min_g, min(max_g, rem[idx]))
+            band = {"type": pk_type, "freq": freqs[idx], "gain": gain, "q": max(min_q, min(max_q, 1.4))}
+            chosen.append(band)
+            add = _eval_biquad_curve([band], freqs, target_fs)
+            cur = [cur[k] + add[k] for k in range(len(freqs))]
+        return chosen
+
+    candidates: list[list[dict]] = []
+    ranked = sorted(
+        bands,
+        key=lambda b: abs(float(b.get("gain", 0.0))) / max(float(b.get("q", 0.707)), 0.3),
+        reverse=True,
+    )
+    top_n = [_clamp_band(b) for b in ranked[:target_count]]
+    if len(top_n) < target_count:
+        top_n = _greedy_fill(top_n, target_count)
+    candidates.append(top_n)
+    candidates.append(_greedy_fill([], target_count))
+    if "LSQ" in supported and "HSQ" in supported and target_count >= 3:
+        shelf_seed = [
+            {"type": "LSQ", "freq": 105.0, "gain": max(min_g, min(max_g, target_curve[0] * 0.5)), "q": 0.7},
+            {"type": "HSQ", "freq": 10000.0, "gain": max(min_g, min(max_g, target_curve[-1] * 0.5)), "q": 0.7},
+        ]
+        candidates.append(_greedy_fill(shelf_seed, target_count))
+
+    best_bands: list[dict] | None = None
+    best_rms = float("inf")
+    for cand in candidates:
+        fitted, rms = _lm_fit_bands(
+            cand, target_curve, freqs, target_fs, (min_fc, max_fc), (min_g, max_g), (min_q, max_q)
+        )
+        if rms < best_rms:
+            best_rms = rms
+            best_bands = fitted
+
+    assert best_bands is not None
+    rounded = [
+        {
+            "type": b["type"],
+            "freq": round(max(min_fc, min(max_fc, b["freq"])), 1),
+            "gain": round(max(min_g, min(max_g, b["gain"])), 3),
+            "q": round(max(min_q, min(max_q, b["q"])), 3),
+        }
+        for b in best_bands
+    ]
+    active_out = sorted(
+        [b for b in rounded if abs(b["gain"]) >= 0.01 or b["type"] in ("LP", "HP")],
+        key=lambda b: b["freq"],
+    )
+    neutral = default_custom_bands(target_spec)
+    while len(active_out) < target_count:
+        active_out.append(dict(neutral[len(active_out)]))
+    final_bands = [{**b, "band": idx} for idx, b in enumerate(active_out[:target_count], 1)]
+
+    fitted_curve = _eval_biquad_curve(final_bands, freqs, target_fs)
+    diffs = [abs(fitted_curve[k] - target_curve[k]) for k in range(len(freqs))]
+    rms_db = math.sqrt(sum(d * d for d in diffs) / len(diffs))
+    max_error_db = max(diffs)
+
+    max_boost = max(max(fitted_curve), 0.0)
+    suggested_pre = -(max_boost + 0.1) if max_boost > 0.0 else 0.0
+    out_preamp = round(max(min_pre, min(max_pre, suggested_pre)), 2)
+
+    return ConversionResult(
+        bands=final_bands,
+        preamp=out_preamp,
+        approximated=True,
+        rms_db=rms_db,
+        max_error_db=max_error_db,
+        source_bands=len(bands),
+    )
+
+
+def convert_profile_to_spec(
+    profile: Profile,
+    target_spec: DeviceSpec,
+    *,
+    name: str | None = None,
+) -> tuple[Profile, ConversionResult]:
+    conv = convert_bands_to_spec(
+        profile.bands,
+        profile.preamp,
+        target_spec,
+        source_sample_rate_hz=profile.sample_rate_hz,
+    )
+    converted = custom_profile(
+        name or profile.name,
+        target_spec.dsp.slots.custom,
+        conv.bands,
+        conv.preamp,
+        model_id=target_spec.model_id,
+        spec=target_spec,
+    )
+    return (
+        replace(
+            converted,
+            source=profile.source,
+            target_name=profile.target_name,
+            target_curve=profile.target_curve,
+            headphone_name=profile.headphone_name,
+            headphone_selection=profile.headphone_selection,
+        ),
+        conv,
+    )
+
+
 def profile_from_readback(state: DeviceState) -> Profile | None:
     if len(state.bands) != state.band_count or any(
         band is None or band["type"] not in dac.TYPE_TO_CODE for band in state.bands
@@ -3358,30 +3781,39 @@ class EqualizerDialog(QDialog):
             return False
         try:
             bands, preamp = dac.parse_eqapo_text(raw, source_name="clipboard")
-            if len(bands) < self.device_spec.dsp.band_count:
-                neutral = default_custom_bands(self.device_spec)
-                bands.extend(neutral[len(bands) :])
-            elif len(bands) > self.device_spec.dsp.band_count:
-                bands = bands[: self.device_spec.dsp.band_count]
-            pre_min, pre_max = self.device_spec.dsp.preamp_range_db
-            clamped_preamp = max(pre_min, min(pre_max, preamp)) if preamp is not None else self.preamp.value()
+            conv = convert_bands_to_spec(bands, preamp, self.device_spec, source_sample_rate_hz=48000.0)
+            target_preamp = conv.preamp if (preamp is not None or conv.approximated) else self.preamp.value()
             parsed = custom_profile(
                 self.draft().name,
                 self.device_spec.dsp.slots.custom,
-                bands,
-                clamped_preamp,
+                conv.bands,
+                target_preamp,
+                model_id=self.device_spec.model_id,
                 spec=self.device_spec,
             )
         except (ValueError, SystemExit) as exc:
             QMessageBox.warning(self, tr("editor.paste_eq_title"), tr("editor.paste_eq_error", error=exc))
             return False
+        source_label = (
+            tr(
+                "convert.source_tag",
+                model=self.device_spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP "),
+                src_bands=conv.source_bands,
+                dst_bands=self.device_spec.dsp.band_count,
+                rms=f"{conv.rms_db:.2f}",
+            )
+            if conv.approximated
+            else tr("editor.paste_eq_source")
+        )
         profile = replace(
             self.draft(),
             bands=parsed.bands,
             preamp=parsed.preamp,
-            source=tr("editor.paste_eq_source"),
+            source=source_label,
         )
         self.set_profile(profile)
+        if conv.approximated:
+            self.show_live_status(source_label)
         return True
 
     def reset_to_flat(self) -> None:
@@ -4890,6 +5322,7 @@ class ProfilesWindow(QWidget):
         add_menu.addSeparator()
         self.new_profile_action = add_menu.addAction(tr("actions.new_empty"), lambda: self.edit_profile(new=True))
         self.import_profile_action = add_menu.addAction(tr("actions.import_profile"), self.import_profile)
+        self.convert_profile_action = add_menu.addAction(tr("actions.convert_to_dac"), self.convert_to_active_dac)
         self.import_bundle_action = add_menu.addAction(tr("actions.import_bundle"), self.import_library_bundle)
         self.add_button.setMenu(add_menu)
         self.more_button = QToolButton()
@@ -6034,6 +6467,7 @@ class ProfilesWindow(QWidget):
         self.add_button.setText(tr("actions.add_profile"))
         self.new_profile_action.setText(tr("actions.new_empty"))
         self.import_profile_action.setText(tr("actions.import_profile"))
+        self.convert_profile_action.setText(tr("actions.convert_to_dac"))
         self.import_bundle_action.setText(tr("actions.import_bundle"))
         self.export_bundle_action.setText(tr("actions.export_bundle"))
         self.compare_label.setText(tr("compare.label"))
@@ -6675,21 +7109,93 @@ class ProfilesWindow(QWidget):
         label = tr("device.rate_auto") if confirmed == 0 else format_rate_khz(confirmed)
         self.feedback.setText(tr("device.rate_changed", rate=label))
 
+    @staticmethod
+    def _short_model_name(spec: DeviceSpec) -> str:
+        return spec.display_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+
+    def _apply_conversion_metadata(self, profile: Profile, conv: ConversionResult, spec: DeviceSpec) -> Profile:
+        if not conv.approximated:
+            return profile
+        tag = tr(
+            "convert.source_tag",
+            model=self._short_model_name(spec),
+            src_bands=conv.source_bands,
+            dst_bands=spec.dsp.band_count,
+            rms=f"{conv.rms_db:.2f}",
+        )
+        return replace(profile, source=tag)
+
     def import_profile_from_path(self, source: Path) -> bool:
+        spec = self.active_spec
+        conv: ConversionResult | None = None
         try:
             if source.suffix.casefold() == ".txt":
                 bands, preamp = dac.parse_eqapo(str(source))
-                for index in range(len(bands), dac.BAND_COUNT):
-                    bands.append({"band": index + 1, "type": "PK", "freq": 1000, "q": 1, "gain": 0})
-                profile = custom_profile(source.stem, dac.CUSTOM_SLOT, bands, 0 if preamp is None else preamp)
+                conv = convert_bands_to_spec(bands, preamp, spec, source_sample_rate_hz=48000.0)
+                profile = custom_profile(
+                    source.stem,
+                    spec.dsp.slots.custom,
+                    conv.bands,
+                    conv.preamp,
+                    model_id=spec.model_id,
+                    spec=spec,
+                )
+                profile = self._apply_conversion_metadata(profile, conv, spec)
             else:
-                profile = load_profile(source)
+                try:
+                    loaded = load_profile(source)
+                except (ValueError, dac.HidError):
+                    bands, meta = dac.load_eq_file(str(source))
+                    src_fs = meta.get("sample_rate_hz")
+                    conv = convert_bands_to_spec(
+                        bands,
+                        meta.get("preamp"),
+                        spec,
+                        source_sample_rate_hz=float(src_fs) if isinstance(src_fs, (int, float)) else None,
+                    )
+                    stored_name = meta.get("name")
+                    name = stored_name.strip() if isinstance(stored_name, str) and stored_name.strip() else source.stem
+                    profile = custom_profile(
+                        name,
+                        spec.dsp.slots.custom,
+                        conv.bands,
+                        conv.preamp,
+                        model_id=spec.model_id,
+                        spec=spec,
+                    )
+                    profile = self._apply_conversion_metadata(profile, conv, spec)
+                else:
+                    if not self.profile_matches_active_model(loaded):
+                        profile, conv = convert_profile_to_spec(loaded, spec)
+                        profile = self._apply_conversion_metadata(profile, conv, spec)
+                    else:
+                        profile = loaded
         except (OSError, ValueError, dac.HidError, SystemExit) as exc:
             self.feedback.setText(f"Błąd profilu. {exc}")
             return False
         if self.persist_profile(profile):
             self.tabs.setCurrentWidget(self.profile_page)
             self.switch_source(0)
+            if conv is not None and conv.approximated:
+                self.feedback.setText(
+                    tr(
+                        "convert.imported_feedback",
+                        name=profile.name,
+                        model=self._short_model_name(spec),
+                        src_bands=conv.source_bands,
+                        dst_bands=spec.dsp.band_count,
+                        rms=f"{conv.rms_db:.2f}",
+                    )
+                )
+            elif conv is not None:
+                self.feedback.setText(
+                    tr(
+                        "convert.exact_feedback",
+                        name=profile.name,
+                        model=self._short_model_name(spec),
+                        dst_bands=spec.dsp.band_count,
+                    )
+                )
             return True
         return False
 
@@ -6699,8 +7205,68 @@ class ProfilesWindow(QWidget):
         )
         if not path:
             return
-        if self.import_profile_from_path(Path(path)):
+        self.feedback.setText("")
+        if self.import_profile_from_path(Path(path)) and not self.feedback.text():
             self.feedback.setText("Profil został dodany do biblioteki.")
+
+    def convert_to_active_dac(self) -> None:
+        spec = self.active_spec
+        other_profiles = [
+            item.data(PROFILE_ROLE)
+            for item in self.profile_items()
+            if item.data(PROFILE_ROLE) is not None and not self.profile_matches_active_model(item.data(PROFILE_ROLE))
+        ]
+        if not other_profiles:
+            self.import_profile()
+            return
+        labels = []
+        for p in other_profiles:
+            other_name = get_device_spec(p.model_id).display_name
+            short = other_name.removeprefix("MOONDROP:Gravity ").removeprefix("MOONDROP ")
+            labels.append(f"{p.name} ({short}, {len(p.bands)} pasm)")
+        file_option = tr("convert.from_file_option")
+        labels.append(file_option)
+        choice, ok = QInputDialog.getItem(
+            self,
+            tr("convert.dialog_title", model=self._short_model_name(spec)),
+            tr("convert.dialog_prompt", model=self._short_model_name(spec), bands=spec.dsp.band_count),
+            labels,
+            0,
+            False,
+        )
+        if not ok or not choice:
+            return
+        if choice == file_option:
+            self.import_profile()
+            return
+        idx = labels.index(choice)
+        source_profile = other_profiles[idx]
+        target_name = f"{source_profile.name} ({self._short_model_name(spec)})"
+        converted, conv = convert_profile_to_spec(source_profile, spec, name=target_name)
+        converted = self._apply_conversion_metadata(converted, conv, spec)
+        if self.persist_profile(converted):
+            self.tabs.setCurrentWidget(self.profile_page)
+            self.switch_source(0)
+            if conv.approximated:
+                self.feedback.setText(
+                    tr(
+                        "convert.imported_feedback",
+                        name=converted.name,
+                        model=self._short_model_name(spec),
+                        src_bands=conv.source_bands,
+                        dst_bands=spec.dsp.band_count,
+                        rms=f"{conv.rms_db:.2f}",
+                    )
+                )
+            else:
+                self.feedback.setText(
+                    tr(
+                        "convert.exact_feedback",
+                        name=converted.name,
+                        model=self._short_model_name(spec),
+                        dst_bands=spec.dsp.band_count,
+                    )
+                )
 
     def dragEnterEvent(self, event) -> None:
         urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
